@@ -188,6 +188,10 @@
                                          xcb:EventMask:SubstructureRedirect)))
   (xcb:flush exwm--connection))
 
+(defun exwm--make-emacs-idle-for (seconds)
+  "Put Emacs in idle state for SECONDS seconds."
+  (with-timeout (seconds) (read-event)))
+
 (defun exwm-reset ()
   "Reset window to standard state: non-fullscreen, line-mode."
   (interactive)

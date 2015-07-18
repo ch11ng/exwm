@@ -30,8 +30,6 @@
 ;; Todo:
 ;; + Pointer simulation mode (e.g. 'C-c 1'/'C-c 2' for single/double click,
 ;;   move with arrow keys).
-;; + Demonstrate how to add a local key binding (add global prefix key and
-;;   modify `exwm-mode-map').
 ;; + Simulation keys to mimic Emacs key bindings for text edit (redo, select,
 ;;   cancel, clear, etc). Some of them are not present on common keyboard
 ;;   (keycode = 0). May need to use XKB extension.

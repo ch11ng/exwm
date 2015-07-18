@@ -68,8 +68,9 @@
         (not-empty (make-vector exwm-workspace-number nil)))
     (dolist (i exwm--id-buffer-alist)
       (with-current-buffer (cdr i)
-        (setf (elt not-empty (cl-position exwm--frame exwm-workspace--list))
-              t)))
+        (when exwm--frame
+          (setf (elt not-empty (cl-position exwm--frame exwm-workspace--list))
+                t))))
     (setq exwm-workspace--switch-history
           (mapcar
            (lambda (i)
@@ -147,8 +148,6 @@ The optional FORCE option is for internal use only "
   (unless (and (<= 0 index) (< index exwm-workspace-number))
     (user-error "[EXWM] Workspace index out of range: %d" index))
   (when (/= exwm-workspace-current-index index)
-    (set-window-buffer (get-buffer-window (exwm--id->buffer id))
-                       (other-buffer))
     (let ((frame (elt exwm-workspace--list index)))
       (with-current-buffer (exwm--id->buffer id)
         (setq exwm--frame frame)
@@ -163,6 +162,8 @@ The optional FORCE option is for internal use only "
                            :parent (frame-parameter frame 'exwm-window-id)
                            :x 0 :y 0))
           ;; Move the window itself
+          (set-window-buffer (get-buffer-window (exwm--id->buffer id))
+                             (other-buffer))
           (xcb:+request exwm--connection
               (make-instance 'xcb:ChangeWindowAttributes
                              :window id :value-mask xcb:CW:EventMask
@@ -197,6 +198,7 @@ The optional FORCE option is for internal use only "
       (unless (frame-parameter i 'window-id)
         (setq exwm-workspace--list (delq i exwm-workspace--list)))))
   (cl-assert (= 1 (length exwm-workspace--list)))
+  (exwm--make-emacs-idle-for 0.1)      ;wait for the frame ready
   ;; Configure the existing frame
   (set-frame-parameter (car exwm-workspace--list) 'fullscreen 'fullboth)
   ;; Create remaining frames
@@ -220,6 +222,7 @@ The optional FORCE option is for internal use only "
           (make-instance 'xcb:ChangeWindowAttributes
                          :window window-id :value-mask xcb:CW:EventMask
                          :event-mask xcb:EventMask:SubstructureRedirect))))
+  (xcb:flush exwm--connection)
   ;; Switch to the first workspace
   (exwm-workspace-switch 0 t))
 
