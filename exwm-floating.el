@@ -211,9 +211,8 @@
         (exwm-floating--unset-floating exwm--id)
       (exwm-floating--set-floating exwm--id))))
 
-(defvar exwm-floating--moveresize-id nil)
-(defvar exwm-floating--moveresize-type nil)
-(defvar exwm-floating--moveresize-delta nil)
+(defvar exwm-floating--moveresize-calculate nil
+  "Calculate move/resize parameters [frame-id event-mask x y width height].")
 
 (defun exwm-floating--start-moveresize (id &optional type)
   "Start move/resize."
@@ -261,40 +260,85 @@
                            ((< x 1) xcb:ewmh:_NET_WM_MOVERESIZE_SIZE_LEFT))))
         (when type
           (cond ((= type xcb:ewmh:_NET_WM_MOVERESIZE_MOVE)
-                 (setq exwm-floating--moveresize-delta (list win-x win-y 0 0)
-                       cursor exwm-floating--cursor-move))
+                 (setq cursor exwm-floating--cursor-move
+                       exwm-floating--moveresize-calculate
+                       `(lambda (x y)
+                          (vector ,frame-id
+                                  ,(logior xcb:ConfigWindow:X
+                                           xcb:ConfigWindow:Y)
+                                  (- x ,win-x) (- y ,win-y) 0 0))))
                 ((= type xcb:ewmh:_NET_WM_MOVERESIZE_SIZE_TOPLEFT)
-                 (setq exwm-floating--moveresize-delta
-                       (list win-x win-y (+ root-x width) (+ root-y height))
-                       cursor exwm-floating--cursor-top-left))
+                 (setq cursor exwm-floating--cursor-top-left
+                       exwm-floating--moveresize-calculate
+                       `(lambda (x y)
+                          (vector ,frame-id
+                                  ,(logior xcb:ConfigWindow:X
+                                           xcb:ConfigWindow:Y
+                                           xcb:ConfigWindow:Width
+                                           xcb:ConfigWindow:Height)
+                                  (- x ,win-x) (- y ,win-y)
+                                  (- ,(+ root-x width) x)
+                                  (- ,(+ root-y height) y)))))
                 ((= type xcb:ewmh:_NET_WM_MOVERESIZE_SIZE_TOP)
-                 (setq exwm-floating--moveresize-delta
-                       (list 0 win-y 0 (+ root-y height))
-                       cursor exwm-floating--cursor-top))
+                 (setq cursor exwm-floating--cursor-top
+                       exwm-floating--moveresize-calculate
+                       `(lambda (x y)
+                          (vector ,frame-id
+                                  ,(logior xcb:ConfigWindow:Y
+                                           xcb:ConfigWindow:Height)
+                                  0 (- y ,win-y) 0 (- ,(+ root-y height) y)))))
                 ((= type xcb:ewmh:_NET_WM_MOVERESIZE_SIZE_TOPRIGHT)
-                 (setq exwm-floating--moveresize-delta
-                       (list 0 win-y (- root-x width) (+ root-y height))
-                       cursor exwm-floating--cursor-top-right))
+                 (setq cursor exwm-floating--cursor-top-right
+                       exwm-floating--moveresize-calculate
+                       `(lambda (x y)
+                          (vector ,frame-id
+                                  ,(logior xcb:ConfigWindow:Y
+                                           xcb:ConfigWindow:Width
+                                           xcb:ConfigWindow:Height)
+                                  0 (- y ,win-y) (- x ,(- root-x width))
+                                  (- ,(+ root-y height) y)))))
                 ((= type xcb:ewmh:_NET_WM_MOVERESIZE_SIZE_RIGHT)
-                 (setq exwm-floating--moveresize-delta
-                       (list 0 0 (- root-x width) 0)
-                       cursor exwm-floating--cursor-right))
+                 (setq cursor exwm-floating--cursor-right
+                       exwm-floating--moveresize-calculate
+                       `(lambda (x y)
+                          (vector ,frame-id ,xcb:ConfigWindow:Width
+                                  0 0 (- x ,(- root-x width)) 0))))
                 ((= type xcb:ewmh:_NET_WM_MOVERESIZE_SIZE_BOTTOMRIGHT)
-                 (setq exwm-floating--moveresize-delta
-                       (list 0 0 (- root-x width) (- root-y height))
-                       cursor exwm-floating--cursor-bottom-right))
+                 (setq cursor exwm-floating--cursor-bottom-right
+                       exwm-floating--moveresize-calculate
+                       `(lambda (x y)
+                          (vector ,frame-id
+                                  ,(logior xcb:ConfigWindow:Width
+                                           xcb:ConfigWindow:Height)
+                                  0 0 (- x ,(- root-x width))
+                                  (- y ,(- root-y height))))))
                 ((= type xcb:ewmh:_NET_WM_MOVERESIZE_SIZE_BOTTOM)
-                 (setq exwm-floating--moveresize-delta
-                       (list 0 0 0 (- root-y height))
-                       cursor exwm-floating--cursor-bottom))
+                 (setq cursor exwm-floating--cursor-bottom
+                       exwm-floating--moveresize-calculate
+                       `(lambda (x y)
+                          (vector ,frame-id
+                                  ,xcb:ConfigWindow:Height
+                                  0 0 0 (- y ,(- root-y height))))))
                 ((= type xcb:ewmh:_NET_WM_MOVERESIZE_SIZE_BOTTOMLEFT)
-                 (setq exwm-floating--moveresize-delta
-                       (list win-x 0 (+ root-x width) (- root-y height))
-                       cursor exwm-floating--cursor-bottom-left))
+                 (setq cursor exwm-floating--cursor-bottom-left
+                       exwm-floating--moveresize-calculate
+                       `(lambda (x y)
+                          (vector ,frame-id
+                                  ,(logior xcb:ConfigWindow:X
+                                           xcb:ConfigWindow:Width
+                                           xcb:ConfigWindow:Height)
+                                  (- x ,win-x)
+                                  0
+                                  (- ,(+ root-x width) x)
+                                  (- y ,(- root-y height))))))
                 ((= type xcb:ewmh:_NET_WM_MOVERESIZE_SIZE_LEFT)
-                 (setq exwm-floating--moveresize-delta
-                       (list win-x 0 (+ root-x width) 0)
-                       cursor exwm-floating--cursor-left)))
+                 (setq cursor exwm-floating--cursor-left
+                       exwm-floating--moveresize-calculate
+                       `(lambda (x y)
+                          (vector ,frame-id
+                                  ,(logior xcb:ConfigWindow:X
+                                           xcb:ConfigWindow:Width)
+                                  (- x ,win-x) 0 (- ,(+ root-x width) x) 0)))))
           ;; Select events and change cursor (should always succeed)
           (xcb:+request-unchecked+reply exwm--connection
               (make-instance 'xcb:GrabPointer
@@ -305,89 +349,28 @@
                              :keyboard-mode xcb:GrabMode:Async
                              :confine-to xcb:Window:None
                              :cursor cursor
-                             :time xcb:Time:CurrentTime))
-          (setq exwm-floating--moveresize-id frame-id
-                exwm-floating--moveresize-type type))))))
+                             :time xcb:Time:CurrentTime)))))))
 
 (defun exwm-floating--stop-moveresize (&rest args)
   "Stop move/resize."
   (xcb:+request exwm--connection
       (make-instance 'xcb:UngrabPointer :time xcb:Time:CurrentTime))
   (xcb:flush exwm--connection)
-  (setq exwm-floating--moveresize-id nil
-        exwm-floating--moveresize-type nil
-        exwm-floating--moveresize-delta nil))
+  (setq exwm-floating--moveresize-calculate nil))
 
 (defun exwm-floating--do-moveresize (data synthetic)
   "Perform move/resize."
-  (let ((mask 0) (x 0) (y 0) (width 0) (height 0)
-        (delta exwm-floating--moveresize-delta)
-        obj root-x root-y)
-    (when (and exwm-floating--moveresize-id exwm-floating--moveresize-type)
-      (setq obj (make-instance 'xcb:MotionNotify))
+  (when exwm-floating--moveresize-calculate
+    (let ((obj (make-instance 'xcb:MotionNotify))
+          result)
       (xcb:unmarshal obj data)
-      (setq root-x (slot-value obj 'root-x)
-            root-y (slot-value obj 'root-y))
-      ;; Perform move/resize according to the previously set type
-      (cond ((= exwm-floating--moveresize-type
-                xcb:ewmh:_NET_WM_MOVERESIZE_MOVE)
-             (setq mask (logior xcb:ConfigWindow:X xcb:ConfigWindow:Y)
-                   x (- root-x (elt delta 0))
-                   y (- root-y (elt delta 1))))
-            ((= exwm-floating--moveresize-type
-                xcb:ewmh:_NET_WM_MOVERESIZE_SIZE_TOPLEFT)
-             (setq mask
-                   (logior xcb:ConfigWindow:X xcb:ConfigWindow:Y
-                           xcb:ConfigWindow:Width xcb:ConfigWindow:Height)
-                   x (- root-x (elt delta 0))
-                   y (- root-y (elt delta 1))
-                   width (- (elt delta 2) root-x)
-                   height (- (elt delta 3) root-y)))
-            ((= exwm-floating--moveresize-type
-                xcb:ewmh:_NET_WM_MOVERESIZE_SIZE_TOP)
-             (setq mask (logior xcb:ConfigWindow:Y xcb:ConfigWindow:Height)
-                   y (- root-y (elt delta 1))
-                   height (- (elt delta 3) root-y)))
-            ((= exwm-floating--moveresize-type
-                xcb:ewmh:_NET_WM_MOVERESIZE_SIZE_TOPRIGHT)
-             (setq mask
-                   (logior xcb:ConfigWindow:Y
-                           xcb:ConfigWindow:Width xcb:ConfigWindow:Height)
-                   y (- root-y (elt delta 1))
-                   width (- root-x (elt delta 2))
-                   height (- (elt delta 3) root-y)))
-            ((= exwm-floating--moveresize-type
-                xcb:ewmh:_NET_WM_MOVERESIZE_SIZE_RIGHT)
-             (setq mask (logior xcb:ConfigWindow:Width)
-                   width (- root-x (elt delta 2))))
-            ((= exwm-floating--moveresize-type
-                xcb:ewmh:_NET_WM_MOVERESIZE_SIZE_BOTTOMRIGHT)
-             (setq mask
-                   (logior xcb:ConfigWindow:Width xcb:ConfigWindow:Height)
-                   width (- root-x (elt delta 2))
-                   height (- root-y (elt delta 3))))
-            ((= exwm-floating--moveresize-type
-                xcb:ewmh:_NET_WM_MOVERESIZE_SIZE_BOTTOM)
-             (setq mask (logior xcb:ConfigWindow:Height)
-                   height (- root-y (elt delta 3))))
-            ((= exwm-floating--moveresize-type
-                xcb:ewmh:_NET_WM_MOVERESIZE_SIZE_BOTTOMLEFT)
-             (setq mask
-                   (logior xcb:ConfigWindow:X
-                           xcb:ConfigWindow:Width xcb:ConfigWindow:Height)
-                   x (- root-x (elt delta 0))
-                   width (- (elt delta 2) root-x)
-                   height (- root-y (elt delta 3))))
-            ((= exwm-floating--moveresize-type
-                xcb:ewmh:_NET_WM_MOVERESIZE_SIZE_LEFT)
-             (setq mask
-                   (logior xcb:ConfigWindow:X xcb:ConfigWindow:Width)
-                   x (- root-x (elt delta 0))
-                   width (- (elt delta 2) root-x))))
+      (setq result (funcall exwm-floating--moveresize-calculate
+                            (slot-value obj 'root-x) (slot-value obj 'root-y)))
       (xcb:+request exwm--connection
           (make-instance 'xcb:ConfigureWindow
-                         :window exwm-floating--moveresize-id :value-mask mask
-                         :x x :y y :width width :height height))
+                         :window (elt result 0) :value-mask (elt result 1)
+                         :x (elt result 2) :y (elt result 3)
+                         :width (elt result 4) :height (elt result 5)))
       (xcb:flush exwm--connection))))
 
 ;; Cursors for moving/resizing a window
