@@ -162,21 +162,13 @@ The optional FORCE option is for internal use only "
                            :parent (frame-parameter frame 'exwm-window-id)
                            :x 0 :y 0))
           ;; Move the window itself
-          (set-window-buffer (get-buffer-window (exwm--id->buffer id))
-                             (other-buffer))
-          (xcb:+request exwm--connection
-              (make-instance 'xcb:ChangeWindowAttributes
-                             :window id :value-mask xcb:CW:EventMask
-                             :event-mask xcb:EventMask:NoEvent))
+          (bury-buffer)
+          (exwm-layout--hide id)
           (xcb:+request exwm--connection
               (make-instance 'xcb:ReparentWindow
                              :window id
                              :parent (frame-parameter frame 'exwm-window-id)
-                             :x 0 :y 0))
-          (xcb:+request exwm--connection
-              (make-instance 'xcb:ChangeWindowAttributes
-                             :window id :value-mask xcb:CW:EventMask
-                             :event-mask exwm--client-event-mask)))))
+                             :x 0 :y 0)))))
     (xcb:flush exwm--connection)
     (exwm-workspace--update-switch-history)))
 

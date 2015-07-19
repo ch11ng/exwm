@@ -380,7 +380,7 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
 ;;     (exwm-input--fake-key last-input-event)))
 
 (defvar exwm-input-prefix-keys
-  '(?\C-x ?\C-u ?\C-h ?\M-x ?\M-` ?\M-\S-! ?\M-\S-& ?\M-\S-:)
+  '(?\C-x ?\C-u ?\C-h ?\M-x ?\M-` ?\M-! ?\M-& ?\M-:)
   "List of prefix keys EXWM should forward to Emacs when in line-mode.")
 
 (defvar exwm-input--simulation-keys nil "Simulation keys in line-mode.")
