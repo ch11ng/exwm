@@ -119,9 +119,9 @@ The optional FORCE option is for internal use only "
     (dolist (i exwm--id-buffer-alist)
       (with-current-buffer (cdr i)
         (let ((name (replace-regexp-in-string "^\\s-*" "" (buffer-name))))
-          (rename-buffer (if (eq (selected-frame) exwm--frame)
-                             name
-                           (concat " " name))))))
+          (exwm-workspace-rename-buffer (if (eq (selected-frame) exwm--frame)
+                                            name
+                                          (concat " " name))))))
     ;; Update demands attention flag
     (set-frame-parameter (selected-frame) 'exwm--urgency nil)
     ;; Update switch workspace history
@@ -151,7 +151,7 @@ The optional FORCE option is for internal use only "
     (let ((frame (elt exwm-workspace--list index)))
       (with-current-buffer (exwm--id->buffer id)
         (setq exwm--frame frame)
-        (rename-buffer
+        (exwm-workspace-rename-buffer
          (concat " " (replace-regexp-in-string "^\\s-*" "" (buffer-name))))
         (if exwm--floating-frame
             ;; Move the floating frame is enough
@@ -171,6 +171,19 @@ The optional FORCE option is for internal use only "
                              :x 0 :y 0)))))
     (xcb:flush exwm--connection)
     (exwm-workspace--update-switch-history)))
+
+(defun exwm-workspace-rename-buffer (newname)
+  "Rename a buffer."
+  (if (/= ?  (aref newname 0))
+      (rename-buffer newname t)
+    ;; If a buffer name is prefixed with a space, Emacs append a random
+    ;; number before renaming it. This is not desired behavior.
+    (let ((name (replace-regexp-in-string "<[0-9]+>$" "" newname))
+          (counter 1))
+      (while (and (get-buffer newname)
+                  (not (eq (get-buffer newname) (current-buffer))))
+        (setq newname (format "%s<%d>" name (cl-incf counter)))))
+    (rename-buffer newname)))
 
 (defun exwm-workspace--init ()
   "Initialize workspace module."
