@@ -125,7 +125,6 @@
 ;; XEmacs, though it seems nobody have ever got it working on GNU Emacs.
 
 ;; Todo:
-;; + Add RandR support.
 ;; + Investigate DnD support (e.g. drag a chromium tab to another window).
 ;; + Auto hide minibuffer, or allow users to place it elsewhere.
 ;; + Add system tray support.
@@ -145,6 +144,7 @@
 (require 'exwm-floating)
 (require 'exwm-manage)
 (require 'exwm-input)
+(require 'exwm-randr)
 
 (defvar exwm-debug-on nil "Non-nil to turn on debug for EXWM.")
 
@@ -618,6 +618,7 @@
         (exwm-floating--init)
         (exwm-manage--init)
         (exwm-input--init)
+        (exwm-randr--init)
         (exwm--unlock)
         ;; Disable events during new frame creation
         (add-hook 'before-make-frame-hook 'exwm--lock)

@@ -90,11 +90,12 @@
 
 (defvar exwm-workspace--current nil "Current active workspace.")
 (defvar exwm-workspace-current-index 0 "Index of current active workspace.")
+(defvar exwm-workspace--switch-lock nil "Non-nil to prevent workspace switch.")
 
 (defun exwm-workspace-switch (index &optional force)
   "Switch to workspace INDEX. Query for INDEX if it's not specified.
 
-The optional FORCE option is for internal use only "
+The optional FORCE option is for internal use only."
   (interactive
    (list
     (let* ((history-add-new-input nil)  ;prevent modifying history
@@ -105,32 +106,53 @@ The optional FORCE option is for internal use only "
                  `(exwm-workspace--switch-history
                    . ,(1+ exwm-workspace-current-index)))))
       (cl-position idx exwm-workspace--switch-history :test 'equal))))
-  (unless (and (<= 0 index) (< index exwm-workspace-number))
-    (user-error "[EXWM] Workspace index out of range: %d" index))
-  (when (or force (/= exwm-workspace-current-index index))
-    (select-frame-set-input-focus (elt exwm-workspace--list index))
-    ;; Hide all workspaces but the selected one
-    (dotimes (i exwm-workspace-number)
-      (unless (= i index) (make-frame-invisible (elt exwm-workspace--list i))))
-    (setq exwm-workspace--current (elt exwm-workspace--list index)
-          exwm-workspace-current-index index)
-    (setq default-minibuffer-frame (selected-frame))
-    ;; Hide windows in other workspaces by preprending a space
-    (dolist (i exwm--id-buffer-alist)
-      (with-current-buffer (cdr i)
-        (let ((name (replace-regexp-in-string "^\\s-*" "" (buffer-name))))
-          (exwm-workspace-rename-buffer (if (eq (selected-frame) exwm--frame)
-                                            name
-                                          (concat " " name))))))
-    ;; Update demands attention flag
-    (set-frame-parameter (selected-frame) 'exwm--urgency nil)
-    ;; Update switch workspace history
-    (exwm-workspace--update-switch-history)
-    ;; Update _NET_CURRENT_DESKTOP
-    (xcb:+request exwm--connection
-        (make-instance 'xcb:ewmh:set-_NET_CURRENT_DESKTOP
-                       :window exwm--root :data index))
-    (xcb:flush exwm--connection)))
+  (unless exwm-workspace--switch-lock
+    (setq exwm-workspace--switch-lock t)
+    (unless (and (<= 0 index) (< index exwm-workspace-number))
+      (user-error "[EXWM] Workspace index out of range: %d" index))
+    (when (or force (/= exwm-workspace-current-index index))
+      (let ((frame (elt exwm-workspace--list index)))
+        (setq exwm-workspace--current frame
+              exwm-workspace-current-index index)
+        (select-frame-set-input-focus frame)
+        (exwm--make-emacs-idle-for 0.1) ;FIXME
+        ;; Move mouse when necessary
+        (let ((position (mouse-pixel-position))
+              x y w h)
+          (unless (eq frame (car position))
+            (setq x (cadr position)
+                  y (cddr position)
+                  w (frame-pixel-width frame)
+                  h (frame-pixel-height frame))
+            (when (or (> x w) (> y h))
+              (setq x (/ w 2)
+                    y (/ h 2)))
+            (set-mouse-pixel-position frame x y)))
+        (setq default-minibuffer-frame frame)
+        ;; Hide windows in other workspaces by preprending a space
+        (dolist (i exwm--id-buffer-alist)
+          (with-current-buffer (cdr i)
+            (let ((name (replace-regexp-in-string "^\\s-*" "" (buffer-name))))
+              (exwm-workspace-rename-buffer (if (eq frame exwm--frame)
+                                                name
+                                              (concat " " name))))))
+        ;; Update demands attention flag
+        (set-frame-parameter frame 'exwm--urgency nil)
+        ;; Update switch workspace history
+        (exwm-workspace--update-switch-history)
+        ;; Update _NET_CURRENT_DESKTOP
+        (xcb:+request exwm--connection
+            (make-instance 'xcb:ewmh:set-_NET_CURRENT_DESKTOP
+                           :window exwm--root :data index))
+        (xcb:flush exwm--connection)))
+    (setq exwm-workspace--switch-lock nil)))
+
+(defun exwm-workspace--on-focus-in ()
+  "Fix unexpected frame switch."
+  (unless exwm-workspace--switch-lock
+    (let ((index (cl-position (selected-frame) exwm-workspace--list)))
+      (when (and index (/= index exwm-workspace-current-index))
+        (exwm-workspace-switch index)))))
 
 (defun exwm-workspace-move-window (index &optional id)
   "Move window ID to workspace INDEX."
@@ -228,6 +250,8 @@ The optional FORCE option is for internal use only "
                          :window window-id :value-mask xcb:CW:EventMask
                          :event-mask xcb:EventMask:SubstructureRedirect))))
   (xcb:flush exwm--connection)
+  ;; Handle unexpected frame switch
+  (add-hook 'focus-in-hook 'exwm-workspace--on-focus-in)
   ;; Switch to the first workspace
   (exwm-workspace-switch 0 t))
 
