@@ -8,6 +8,3 @@ manager. Please check the wiki for more details.
 EXWM is built on top of XELB and its utility libraris:
   + XELB: https://github.com/ch11ng/xelb
   + XELB utilility libraries: https://github.com/ch11ng/xelb-util
-
-You may also be intrested in an input method server designed for EXWM:
-  + EXIM: https://github.com/ch11ng/exim
