@@ -108,10 +108,12 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
 
 (defun exwm-input--finish-key-sequence ()
   "Mark the end of a key sequence (with the aid of `pre-command-hook')."
-  (setq exwm-input--during-key-sequence nil)
-  (when exwm-input--temp-line-mode
-    (setq exwm-input--temp-line-mode nil)
-    (exwm-input--release-keyboard)))
+  (when (and exwm-input--during-key-sequence
+             (not (equal [?\C-u] (this-single-command-keys))))
+    (setq exwm-input--during-key-sequence nil)
+    (when exwm-input--temp-line-mode
+      (setq exwm-input--temp-line-mode nil)
+      (exwm-input--release-keyboard))))
 
 (defun exwm-input--on-MappingNotify (data synthetic)
   "Handle MappingNotify event."
@@ -403,18 +405,19 @@ SIMULATION-KEYS is a list of alist (key-sequence1 . key-sequence2)."
     (cl-pushnew `(,(vconcat (car i)) . ,(cdr i)) exwm-input--simulation-keys))
   (exwm-input--update-simulation-prefix-keys))
 
-(defun exwm-input-send-simulation-key ()
+(defun exwm-input-send-simulation-key (times)
   "Fake a key event according to last input key sequence."
-  (interactive)
-  (let ((pair (assoc (this-command-keys-vector) ;FIXME: pefix
+  (interactive "p")
+  (let ((pair (assoc (this-single-command-keys)
                      exwm-input--simulation-keys))
         key)
     (when pair
       (setq pair (cdr pair))
       (unless (listp pair)
         (setq pair (list pair)))
-      (dolist (i pair)
-        (exwm-input--fake-key i)))))
+      (dotimes (i times)
+        (dolist (j pair)
+          (exwm-input--fake-key j))))))
 
 (defun exwm-input--init ()
   "Initialize the keyboard module."

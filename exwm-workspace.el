@@ -115,7 +115,6 @@ The optional FORCE option is for internal use only."
         (setq exwm-workspace--current frame
               exwm-workspace-current-index index)
         (select-frame-set-input-focus frame)
-        (exwm--make-emacs-idle-for 0.1) ;FIXME
         ;; Move mouse when necessary
         (let ((position (mouse-pixel-position))
               x y w h)
@@ -140,6 +139,7 @@ The optional FORCE option is for internal use only."
         (set-frame-parameter frame 'exwm--urgency nil)
         ;; Update switch workspace history
         (exwm-workspace--update-switch-history)
+        (exwm--make-emacs-idle-for 0.1) ;FIXME
         ;; Update _NET_CURRENT_DESKTOP
         (xcb:+request exwm--connection
             (make-instance 'xcb:ewmh:set-_NET_CURRENT_DESKTOP
@@ -196,7 +196,7 @@ The optional FORCE option is for internal use only."
 
 (defun exwm-workspace-rename-buffer (newname)
   "Rename a buffer."
-  (if (/= ?  (aref newname 0))
+  (if (/= ?\s (aref newname 0))
       (rename-buffer newname t)
     ;; If a buffer name is prefixed with a space, Emacs append a random
     ;; number before renaming it. This is not desired behavior.
