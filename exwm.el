@@ -40,9 +40,9 @@
 
 ;; How it works
 ;; ------------
-;; Emacs itself is an tiling window manager, though unfortunately not for
-;; managing X things. EXWM is therefore created to overcome this limitation by
-;; relating X concepts to Emacs ones as shown in the following table.
+;; Emacs itself is a tiling window manager, though unfortunately not for
+;; managing X things. EXWM has therefore been created to overcome this limitation
+;; by relating X concepts to Emacs ones as shown in the following table.
 ;;
 ;; +=============+=========+
 ;; | X Window    | Emacs   |
