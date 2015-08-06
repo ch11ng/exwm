@@ -111,6 +111,11 @@ The optional FORCE option is for internal use only."
     (unless (and (<= 0 index) (< index exwm-workspace-number))
       (user-error "[EXWM] Workspace index out of range: %d" index))
     (when (or force (/= exwm-workspace-current-index index))
+      ;; Exit fullscreen mode
+      (with-current-buffer (window-buffer)
+        (when (and (eq major-mode 'exwm-mode) exwm--fullscreen)
+          (exwm-layout-unset-fullscreen)
+          (exwm-input-grab-keyboard)))
       (let ((frame (elt exwm-workspace--list index)))
         (setq exwm-workspace--current frame
               exwm-workspace-current-index index)

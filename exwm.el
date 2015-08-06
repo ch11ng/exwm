@@ -462,7 +462,8 @@
                        (exwm-floating--set-floating id)
                        (push xcb:Atom:_NET_WM_STATE_MODAL props-new)))))
             ;; _NET_WM_STATE_FULLSCREEN
-            (when (memq xcb:Atom:_NET_WM_STATE_FULLSCREEN props)
+            (when (or (memq xcb:Atom:_NET_WM_STATE_FULLSCREEN props)
+                      (memq xcb:Atom:_NET_WM_STATE_ABOVE props))
               (cond ((= action xcb:ewmh:_NET_WM_STATE_ADD)
                      (unless exwm--fullscreen (exwm-layout-set-fullscreen id))
                      (push xcb:Atom:_NET_WM_STATE_FULLSCREEN props-new))

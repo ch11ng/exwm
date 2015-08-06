@@ -133,7 +133,7 @@ corresponding buffer.")
       (exwm-input-grab-keyboard id)
       (exwm-workspace--update-switch-history)
       (setq exwm-input--focus-lock nil) ;unlocked in advance
-      (with-current-buffer (exwm--id->buffer id)
+      (exwm--with-current-id id
         (run-hooks 'exwm-manage-finish-hook))))
   (setq exwm-input--focus-lock nil))
 
@@ -266,10 +266,14 @@ corresponding buffer.")
     (with-slots (window x y width height border-width) obj
       (if (setq buffer (exwm--id->buffer window))
           ;; Send client message for managed windows
-          (progn
-            (setq edges (or (with-current-buffer buffer exwm--floating-edges)
-                            (window-inside-absolute-pixel-edges
-                             (get-buffer-window buffer))))
+          (with-current-buffer buffer
+            (setq edges
+                  (if exwm--fullscreen
+                      (list 0 0
+                            (x-display-pixel-width) (x-display-pixel-height))
+                    (or exwm--floating-edges
+                        (window-inside-absolute-pixel-edges
+                         (get-buffer-window)))))
             (xcb:+request exwm--connection
                 (make-instance 'xcb:SendEvent
                                :propagate 0 :destination window
