@@ -195,9 +195,10 @@
 (defun exwm-reset ()
   "Reset window to standard state: non-fullscreen, line-mode."
   (interactive)
-  (with-current-buffer (window-buffer (selected-window))
-    (when exwm--fullscreen (exwm-layout-unset-fullscreen))
-    (exwm-input-grab-keyboard)))
+  (with-current-buffer (window-buffer)
+    (when (and (eq major-mode 'exwm-mode) exwm--fullscreen)
+      (exwm-layout-unset-fullscreen)
+      (exwm-input-grab-keyboard))))
 
 (defmacro exwm--with-current-id (id &rest body)
   "Evaluate BODY in the context of the buffer corresponding to window ID."
