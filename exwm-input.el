@@ -161,7 +161,9 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
   (let ((obj (make-instance 'xcb:KeyPress)))
     (xcb:unmarshal obj data)
     (setq exwm-input--timestamp (slot-value obj 'time))
-    (funcall 'exwm-input--handle-KeyPress obj)))
+    (if (eq major-mode 'exwm-mode)
+        (funcall exwm--on-KeyPress obj)
+      (exwm-input--on-KeyPress-char-mode obj))))
 
 (defvar exwm-input--global-keys nil "Global key bindings.")
 (defvar exwm-input--global-prefix-keys nil
@@ -211,7 +213,7 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
 ;; ;; in this case.
 ;; ;; P.S.; to use this implementation, comment out the KeyRelease listener
 ;; ;;       together with this one and make GrabKey in Sync mode.
-;; (cl-defmethod exwm-input--handle-KeyPress-line-mode ((obj xcb:KeyPress))
+;; (cl-defmethod exwm-input--on-KeyPress-line-mode ((obj xcb:KeyPress))
 ;;   "Parse X KeyPress event to Emacs key event and then feed the command loop."
 ;;   (with-slots (detail state) obj
 ;;     (let ((keysym (xcb:keysyms:keycode->keysym exwm--connection detail state))
@@ -238,7 +240,7 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
 ;; This implementation has a drawback that some (legacy) applications
 ;; (e.g. xterm) ignore the synthetic key events, making it only viable for EXWM
 ;; to work in char-mode in such case.
-(cl-defmethod exwm-input--handle-KeyPress-line-mode ((obj xcb:KeyPress))
+(cl-defmethod exwm-input--on-KeyPress-line-mode ((obj xcb:KeyPress))
   "Parse X KeyPress event to Emacs key event and then feed the command loop."
   (with-slots (detail state) obj
     (let ((keysym (xcb:keysyms:keycode->keysym exwm--connection detail state))
@@ -264,23 +266,22 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
                            :event (xcb:marshal obj exwm--connection)))
         (xcb:flush exwm--connection)))))
 
-(cl-defmethod exwm-input--handle-KeyPress-char-mode ((obj xcb:KeyPress))
+(cl-defmethod exwm-input--on-KeyPress-char-mode ((obj xcb:KeyPress))
   "Handle KeyPress event in char-mode."
   (with-slots (detail state) obj
     (let ((keysym (xcb:keysyms:keycode->keysym exwm--connection detail state))
           event)
       (when (and keysym (setq event (xcb:keysyms:keysym->event keysym state)))
-        (setq exwm-input--temp-line-mode t
-              exwm-input--during-key-sequence t)
-        (push event unread-command-events)
-        (exwm-input--grab-keyboard))))) ;grab keyboard temporarily
-
-(defalias 'exwm-input--handle-KeyPress 'exwm-input--handle-KeyPress-line-mode
-  "Generic function for handling KeyPress event.")
+        (when (eq major-mode 'exwm-mode)
+          (setq exwm-input--temp-line-mode t
+                exwm-input--during-key-sequence t)
+          (exwm-input--grab-keyboard)) ;grab keyboard temporarily
+        (push event unread-command-events)))))
 
 (defun exwm-input--grab-keyboard (&optional id)
   "Grab all key events on window ID."
   (unless id (setq id (exwm--buffer->id (window-buffer))))
+  (cl-assert id)
   (when (xcb:+request-checked+request-check exwm--connection
             (make-instance 'xcb:GrabKey
                            :owner-events 0 :grab-window id
@@ -289,19 +290,18 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
                            :pointer-mode xcb:GrabMode:Async
                            :keyboard-mode xcb:GrabMode:Async))
     (exwm--log "Failed to grab keyboard for #x%x" id))
-  (defalias 'exwm-input--handle-KeyPress
-    'exwm-input--handle-KeyPress-line-mode))
+  (setq exwm--on-KeyPress 'exwm-input--on-KeyPress-line-mode))
 
 (defun exwm-input--release-keyboard (&optional id)
   "Ungrab all key events on window ID."
   (unless id (setq id (exwm--buffer->id (window-buffer))))
+  (cl-assert id)
   (when (xcb:+request-checked+request-check exwm--connection
             (make-instance 'xcb:UngrabKey
                            :key xcb:Grab:Any :grab-window id
                            :modifiers xcb:ModMask:Any))
     (exwm--log "Failed to release keyboard for #x%x" id))
-  (defalias 'exwm-input--handle-KeyPress
-    'exwm-input--handle-KeyPress-char-mode))
+  (setq exwm--on-KeyPress 'exwm-input--on-KeyPress-char-mode))
 
 (defun exwm-input-grab-keyboard (&optional id)
   "Switch to line-mode."

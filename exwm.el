@@ -196,8 +196,8 @@
   "Reset window to standard state: non-fullscreen, line-mode."
   (interactive)
   (with-current-buffer (window-buffer)
-    (when (and (eq major-mode 'exwm-mode) exwm--fullscreen)
-      (exwm-layout-unset-fullscreen)
+    (when (eq major-mode 'exwm-mode)
+      (when exwm--fullscreen (exwm-layout-unset-fullscreen))
       (exwm-input-grab-keyboard))))
 
 (defmacro exwm--with-current-id (id &rest body)
@@ -651,6 +651,8 @@
   (set (make-local-variable 'exwm--fullscreen) nil) ;used in fullscreen
   (set (make-local-variable 'exwm--floating-frame-geometry) nil) ;in fullscreen
   (set (make-local-variable 'exwm--fixed-size) nil) ;fixed size
+  (set (make-local-variable 'exwm--on-KeyPress) ;KeyPress event handler
+       'exwm-input--on-KeyPress-line-mode)
   ;; Properties
   (set (make-local-variable 'exwm-window-type) nil)
   (set (make-local-variable 'exwm--geometry) nil)

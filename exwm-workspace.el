@@ -98,20 +98,20 @@
 The optional FORCE option is for internal use only."
   (interactive
    (list
-    (let* ((history-add-new-input nil)  ;prevent modifying history
-           (idx (read-from-minibuffer
-                 "Workspace: " (elt exwm-workspace--switch-history
-                                    exwm-workspace-current-index)
-                 exwm-workspace--switch-map nil
-                 `(exwm-workspace--switch-history
-                   . ,(1+ exwm-workspace-current-index)))))
-      (cl-position idx exwm-workspace--switch-history :test 'equal))))
-  (unless exwm-workspace--switch-lock
+    (unless (and (eq major-mode 'exwm-mode) exwm--fullscreen) ;it's invisible
+      (let* ((history-add-new-input nil)  ;prevent modifying history
+             (idx (read-from-minibuffer
+                   "Workspace: " (elt exwm-workspace--switch-history
+                                      exwm-workspace-current-index)
+                   exwm-workspace--switch-map nil
+                   `(exwm-workspace--switch-history
+                     . ,(1+ exwm-workspace-current-index)))))
+        (cl-position idx exwm-workspace--switch-history :test 'equal)))))
+  (unless (or exwm-workspace--switch-lock (not index))
     (setq exwm-workspace--switch-lock t)
     (unless (and (<= 0 index) (< index exwm-workspace-number))
       (user-error "[EXWM] Workspace index out of range: %d" index))
     (when (or force (/= exwm-workspace-current-index index))
-      (exwm-reset)                      ;exit full screen
       (let ((frame (elt exwm-workspace--list index)))
         (setq exwm-workspace--current frame
               exwm-workspace-current-index index)
