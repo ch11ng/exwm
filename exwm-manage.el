@@ -178,8 +178,10 @@ corresponding buffer.")
                              :window id :property xcb:Atom:WM_STATE))
           (xcb:flush exwm--connection))
         (setq kill-buffer-query-functions nil)
-        (kill-buffer)
-        (select-frame-set-input-focus exwm-workspace--current)))))
+        (let ((floating exwm--floating-frame))
+          (kill-buffer)
+          (when floating
+            (select-frame-set-input-focus exwm-workspace--current)))))))
 
 (defun exwm-manage--scan ()
   "Search for existing windows and try to manage them."

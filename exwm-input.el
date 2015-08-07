@@ -57,17 +57,22 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
 (defun exwm-input--set-focus (id)
   "Set input focus to window ID in a proper way."
   (exwm--with-current-id id
+    (exwm--log "Set focus ID to #x%x" id)
     (setq exwm-input--focus-id id)
     (if (and (not exwm--hints-input)
              (memq xcb:Atom:WM_TAKE_FOCUS exwm--protocols))
-        (xcb:+request exwm--connection
-            (make-instance 'xcb:icccm:SendEvent
-                           :destination id
-                           :event (xcb:marshal
-                                   (make-instance 'xcb:icccm:WM_TAKE_FOCUS
-                                                  :window id
-                                                  :time exwm-input--timestamp)
-                                   exwm--connection)))
+        (progn
+          (exwm--log "Focus on #x%x with WM_TAKE_FOCUS" id)
+          (xcb:+request exwm--connection
+              (make-instance 'xcb:icccm:SendEvent
+                             :destination id
+                             :event (xcb:marshal
+                                     (make-instance 'xcb:icccm:WM_TAKE_FOCUS
+                                                    :window id
+                                                    :time
+                                                    exwm-input--timestamp)
+                                     exwm--connection))))
+      (exwm--log "Focus on #x%x with SetInputFocus" id)
       (xcb:+request exwm--connection
           (make-instance 'xcb:SetInputFocus
                          :revert-to xcb:InputFocus:Parent :focus id
@@ -85,24 +90,34 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
     (setq exwm-input--focus-lock t)
     (when (eq (current-buffer) (window-buffer)) ;e.g. with-temp-buffer
       (if (eq major-mode 'exwm-mode)
-          (progn (setq exwm-input--focus-id exwm--id)
+          (progn (exwm--log "Set focus ID to #x%x" exwm--id)
+                 (setq exwm-input--focus-id exwm--id)
                  (when exwm--floating-frame
                    (if (eq (selected-frame) exwm--floating-frame)
                        ;; Cancel the possible input focus redirection
-                       (redirect-frame-focus exwm--floating-frame nil)
+                       (progn
+                         (exwm--log "Cancel input focus redirection on %s"
+                                    exwm--floating-frame)
+                         (redirect-frame-focus exwm--floating-frame nil))
                      ;; Focus the floating frame
+                     (exwm--log "Focus on floating frame %s"
+                                exwm--floating-frame)
                      (x-focus-frame exwm--floating-frame)))
                  ;; Finally focus the window
                  (exwm-input--set-focus exwm-input--focus-id))
         (exwm--with-current-id exwm-input--focus-id
+          (exwm--log "Set focus ID to #x%x" xcb:Window:None)
           (setq exwm-input--focus-id xcb:Window:None)
           (let ((frame (selected-frame)))
             (if exwm--floating-frame
                 (unless (or (eq frame exwm--floating-frame)
                             (active-minibuffer-window))
                   ;; Redirect input focus to the workspace frame
+                  (exwm--log "Redirect input focus (%s => %s)"
+                             exwm--floating-frame frame)
                   (redirect-frame-focus exwm--floating-frame frame))
               ;; Focus the workspace frame
+              (exwm--log "Focus on workspace %s" frame)
               (x-focus-frame frame))))))
     (setq exwm-input--focus-lock nil)))
 

@@ -28,6 +28,7 @@
 
 (defun exwm-layout--show (id &optional window)
   "Show window ID exactly fit in the Emacs window WINDOW."
+  (exwm--log "Show #x%x in %s" id window)
   (xcb:+request exwm--connection (make-instance 'xcb:MapWindow :window id))
   (xcb:+request exwm--connection
       (make-instance 'xcb:icccm:set-WM_STATE
@@ -69,6 +70,7 @@
   "Hide window ID."
   (unless (eq xcb:icccm:WM_STATE:IconicState ;already hidden
               (with-current-buffer (exwm--id->buffer id) exwm-state))
+    (exwm--log "Hide #x%x" id)
     (xcb:+request exwm--connection
         (make-instance 'xcb:ChangeWindowAttributes
                        :window id :value-mask xcb:CW:EventMask
@@ -162,6 +164,7 @@
   "Refresh layout."
   (unless (compare-window-configurations exwm-layout--window-configuration
                                          (current-window-configuration))
+    (exwm--log "Refresh layout")
     (setq exwm-layout--window-configuration (current-window-configuration))
     (let ((frame (selected-frame))
           windows)

@@ -152,7 +152,9 @@ The optional FORCE option is for internal use only."
   "Fix unexpected frame switch."
   (unless exwm-workspace--switch-lock
     (let ((index (cl-position (selected-frame) exwm-workspace--list)))
+      (exwm--log "Focus on workspace %s" index)
       (when (and index (/= index exwm-workspace-current-index))
+        (exwm--log "Workspace was switched unexpectedly")
         (exwm-workspace-switch index)))))
 
 (defun exwm-workspace-move-window (index &optional id)
