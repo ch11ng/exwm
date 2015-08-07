@@ -42,19 +42,28 @@ corresponding buffer.")
         (when reply                     ;nil when destroyed
           (setq exwm--geometry reply))))))
 
+(defvar exwm-manage--manage-window-queue nil
+  "List of window IDs to prevent race conditions.")
+
 (defun exwm-manage--manage-window (id)
   "Manage window ID."
+  (exwm--log "Try to manage #x%x" id)
   (setq exwm-input--focus-lock t)
   (catch 'return
     ;; Ensure it's not managed
-    (when (assoc id exwm--id-buffer-alist)
+    (when (or (assoc id exwm--id-buffer-alist)
+              (memq id exwm-manage--manage-window-queue))
+      (exwm--log "#x%x is already managed" id)
       (throw 'return 'managed))
+    (push id exwm-manage--manage-window-queue) ;prevent reentering
     ;; Ensure it's alive
     (when (xcb:+request-checked+request-check exwm--connection
               (make-instance 'xcb:ChangeWindowAttributes
                              :window id :value-mask xcb:CW:EventMask
                              :event-mask exwm--client-event-mask))
+      (delq id exwm-manage--manage-window-queue) ;cleanup
       (throw 'return 'dead))
+    (delq id exwm-manage--manage-window-queue) ;cleanup (late enough)
     (with-current-buffer (generate-new-buffer "*EXWM*")
       (push `(,id . ,(current-buffer)) exwm--id-buffer-alist)
       (exwm-mode)
@@ -73,6 +82,7 @@ corresponding buffer.")
              (and exwm-instance-name
                   (string-prefix-p "sun-awt-X11-" exwm-instance-name)
                   (not (string-suffix-p "XFramePeer" exwm-instance-name))))
+        (exwm--log "No need to manage #x%x" id)
         ;; Remove all events
         (xcb:+request-checked+request-check exwm--connection
             (make-instance 'xcb:ChangeWindowAttributes
@@ -104,6 +114,7 @@ corresponding buffer.")
         (kill-buffer (current-buffer))
         (throw 'return 'ignored))
       ;; Manage the window
+      (exwm--log "Manage #x%x" id)
       (xcb:+request exwm--connection    ;remove border
           (make-instance 'xcb:ConfigureWindow
                          :window id :value-mask xcb:ConfigWindow:BorderWidth
@@ -140,6 +151,7 @@ corresponding buffer.")
 (defun exwm-manage--unmanage-window (id &optional withdraw-only)
   "Unmanage window ID."
   (let ((buffer (exwm--id->buffer id)))
+    (exwm--log "Unmanage #x%x (buffer: %s)" id buffer)
     (setq exwm--id-buffer-alist (assq-delete-all id exwm--id-buffer-alist))
     (when (buffer-live-p buffer)
       (with-current-buffer buffer
