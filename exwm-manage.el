@@ -61,9 +61,11 @@ corresponding buffer.")
               (make-instance 'xcb:ChangeWindowAttributes
                              :window id :value-mask xcb:CW:EventMask
                              :event-mask exwm--client-event-mask))
-      (delq id exwm-manage--manage-window-queue) ;cleanup
+      (setq exwm-manage--manage-window-queue
+            (delq id exwm-manage--manage-window-queue)) ;cleanup
       (throw 'return 'dead))
-    (delq id exwm-manage--manage-window-queue) ;cleanup (late enough)
+    (setq exwm-manage--manage-window-queue
+          (delq id exwm-manage--manage-window-queue)) ;cleanup (late enough)
     (with-current-buffer (generate-new-buffer "*EXWM*")
       (push `(,id . ,(current-buffer)) exwm--id-buffer-alist)
       (exwm-mode)
@@ -193,7 +195,15 @@ corresponding buffer.")
         (let ((floating exwm--floating-frame))
           (kill-buffer)
           (when floating
-            (select-frame-set-input-focus exwm-workspace--current)))))))
+            (if (eq 'exwm-mode
+                    (with-current-buffer
+                        (window-buffer
+                         (frame-first-window exwm-workspace--current))
+                      major-mode))
+                ;; Input focus is to be set on a window
+                (x-focus-frame exwm-workspace--current)
+              ;; Set input focus on a frame
+              (select-frame-set-input-focus exwm-workspace--current))))))))
 
 (defun exwm-manage--scan ()
   "Search for existing windows and try to manage them."

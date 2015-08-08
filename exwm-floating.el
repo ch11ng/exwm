@@ -199,7 +199,6 @@
             exwm--frame exwm-workspace--current))
     (select-frame exwm-workspace--current t)
     (set-window-buffer nil buffer)
-    (exwm-layout--show id)
     (exwm-input--set-focus id))
   (setq exwm-input--focus-lock nil))
 
