@@ -201,6 +201,8 @@
       ;; Force update input focus
       (setq exwm-input--focus-id xcb:Window:None)
       (exwm-input--update-focus)
+      ;; Force refresh
+      (exwm-layout--refresh)
       (exwm-input-grab-keyboard))))
 
 (defmacro exwm--with-current-id (id &rest body)
@@ -396,6 +398,7 @@
                (exwm--update-protocols id t))
               ((= atom xcb:Atom:WM_STATE)
                (exwm--update-state id t))
+              ((= atom xcb:Atom:_NET_WM_USER_TIME)) ;ignored
               (t (exwm--log "Unhandled PropertyNotify: %s(%d)"
                             (x-get-atom-name atom) atom)))))))
 

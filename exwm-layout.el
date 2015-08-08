@@ -157,23 +157,25 @@
     (setq exwm--fullscreen nil)
     (exwm-input-grab-keyboard)))
 
-(defvar exwm-layout--window-configuration (current-window-configuration)
-  "Last saved window configuration, for avoiding unnecessary refreshes.")
-
 (defun exwm-layout--refresh ()
   "Refresh layout."
-  (unless (compare-window-configurations exwm-layout--window-configuration
-                                         (current-window-configuration))
-    (exwm--log "Refresh layout")
-    (setq exwm-layout--window-configuration (current-window-configuration))
-    (let ((frame (selected-frame))
-          windows)
-      (if (not (memq frame exwm-workspace--list))
-          ;; Refresh a floating frame
-          (when (eq major-mode 'exwm-mode)
-            (with-current-buffer (window-buffer (frame-first-window frame))
-              (exwm-layout--show exwm--id (frame-first-window frame))))
-        ;; Refresh the whole workspace
+  (let ((frame (selected-frame))
+        windows placeholder)
+    (if (not (memq frame exwm-workspace--list))
+        ;; Refresh a floating frame
+        (progn
+          (cl-assert (eq major-mode 'exwm-mode))
+          (let ((window (frame-first-window frame)))
+            (with-current-buffer (window-buffer window)
+              (exwm--log "Refresh floating window #x%x" exwm--id)
+              (exwm-layout--show exwm--id window))))
+      ;; Refresh the whole workspace
+      ;; Workspaces other than the active one can also be refreshed (RandR)
+      (exwm--log "Refresh workspace %s" frame)
+      (let ((placeholder (get-buffer "*scratch*")))
+        (unless placeholder ;create the *scratch* buffer if it's killed
+          (setq placeholder (get-buffer-create "*scratch*"))
+          (set-buffer-major-mode placeholder))
         (dolist (pair exwm--id-buffer-alist)
           (with-current-buffer (cdr pair)
             ;; Exclude windows on other workspaces and floating frames
@@ -183,7 +185,7 @@
                   (exwm-layout--hide exwm--id)
                 (exwm-layout--show exwm--id (car windows))
                 (dolist (i (cdr windows))
-                  (set-window-buffer i "*scratch*"))))))))))
+                  (set-window-buffer i placeholder))))))))))
 
 (defun exwm-layout--init ()
   "Initialize layout module."
