@@ -180,12 +180,15 @@ The optional FORCE option is for internal use only."
          (concat " " (replace-regexp-in-string "^\\s-*" "" (buffer-name))))
         (if exwm--floating-frame
             ;; Move the floating frame is enough
-            (xcb:+request exwm--connection
-                (make-instance 'xcb:ReparentWindow
-                               :window (frame-parameter exwm--floating-frame
-                                                        'exwm-outer-id)
-                               :parent (frame-parameter frame 'exwm-window-id)
-                               :x 0 :y 0))
+            (progn
+              (xcb:+request exwm--connection
+                  (make-instance 'xcb:ReparentWindow
+                                 :window (frame-parameter exwm--floating-frame
+                                                          'exwm-outer-id)
+                                 :parent (frame-parameter frame
+                                                          'exwm-window-id)
+                                 :x 0 :y 0))
+              (xcb:flush exwm--connection))
           ;; Move the window itself
           (bury-buffer)
           (exwm-layout--hide id)
@@ -196,8 +199,10 @@ The optional FORCE option is for internal use only."
               (make-instance 'xcb:ReparentWindow
                              :window id
                              :parent (frame-parameter frame 'exwm-window-id)
-                             :x 0 :y 0)))))
-    (xcb:flush exwm--connection)
+                             :x 0 :y 0))
+          (xcb:flush exwm--connection)
+          (set-window-buffer (frame-first-window frame)
+                             (exwm--id->buffer id)))))
     (exwm-workspace--update-switch-history)))
 
 (defun exwm-workspace-rename-buffer (newname)
