@@ -198,6 +198,9 @@
   (with-current-buffer (window-buffer)
     (when (eq major-mode 'exwm-mode)
       (when exwm--fullscreen (exwm-layout-unset-fullscreen))
+      ;; Force update input focus
+      (setq exwm-input--focus-id xcb:Window:None)
+      (exwm-input--update-focus)
       (exwm-input-grab-keyboard))))
 
 (defmacro exwm--with-current-id (id &rest body)

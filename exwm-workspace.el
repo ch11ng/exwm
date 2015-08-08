@@ -181,14 +181,17 @@ The optional FORCE option is for internal use only."
         (if exwm--floating-frame
             ;; Move the floating frame is enough
             (xcb:+request exwm--connection
-            (make-instance 'xcb:ReparentWindow
-                           :window (frame-parameter exwm--floating-frame
-                                                    'exwm-outer-id)
-                           :parent (frame-parameter frame 'exwm-window-id)
-                           :x 0 :y 0))
+                (make-instance 'xcb:ReparentWindow
+                               :window (frame-parameter exwm--floating-frame
+                                                        'exwm-outer-id)
+                               :parent (frame-parameter frame 'exwm-window-id)
+                               :x 0 :y 0))
           ;; Move the window itself
           (bury-buffer)
           (exwm-layout--hide id)
+          ;; Force update input focus
+          (setq exwm-input--focus-id xcb:Window:None)
+          (exwm-input--update-focus)
           (xcb:+request exwm--connection
               (make-instance 'xcb:ReparentWindow
                              :window id
