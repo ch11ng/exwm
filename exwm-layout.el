@@ -187,10 +187,21 @@
                 (dolist (i (cdr windows))
                   (set-window-buffer i placeholder))))))))))
 
+(defun exwm-layout--on-minibuffer-setup ()
+  "Refresh layout when minibuffer grows."
+  (run-with-idle-timer 0.01 nil         ;FIXME
+                       (lambda ()
+                         (when (and (< 1 (window-height (minibuffer-window)))
+                                    (not (and (eq major-mode 'exwm-mode)
+                                              exwm--floating-frame)))
+                           (exwm-layout--refresh)))))
+
 (defun exwm-layout--init ()
   "Initialize layout module."
   ;; Auto refresh layout
-  (add-hook 'window-configuration-change-hook 'exwm-layout--refresh))
+  (add-hook 'window-configuration-change-hook 'exwm-layout--refresh)
+  ;; Refresh when minibuffer grows
+  (add-hook 'minibuffer-setup-hook 'exwm-layout--on-minibuffer-setup t))
 
 
 
