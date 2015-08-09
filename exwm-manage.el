@@ -42,30 +42,21 @@ corresponding buffer.")
         (when reply                     ;nil when destroyed
           (setq exwm--geometry reply))))))
 
-(defvar exwm-manage--manage-window-queue nil
-  "List of window IDs to prevent race conditions.")
-
 (defun exwm-manage--manage-window (id)
   "Manage window ID."
   (exwm--log "Try to manage #x%x" id)
   (setq exwm-input--focus-lock t)
   (catch 'return
     ;; Ensure it's not managed
-    (when (or (assoc id exwm--id-buffer-alist)
-              (memq id exwm-manage--manage-window-queue))
+    (when (assoc id exwm--id-buffer-alist)
       (exwm--log "#x%x is already managed" id)
       (throw 'return 'managed))
-    (push id exwm-manage--manage-window-queue) ;prevent reentering
     ;; Ensure it's alive
     (when (xcb:+request-checked+request-check exwm--connection
               (make-instance 'xcb:ChangeWindowAttributes
                              :window id :value-mask xcb:CW:EventMask
                              :event-mask exwm--client-event-mask))
-      (setq exwm-manage--manage-window-queue
-            (delq id exwm-manage--manage-window-queue)) ;cleanup
       (throw 'return 'dead))
-    (setq exwm-manage--manage-window-queue
-          (delq id exwm-manage--manage-window-queue)) ;cleanup (late enough)
     (with-current-buffer (generate-new-buffer "*EXWM*")
       (push `(,id . ,(current-buffer)) exwm--id-buffer-alist)
       (exwm-mode)
