@@ -208,17 +208,9 @@
       (exwm-layout--refresh)
       (exwm-input-grab-keyboard))))
 
-(defmacro exwm--with-current-id (id &rest body)
-  "Evaluate BODY in the context of the buffer corresponding to window ID."
-  (declare (indent 1))
-  `(when ,id
-     (let ((buffer (exwm--id->buffer ,id)))
-       (when buffer
-         (with-current-buffer buffer ,@body)))))
-
 (defun exwm--update-window-type (id &optional force)
   "Update _NET_WM_WINDOW_TYPE."
-  (exwm--with-current-id id
+  (with-current-buffer (exwm--id->buffer id)
     (unless (and exwm-window-type (not force))
       (let ((reply (xcb:+request-unchecked+reply exwm--connection
                        (make-instance 'xcb:ewmh:get-_NET_WM_WINDOW_TYPE
@@ -231,7 +223,7 @@
 
 (defun exwm--update-class (id &optional force)
   "Update WM_CLASS."
-  (exwm--with-current-id id
+  (with-current-buffer (exwm--id->buffer id)
     (unless (and exwm-instance-name exwm-class-name (not force))
       (let ((reply (xcb:+request-unchecked+reply exwm--connection
                        (make-instance 'xcb:icccm:get-WM_CLASS :window id))))
@@ -246,7 +238,7 @@
 
 (defun exwm--update-utf8-title (id &optional force)
   "Update _NET_WM_NAME."
-  (exwm--with-current-id id
+  (with-current-buffer (exwm--id->buffer id)
     (when (or force (not exwm-title))
       (let ((reply (xcb:+request-unchecked+reply exwm--connection
                        (make-instance 'xcb:ewmh:get-_NET_WM_NAME :window id))))
@@ -258,7 +250,7 @@
 
 (defun exwm--update-ctext-title (id &optional force)
   "Update WM_NAME."
-  (exwm--with-current-id id
+  (with-current-buffer (exwm--id->buffer id)
     (unless (or exwm--title-is-utf8
                 (and exwm-title (not force)))
       (let ((reply (xcb:+request-unchecked+reply exwm--connection
@@ -275,7 +267,7 @@
 
 (defun exwm--update-transient-for (id &optional force)
   "Update WM_TRANSIENT_FOR."
-  (exwm--with-current-id id
+  (with-current-buffer (exwm--id->buffer id)
     (unless (and exwm-transient-for (not force))
       (let ((reply (xcb:+request-unchecked+reply exwm--connection
                        (make-instance 'xcb:icccm:get-WM_TRANSIENT_FOR
@@ -285,7 +277,7 @@
 
 (defun exwm--update-normal-hints (id &optional force)
   "Update WM_NORMAL_HINTS."
-  (exwm--with-current-id id
+  (with-current-buffer (exwm--id->buffer id)
     (unless (and (not force)
                  (or exwm--normal-hints-x exwm--normal-hints-y
                      exwm--normal-hints-width exwm--normal-hints-height
@@ -332,7 +324,7 @@
 
 (defun exwm--update-hints (id &optional force)
   "Update WM_HINTS."
-  (exwm--with-current-id id
+  (with-current-buffer (exwm--id->buffer id)
     (unless (and (not force) exwm--hints-input exwm--hints-urgency)
       (let ((reply (xcb:+request-unchecked+reply exwm--connection
                        (make-instance 'xcb:icccm:get-WM_HINTS :window id))))
@@ -351,7 +343,7 @@
 
 (defun exwm--update-protocols (id &optional force)
   "Update WM_PROTOCOLS."
-  (exwm--with-current-id id
+  (with-current-buffer (exwm--id->buffer id)
     (unless (and exwm--protocols (not force))
       (let ((reply (xcb:+request-unchecked+reply exwm--connection
                        (make-instance 'xcb:icccm:get-WM_PROTOCOLS
@@ -361,7 +353,7 @@
 
 (defun exwm--update-state (id &optional force)
   "Update WM_STATE."
-  (exwm--with-current-id id
+  (with-current-buffer (exwm--id->buffer id)
     (unless (and exwm-state (not force))
       (let ((reply (xcb:+request-unchecked+reply exwm--connection
                        (make-instance 'xcb:icccm:get-WM_STATE :window id))))

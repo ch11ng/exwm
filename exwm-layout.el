@@ -34,7 +34,9 @@
       (make-instance 'xcb:icccm:set-WM_STATE
                      :window id :state xcb:icccm:WM_STATE:NormalState
                      :icon xcb:Window:None))
-  (let* ((edges (or (exwm--with-current-id id exwm--floating-edges)
+  (let* ((buffer (exwm--id->buffer id))
+         (edges (or (and buffer
+                         (with-current-buffer buffer exwm--floating-edges))
                     (window-inside-pixel-edges window)))
          (x (elt edges 0))
          (y (elt edges 1))

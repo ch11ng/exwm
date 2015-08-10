@@ -35,7 +35,7 @@ corresponding buffer.")
 
 (defun exwm-manage--update-geometry (id &optional force)
   "Update window geometry."
-  (exwm--with-current-id id
+  (with-current-buffer (exwm--id->buffer id)
     (unless (and exwm--geometry (not force))
       (let ((reply (xcb:+request-unchecked+reply exwm--connection
                        (make-instance 'xcb:GetGeometry :drawable id))))
@@ -137,7 +137,7 @@ corresponding buffer.")
       (exwm-input-grab-keyboard id)
       (exwm-workspace--update-switch-history)
       (setq exwm-input--focus-lock nil) ;unlocked in advance
-      (exwm--with-current-id id
+      (with-current-buffer (exwm--id->buffer id)
         (run-hooks 'exwm-manage-finish-hook))))
   (setq exwm-input--focus-lock nil))
 

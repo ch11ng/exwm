@@ -56,7 +56,7 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
 
 (defun exwm-input--set-focus (id)
   "Set input focus to window ID in a proper way."
-  (exwm--with-current-id id
+  (with-current-buffer (exwm--id->buffer id)
     (exwm--log "Set focus ID to #x%x" id)
     (setq exwm-input--focus-id id)
     (if (and (not exwm--hints-input)
@@ -105,21 +105,24 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
                                 exwm--floating-frame)
                      (x-focus-frame exwm--floating-frame)))
                  ;; Finally focus the window
-                 (exwm-input--set-focus exwm-input--focus-id))
-        (exwm--with-current-id exwm-input--focus-id
-          (exwm--log "Set focus ID to #x%x" xcb:Window:None)
-          (setq exwm-input--focus-id xcb:Window:None)
-          (let ((frame (selected-frame)))
-            (if exwm--floating-frame
-                (unless (or (eq frame exwm--floating-frame)
-                            (active-minibuffer-window))
-                  ;; Redirect input focus to the workspace frame
-                  (exwm--log "Redirect input focus (%s => %s)"
-                             exwm--floating-frame frame)
-                  (redirect-frame-focus exwm--floating-frame frame))
-              ;; Focus the workspace frame
-              (exwm--log "Focus on workspace %s" frame)
-              (x-focus-frame frame))))))
+                 (when (exwm--id->buffer exwm-input--focus-id)
+                   (exwm-input--set-focus exwm-input--focus-id)))
+        (let ((buffer (exwm--id->buffer exwm-input--focus-id)))
+          (when buffer
+            (with-current-buffer buffer
+              (exwm--log "Set focus ID to #x%x" xcb:Window:None)
+              (setq exwm-input--focus-id xcb:Window:None)
+              (let ((frame (selected-frame)))
+                (if exwm--floating-frame
+                    (unless (or (eq frame exwm--floating-frame)
+                                (active-minibuffer-window))
+                      ;; Redirect input focus to the workspace frame
+                      (exwm--log "Redirect input focus (%s => %s)"
+                                 exwm--floating-frame frame)
+                      (redirect-frame-focus exwm--floating-frame frame))
+                  ;; Focus the workspace frame
+                  (exwm--log "Focus on workspace %s" frame)
+                  (x-focus-frame frame))))))))
     (setq exwm-input--focus-lock nil)))
 
 (defun exwm-input--finish-key-sequence ()
@@ -163,7 +166,7 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
             (t
              ;; Click to focus
              (unless (and (boundp 'exwm--id) (= event exwm--id))
-               (exwm--with-current-id event
+               (with-current-buffer (exwm--id->buffer event)
                  (select-frame-set-input-focus (or exwm--floating-frame
                                                    exwm--frame))
                  (select-window (get-buffer-window nil 'visible))))
