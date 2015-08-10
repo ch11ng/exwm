@@ -139,13 +139,24 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
   (let ((obj (make-instance 'xcb:MappingNotify)))
     (xcb:unmarshal obj data)
     (with-slots (request first-keycode count) obj
-      (cond ((= request xcb:Mapping:Modifier)
-             ;; Modifier keys changed
-             (xcb:keysyms:update-modifier-mapping exwm--connection))
-            ((= request xcb:Mapping:Keyboard)
-             ;; Only updated changed keys
-             (xcb:keysyms:update-keyboard-mapping exwm--connection
-                                                  first-keycode count))))))
+      (cond
+       ((= request xcb:Mapping:Modifier)
+        ;; Modifier keys changed
+        (exwm--log "Update modifier mapping")
+        (xcb:keysyms:update-modifier-mapping exwm--connection)
+        )
+       ((= request xcb:Mapping:Keyboard)
+        ;; Only update changed keys
+        (with-slots (min-keycode max-keycode)
+            (xcb:get-setup exwm--connection)
+          ;; Since this operation is quite time-consuming, a complete refresh
+          ;; is forbidden as it's unlikely to bring any useful information
+          (unless (and (= min-keycode first-keycode)
+                       (= max-keycode (+ first-keycode count -1)))
+            (exwm--log "Update keyboard mapping: %d ~ %d"
+                       first-keycode (+ first-keycode count))
+            (xcb:keysyms:update-keyboard-mapping exwm--connection
+                                                 first-keycode count))))))))
 
 (defun exwm-input--on-ButtonPress (data synthetic)
   "Handle ButtonPress event."
