@@ -88,7 +88,8 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
   "Update input focus."
   (unless exwm-input--focus-lock
     (setq exwm-input--focus-lock t)
-    (when (eq (current-buffer) (window-buffer)) ;e.g. with-temp-buffer
+    (when (and (frame-parameter nil 'exwm-window-id) ;e.g. emacsclient frame
+               (eq (current-buffer) (window-buffer))) ;e.g. `with-temp-buffer'
       (if (eq major-mode 'exwm-mode)
           (progn (exwm--log "Set focus ID to #x%x" exwm--id)
                  (setq exwm-input--focus-id exwm--id)
@@ -163,7 +164,8 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
              ;; Click to focus
              (unless (and (boundp 'exwm--id) (= event exwm--id))
                (exwm--with-current-id event
-                 (raise-frame (or exwm--floating-frame exwm--frame))
+                 (select-frame-set-input-focus (or exwm--floating-frame
+                                                   exwm--frame))
                  (select-window (get-buffer-window nil 'visible))))
              ;; The event should be replayed
              (setq mode xcb:Allow:ReplayPointer))))

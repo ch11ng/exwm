@@ -160,32 +160,43 @@
 (defun exwm-layout--refresh ()
   "Refresh layout."
   (let ((frame (selected-frame))
-        windows placeholder)
+        (placeholder (get-buffer "*scratch*"))
+        windows)
     (if (not (memq frame exwm-workspace--list))
-        ;; Refresh a floating frame
-        (progn
-          (cl-assert (eq major-mode 'exwm-mode))
-          (let ((window (frame-first-window frame)))
+        (if (frame-parameter frame 'exwm-window-id)
+            ;; Refresh a floating frame
+            (progn
+              (cl-assert (eq major-mode 'exwm-mode))
+              (let ((window (frame-first-window frame)))
+                (with-current-buffer (window-buffer window)
+                  (exwm--log "Refresh floating window #x%x" exwm--id)
+                  (exwm-layout--show exwm--id window))))
+          ;; Other frames (e.g. terminal/graphical frame of emacsclient)
+          ;; We shall bury all `exwm-mode' buffers in this case
+          (unless placeholder ;create the *scratch* buffer if it's killed
+            (setq placeholder (get-buffer-create "*scratch*"))
+            (set-buffer-major-mode placeholder))
+          (setq windows (window-list frame 0)) ;exclude minibuffer
+          (dolist (window windows)
             (with-current-buffer (window-buffer window)
-              (exwm--log "Refresh floating window #x%x" exwm--id)
-              (exwm-layout--show exwm--id window))))
+              (when (eq major-mode 'exwm-mode)
+                (set-window-buffer window placeholder)))))
       ;; Refresh the whole workspace
       ;; Workspaces other than the active one can also be refreshed (RandR)
       (exwm--log "Refresh workspace %s" frame)
-      (let ((placeholder (get-buffer "*scratch*")))
-        (unless placeholder ;create the *scratch* buffer if it's killed
-          (setq placeholder (get-buffer-create "*scratch*"))
-          (set-buffer-major-mode placeholder))
-        (dolist (pair exwm--id-buffer-alist)
-          (with-current-buffer (cdr pair)
-            ;; Exclude windows on other workspaces and floating frames
-            (when (and (eq frame exwm--frame) (not exwm--floating-frame))
-              (setq windows (get-buffer-window-list (current-buffer) 0))
-              (if (not windows)
-                  (exwm-layout--hide exwm--id)
-                (exwm-layout--show exwm--id (car windows))
-                (dolist (i (cdr windows))
-                  (set-window-buffer i placeholder))))))))))
+      (unless placeholder  ;create the *scratch* buffer if it's killed
+        (setq placeholder (get-buffer-create "*scratch*"))
+        (set-buffer-major-mode placeholder))
+      (dolist (pair exwm--id-buffer-alist)
+        (with-current-buffer (cdr pair)
+          ;; Exclude windows on other workspaces and floating frames
+          (when (and (eq frame exwm--frame) (not exwm--floating-frame))
+            (setq windows (get-buffer-window-list (current-buffer) 0))
+            (if (not windows)
+                (exwm-layout--hide exwm--id)
+              (exwm-layout--show exwm--id (car windows))
+              (dolist (i (cdr windows))
+                (set-window-buffer i placeholder)))))))))
 
 (defun exwm-layout--on-minibuffer-setup ()
   "Refresh layout when minibuffer grows."

@@ -53,12 +53,14 @@
          (original-id (frame-parameter original-frame 'exwm-window-id))
          ;; Create new frame
          (frame (with-current-buffer "*scratch*"
-                  (make-frame `((minibuffer . nil) ;use the one on workspace
-                                (background-color
-                                 . ,exwm-floating-border-color)
-                                (internal-border-width
-                                 . ,exwm-floating-border-width)
-                                (unsplittable . t))))) ;and fix the size later
+                  (prog2
+                      (exwm--lock)
+                      (make-frame
+                       `((minibuffer . nil) ;use the one on workspace
+                         (background-color . ,exwm-floating-border-color)
+                         (internal-border-width . ,exwm-floating-border-width)
+                         (unsplittable . t))) ;and fix the size later
+                    (exwm--unlock))))
          (frame-id (string-to-int (frame-parameter frame 'window-id)))
          (outer-id (string-to-int (frame-parameter frame 'outer-window-id)))
          (window (frame-first-window frame)) ;and it's the only window

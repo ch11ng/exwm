@@ -195,6 +195,9 @@
 (defun exwm-reset ()
   "Reset window to standard state: non-fullscreen, line-mode."
   (interactive)
+  (unless (frame-parameter nil 'exwm-window-id)
+    ;; Move focus away form a non-EXWM frame
+    (x-focus-frame exwm-workspace--current))
   (with-current-buffer (window-buffer)
     (when (eq major-mode 'exwm-mode)
       (when exwm--fullscreen (exwm-layout-unset-fullscreen))
@@ -400,7 +403,8 @@
                (exwm--update-state id t))
               ((= atom xcb:Atom:_NET_WM_USER_TIME)) ;ignored
               (t (exwm--log "Unhandled PropertyNotify: %s(%d)"
-                            (x-get-atom-name atom) atom)))))))
+                            (x-get-atom-name atom exwm-workspace--current)
+                            atom)))))))
 
 (defun exwm--on-ClientMessage (raw-data synthetic)
   "Handle ClientMessage event."
@@ -628,9 +632,6 @@
         (exwm-input--init)
         (exwm-randr--init)
         (exwm--unlock)
-        ;; Disable events during new frame creation
-        (add-hook 'before-make-frame-hook 'exwm--lock)
-        (add-hook 'after-make-frame-functions 'exwm--unlock)
         ;; Manage exiting windows
         (exwm-manage--scan)
         (run-hooks 'exwm-init-hook)))))
