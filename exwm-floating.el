@@ -67,6 +67,7 @@
          (y (slot-value exwm--geometry 'y))
          (width (slot-value exwm--geometry 'width))
          (height (slot-value exwm--geometry 'height)))
+    (exwm--log "Floating geometry (original): %dx%d%+d%+d" width height x y)
     ;; Save window IDs
     (set-frame-parameter frame 'exwm-window-id frame-id)
     (set-frame-parameter frame 'exwm-outer-id outer-id)
@@ -102,7 +103,24 @@
         (when (= 0 height) (setq height (/ display-height 2)))
         ;; Completely outside
         (when (or (> y display-height) (> 0 (+ y display-height)))
-          (setq y (/ (- display-height height) 2)))))
+          (setq y (/ (- display-height height) 2))))
+      ;; Center floating windows
+      (when (and (= x 0) (= y 0))
+        (let ((buffer (exwm--id->buffer exwm-transient-for))
+              window edges)
+          (when (and buffer (setq window (get-buffer-window buffer)))
+            (setq edges (window-inside-absolute-pixel-edges window))
+            (unless (and (<= width (- (elt edges 2) (elt edges 0)))
+                         (<= height (- (elt edges 3) (elt edges 1))))
+              (setq edges nil)))
+          (if edges
+              ;; Put at the center of leading window
+              (setq x (/ (- (+ (elt edges 2) (elt edges 0)) width) 2)
+                    y (/ (- (+ (elt edges 3) (elt edges 1)) height) 2))
+            ;; Put at the center of screen
+            (setq x (/ (- display-width width) 2)
+                  y (/ (- display-height height) 2))))))
+    (exwm--log "Floating geometry (corrected): %dx%d%+d%+d" width height x y)
     ;; Set OverrideRedirect on this frame
     (xcb:+request exwm--connection
         (make-instance 'xcb:ChangeWindowAttributes

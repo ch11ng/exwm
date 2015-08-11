@@ -86,7 +86,6 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
   "Update input focus."
   (when (and (frame-parameter nil 'exwm-window-id) ;e.g. emacsclient frame
              (eq (current-buffer) (window-buffer))) ;e.g. `with-temp-buffer'
-    (exwm--log "EXWM-INPUT--UPDATE-FOCUS")
     (if (eq major-mode 'exwm-mode)
         (progn (exwm--log "Set focus ID to #x%x" exwm--id)
                (setq exwm-input--focus-id exwm--id)

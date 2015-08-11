@@ -276,6 +276,8 @@ corresponding buffer.")
         buffer edges)
     (xcb:unmarshal obj data)
     (with-slots (window x y width height border-width) obj
+      (exwm--log "ConfigureRequest from #x%x @%dx%d%+d%+d, border: %d"
+                 window width height x y border-width)
       (if (setq buffer (exwm--id->buffer window))
           ;; Send client message for managed windows
           (with-current-buffer buffer
@@ -286,6 +288,7 @@ corresponding buffer.")
                     (or exwm--floating-edges
                         (window-inside-absolute-pixel-edges
                          (get-buffer-window)))))
+            (exwm--log "Reply with ConfigureNotify (edges): %s" edges)
             (xcb:+request exwm--connection
                 (make-instance 'xcb:SendEvent
                                :propagate 0 :destination window
@@ -300,6 +303,7 @@ corresponding buffer.")
                                         :height (- (elt edges 3) (elt edges 1))
                                         :border-width 0 :override-redirect 0)
                                        exwm--connection))))
+        (exwm--log "ConfigureWindow (preserve geometry)")
         ;; Configure unmanaged windows
         (xcb:+request exwm--connection
             (make-instance 'xcb:ConfigureWindow
@@ -317,6 +321,7 @@ corresponding buffer.")
   "Handle MapRequest event."
   (let ((obj (make-instance 'xcb:MapRequest)))
     (xcb:unmarshal obj data)
+    (exwm--log "MapRequest from #x%x" (slot-value obj 'window))
     (exwm-manage--manage-window (slot-value obj 'window))))
 
 (defun exwm-manage--on-UnmapNotify (data synthetic)
@@ -324,6 +329,7 @@ corresponding buffer.")
   (unless synthetic
     (let ((obj (make-instance 'xcb:UnmapNotify)))
       (xcb:unmarshal obj data)
+      (exwm--log "UnmapNotify from #x%x" (slot-value obj 'window))
       (exwm-manage--unmanage-window (slot-value obj 'window) t))))
 
 (defun exwm-manage--on-DestroyNotify (data synthetic)
@@ -331,6 +337,7 @@ corresponding buffer.")
   (unless synthetic
     (let ((obj (make-instance 'xcb:DestroyNotify)))
       (xcb:unmarshal obj data)
+      (exwm--log "DestroyNotify from #x%x" (slot-value obj 'window))
       (exwm-manage--unmanage-window (slot-value obj 'window)))))
 
 (defun exwm-manage--init ()
