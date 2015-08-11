@@ -707,6 +707,30 @@
     (add-hook 'window-setup-hook 'exwm-init t)            ;for Emacs
     (add-hook 'after-make-frame-functions 'exwm-init t))) ;for Emacs Client
 
+(defun exwm--ido-buffer-window-other-frame (orig-fun buffer)
+  "Wrapper for `ido-buffer-window-other-frame' to exclude invisible windows."
+  (let* ((window (funcall orig-fun buffer))
+         (frame (window-frame window)))
+    ;; Exclude windows on other workspaces
+    (unless (and (memq frame exwm-workspace--list)
+                 (not (eq frame exwm-workspace--current)))
+      window)))
+
+(defun exwm--fix-ido-buffer-window-other-frame ()
+  "Fix `ido-buffer-window-other-frame'."
+  (advice-add 'ido-buffer-window-other-frame :around
+              'exwm--ido-buffer-window-other-frame))
+
+(defun exwm-enable-ido-workaround ()
+  "Enable workarounds for `ido-mode'."
+  (add-hook 'exwm-init-hook 'exwm--fix-ido-buffer-window-other-frame))
+
+(defun exwm-disable-ido-workaround ()
+  "Disable workarounds for `ido-mode'."
+  (remove-hook 'exwm-init-hook 'exwm--fix-ido-buffer-window-other-frame)
+  (advice-remove 'ido-buffer-window-other-frame
+                 'exwm--ido-buffer-window-other-frame))
+
 
 
 (provide 'exwm)

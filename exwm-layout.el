@@ -198,7 +198,13 @@
                 (exwm-layout--hide exwm--id)
               (exwm-layout--show exwm--id (car windows))
               (dolist (i (cdr windows))
-                (set-window-buffer i placeholder)))))))))
+                (set-window-buffer i placeholder))))))
+      ;; Make sure windows floating / on other workspaces are excluded
+      (dolist (window (window-list frame 0))
+        (with-current-buffer (window-buffer window)
+          (when (and (eq major-mode 'exwm-mode)
+                     (or exwm--floating-frame (not (eq frame exwm--frame))))
+            (set-window-buffer window placeholder)))))))
 
 (defun exwm-layout--on-minibuffer-setup ()
   "Refresh layout when minibuffer grows."
