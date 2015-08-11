@@ -39,7 +39,6 @@
 (defun exwm-floating--set-floating (id)
   "Make window ID floating."
   (interactive)
-  (setq exwm-input--focus-lock t)
   (when (get-buffer-window (exwm--id->buffer id)) ;window in non-floating state
     (set-window-buffer (selected-window) (other-buffer))) ;hide it first
   (let* ((original-frame
@@ -167,13 +166,11 @@
       ;; FIXME: other conditions?
       (unless (memq xcb:Atom:_NET_WM_WINDOW_TYPE_UTILITY exwm-window-type)
         (x-focus-frame exwm--floating-frame)
-        (exwm-input--set-focus id)))
-    (setq exwm-input--focus-lock nil)))
+        (exwm-input--set-focus id)))))
 
 (defun exwm-floating--unset-floating (id)
   "Make window ID non-floating."
   (interactive)
-  (setq exwm-input--focus-lock t)
   (let ((buffer (exwm--id->buffer id)))
     ;; Reparent to workspace frame
     (xcb:+request exwm--connection
@@ -201,8 +198,7 @@
             exwm--frame exwm-workspace--current))
     (select-frame exwm-workspace--current t)
     (set-window-buffer nil buffer)
-    (exwm-input--set-focus id))
-  (setq exwm-input--focus-lock nil))
+    (exwm-input--set-focus id)))
 
 (defun exwm-floating-toggle-floating ()
   "Toggle the current window between floating and non-floating states."

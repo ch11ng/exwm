@@ -45,7 +45,6 @@ corresponding buffer.")
 (defun exwm-manage--manage-window (id)
   "Manage window ID."
   (exwm--log "Try to manage #x%x" id)
-  (setq exwm-input--focus-lock t)
   (catch 'return
     ;; Ensure it's not managed
     (when (assoc id exwm--id-buffer-alist)
@@ -136,10 +135,8 @@ corresponding buffer.")
         (exwm-floating--unset-floating id))
       (exwm-input-grab-keyboard id)
       (exwm-workspace--update-switch-history)
-      (setq exwm-input--focus-lock nil) ;unlocked in advance
       (with-current-buffer (exwm--id->buffer id)
-        (run-hooks 'exwm-manage-finish-hook))))
-  (setq exwm-input--focus-lock nil))
+        (run-hooks 'exwm-manage-finish-hook)))))
 
 (defun exwm-manage--unmanage-window (id &optional withdraw-only)
   "Unmanage window ID."

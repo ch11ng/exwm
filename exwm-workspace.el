@@ -90,7 +90,6 @@
 
 (defvar exwm-workspace--current nil "Current active workspace.")
 (defvar exwm-workspace-current-index 0 "Index of current active workspace.")
-(defvar exwm-workspace--switch-lock nil "Non-nil to prevent workspace switch.")
 
 (defun exwm-workspace-switch (index &optional force)
   "Switch to workspace INDEX. Query for INDEX if it's not specified.
@@ -107,8 +106,7 @@ The optional FORCE option is for internal use only."
                    `(exwm-workspace--switch-history
                      . ,(1+ exwm-workspace-current-index)))))
         (cl-position idx exwm-workspace--switch-history :test 'equal)))))
-  (unless (or exwm-workspace--switch-lock (not index))
-    (setq exwm-workspace--switch-lock t)
+  (when index
     (unless (and (<= 0 index) (< index exwm-workspace-number))
       (user-error "[EXWM] Workspace index out of range: %d" index))
     (when (or force (/= exwm-workspace-current-index index))
@@ -145,17 +143,15 @@ The optional FORCE option is for internal use only."
         (xcb:+request exwm--connection
             (make-instance 'xcb:ewmh:set-_NET_CURRENT_DESKTOP
                            :window exwm--root :data index))
-        (xcb:flush exwm--connection)))
-    (setq exwm-workspace--switch-lock nil)))
+        (xcb:flush exwm--connection)))))
 
 (defun exwm-workspace--on-focus-in ()
   "Fix unexpected frame switch."
-  (unless exwm-workspace--switch-lock
-    (let ((index (cl-position (selected-frame) exwm-workspace--list)))
-      (exwm--log "Focus on workspace %s" index)
-      (when (and index (/= index exwm-workspace-current-index))
-        (exwm--log "Workspace was switched unexpectedly")
-        (exwm-workspace-switch index)))))
+  (let ((index (cl-position (selected-frame) exwm-workspace--list)))
+    (exwm--log "Focus on workspace %s" index)
+    (when (and index (/= index exwm-workspace-current-index))
+      (exwm--log "Workspace was switched unexpectedly")
+      (exwm-workspace-switch index))))
 
 (defun exwm-workspace-move-window (index &optional id)
   "Move window ID to workspace INDEX."

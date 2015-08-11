@@ -81,49 +81,44 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
 
 (defvar exwm-input--focus-id xcb:Window:None
   "The window that is theoretically focused.")
-(defvar exwm-input--focus-lock nil
-  "Non-nil when input focus should stay unchanged.")
 
 (defun exwm-input--update-focus ()
   "Update input focus."
-  (unless exwm-input--focus-lock
-    (setq exwm-input--focus-lock t)
-    (when (and (frame-parameter nil 'exwm-window-id) ;e.g. emacsclient frame
-               (eq (current-buffer) (window-buffer))) ;e.g. `with-temp-buffer'
-      (if (eq major-mode 'exwm-mode)
-          (progn (exwm--log "Set focus ID to #x%x" exwm--id)
-                 (setq exwm-input--focus-id exwm--id)
-                 (when exwm--floating-frame
-                   (if (eq (selected-frame) exwm--floating-frame)
-                       ;; Cancel the possible input focus redirection
-                       (progn
-                         (exwm--log "Cancel input focus redirection on %s"
-                                    exwm--floating-frame)
-                         (redirect-frame-focus exwm--floating-frame nil))
-                     ;; Focus the floating frame
-                     (exwm--log "Focus on floating frame %s"
-                                exwm--floating-frame)
-                     (x-focus-frame exwm--floating-frame)))
-                 ;; Finally focus the window
-                 (when (exwm--id->buffer exwm-input--focus-id)
-                   (exwm-input--set-focus exwm-input--focus-id)))
-        (let ((buffer (exwm--id->buffer exwm-input--focus-id)))
-          (when buffer
-            (with-current-buffer buffer
-              (exwm--log "Set focus ID to #x%x" xcb:Window:None)
-              (setq exwm-input--focus-id xcb:Window:None)
-              (let ((frame (selected-frame)))
-                (if exwm--floating-frame
-                    (unless (or (eq frame exwm--floating-frame)
-                                (active-minibuffer-window))
-                      ;; Redirect input focus to the workspace frame
-                      (exwm--log "Redirect input focus (%s => %s)"
-                                 exwm--floating-frame frame)
-                      (redirect-frame-focus exwm--floating-frame frame))
-                  ;; Focus the workspace frame
-                  (exwm--log "Focus on workspace %s" frame)
-                  (x-focus-frame frame))))))))
-    (setq exwm-input--focus-lock nil)))
+  (when (and (frame-parameter nil 'exwm-window-id) ;e.g. emacsclient frame
+             (eq (current-buffer) (window-buffer))) ;e.g. `with-temp-buffer'
+    (exwm--log "EXWM-INPUT--UPDATE-FOCUS")
+    (if (eq major-mode 'exwm-mode)
+        (progn (exwm--log "Set focus ID to #x%x" exwm--id)
+               (setq exwm-input--focus-id exwm--id)
+               (when exwm--floating-frame
+                 (if (eq (selected-frame) exwm--floating-frame)
+                     ;; Cancel the possible input focus redirection
+                     (progn
+                       (exwm--log "Cancel input focus redirection on %s"
+                                  exwm--floating-frame)
+                       (redirect-frame-focus exwm--floating-frame nil))
+                   ;; Focus the floating frame
+                   (exwm--log "Focus on floating frame %s"
+                              exwm--floating-frame)
+                   (x-focus-frame exwm--floating-frame)))
+               ;; Finally focus the window
+               (when (exwm--id->buffer exwm-input--focus-id)
+                 (exwm-input--set-focus exwm-input--focus-id)))
+      (let ((buffer (exwm--id->buffer exwm-input--focus-id)))
+        (when (and buffer (eq (selected-frame) exwm-workspace--current))
+          (with-current-buffer buffer
+            (exwm--log "Set focus ID to #x%x" xcb:Window:None)
+            (setq exwm-input--focus-id xcb:Window:None)
+            (if exwm--floating-frame
+                (unless (active-minibuffer-window)
+                  ;; Redirect input focus to the workspace frame
+                  (exwm--log "Redirect input focus (%s => %s)"
+                             exwm--floating-frame exwm-workspace--current)
+                  (redirect-frame-focus exwm--floating-frame
+                                        exwm-workspace--current))
+              ;; Focus the workspace frame
+              (exwm--log "Focus on workspace %s" exwm-workspace--current)
+              (x-focus-frame exwm-workspace--current))))))))
 
 (defun exwm-input--finish-key-sequence ()
   "Mark the end of a key sequence (with the aid of `pre-command-hook')."
