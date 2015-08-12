@@ -590,6 +590,7 @@
   (if (not (eq 'x (framep (or frame (selected-frame)))))
       (exwm--log "Not running under X environment")
     (unless exwm--connection
+      (exwm-enable 'undo)               ;never initialize again
       (setq exwm--connection (xcb:connect-to-socket))
       (set-process-query-on-exit-flag (slot-value exwm--connection 'process)
                                       nil) ;prevent query message on exit
@@ -604,7 +605,6 @@
           ;; Other window manager is running
           (progn (xcb:disconnect exwm--connection)
                  (setq exwm--connection nil)
-                 (exwm-enable 'undo)
                  (exwm--log "Other window manager detected"))
         ;; Initialize ICCCM/EWMH support
         ;; (xcb:icccm:init exwm--connection)
@@ -694,11 +694,11 @@
 
 (defun exwm-enable (&optional undo)
   "Enable/Disable EXWM"
-  (setq frame-resize-pixelwise t)       ;mandatory; before init
   (if (eq undo 'undo)
       (progn (remove-hook 'window-setup-hook 'exwm-init)
              (remove-hook 'after-make-frame-functions 'exwm-init))
-    (add-hook 'window-setup-hook 'exwm-init t)            ;for Emacs
+    (setq frame-resize-pixelwise t)            ;mandatory; before init
+    (add-hook 'window-setup-hook 'exwm-init t) ;for Emacs
     (add-hook 'after-make-frame-functions 'exwm-init t))) ;for Emacs Client
 
 (defun exwm--ido-buffer-window-other-frame (orig-fun buffer)

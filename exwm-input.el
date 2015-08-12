@@ -175,8 +175,8 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
              ;; Resize
              (exwm-floating--start-moveresize event))
             (t
-             (select-window (get-buffer-window (exwm--id->buffer event)
-                                               'visible))
+             ;; Click to focus
+             (select-window (get-buffer-window (exwm--id->buffer event) t))
              ;; The event should be replayed
              (setq mode xcb:Allow:ReplayPointer))))
     (xcb:+request exwm--connection
