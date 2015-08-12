@@ -183,15 +183,8 @@ corresponding buffer.")
         (let ((floating exwm--floating-frame))
           (kill-buffer)
           (when floating
-            (if (eq 'exwm-mode
-                    (with-current-buffer
-                        (window-buffer
-                         (frame-first-window exwm-workspace--current))
-                      major-mode))
-                ;; Input focus is to be set on a window
-                (x-focus-frame exwm-workspace--current)
-              ;; Set input focus on a frame
-              (select-frame-set-input-focus exwm-workspace--current))))))))
+            (select-window
+             (frame-selected-window exwm-workspace--current))))))))
 
 (defun exwm-manage--scan ()
   "Search for existing windows and try to manage them."

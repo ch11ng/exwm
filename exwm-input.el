@@ -57,8 +57,6 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
 (defun exwm-input--set-focus (id)
   "Set input focus to window ID in a proper way."
   (with-current-buffer (exwm--id->buffer id)
-    (exwm--log "Set focus ID to #x%x" id)
-    (setq exwm-input--focus-id id)
     (if (and (not exwm--hints-input)
              (memq xcb:Atom:WM_TAKE_FOCUS exwm--protocols))
         (progn
@@ -79,45 +77,53 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
                          :time xcb:Time:CurrentTime)))
     (xcb:flush exwm--connection)))
 
-(defvar exwm-input--focus-id xcb:Window:None
-  "The window that is theoretically focused.")
+(defvar exwm-input--focus-buffer nil "The buffer to be focused.")
+(defvar exwm-input--redirected nil
+  "Indicate next update on buffer list is actually a result of redirection.")
+(defvar exwm-input--timer nil "Currently running timer.")
+
+(defun exwm-input--on-buffer-list-update ()
+  "Run in buffer-list-update-hook to track input focus."
+  (let ((frame (selected-frame))
+        (buffer (current-buffer)))
+    (when (and (not (minibufferp buffer))
+               (frame-parameter frame 'exwm-window-id) ;e.g. emacsclient frame
+               (eq buffer (window-buffer))) ;e.g. `with-temp-buffer'
+      (unless (and exwm-input--redirected
+                   exwm-input--focus-buffer
+                   (with-current-buffer exwm-input--focus-buffer
+                     exwm--floating-frame))
+        (setq exwm-input--focus-buffer buffer)
+        (when exwm-input--timer (cancel-timer exwm-input--timer))
+        (setq exwm-input--timer
+              (run-with-timer 0.01 nil 'exwm-input--update-focus)))
+      (setq exwm-input--redirected nil))))
+
+(defun exwm-input--on-focus-in ()
+  "Run in focus-in-hook to remove redirected focus on frame."
+  (let ((frame (selected-frame)))
+    (when (and (frame-parameter frame 'exwm-window-id)
+               (not (memq frame exwm-workspace--list)))
+      (setq exwm-input--redirected t))))
 
 (defun exwm-input--update-focus ()
   "Update input focus."
-  (when (and (frame-parameter nil 'exwm-window-id) ;e.g. emacsclient frame
-             (eq (current-buffer) (window-buffer))) ;e.g. `with-temp-buffer'
-    (if (eq major-mode 'exwm-mode)
-        (progn (exwm--log "Set focus ID to #x%x" exwm--id)
-               (setq exwm-input--focus-id exwm--id)
-               (when exwm--floating-frame
-                 (if (eq (selected-frame) exwm--floating-frame)
-                     ;; Cancel the possible input focus redirection
-                     (progn
-                       (exwm--log "Cancel input focus redirection on %s"
-                                  exwm--floating-frame)
-                       (redirect-frame-focus exwm--floating-frame nil))
-                   ;; Focus the floating frame
-                   (exwm--log "Focus on floating frame %s"
-                              exwm--floating-frame)
-                   (x-focus-frame exwm--floating-frame)))
-               ;; Finally focus the window
-               (when (exwm--id->buffer exwm-input--focus-id)
-                 (exwm-input--set-focus exwm-input--focus-id)))
-      (let ((buffer (exwm--id->buffer exwm-input--focus-id)))
-        (when (and buffer (eq (selected-frame) exwm-workspace--current))
-          (with-current-buffer buffer
-            (exwm--log "Set focus ID to #x%x" xcb:Window:None)
-            (setq exwm-input--focus-id xcb:Window:None)
-            (if exwm--floating-frame
-                (unless (active-minibuffer-window)
-                  ;; Redirect input focus to the workspace frame
-                  (exwm--log "Redirect input focus (%s => %s)"
-                             exwm--floating-frame exwm-workspace--current)
-                  (redirect-frame-focus exwm--floating-frame
-                                        exwm-workspace--current))
-              ;; Focus the workspace frame
-              (exwm--log "Focus on workspace %s" exwm-workspace--current)
-              (x-focus-frame exwm-workspace--current))))))))
+  (when exwm-input--focus-buffer
+    (with-current-buffer exwm-input--focus-buffer
+      (exwm--log "Set focus on %s" exwm-input--focus-buffer)
+      (setq exwm-input--focus-buffer nil)
+      (if (eq major-mode 'exwm-mode)
+          (progn
+            (when exwm--floating-frame
+              (redirect-frame-focus exwm--floating-frame nil)
+              (select-frame-set-input-focus exwm--floating-frame t))
+            (exwm-input--set-focus exwm--id))
+        (select-frame-set-input-focus exwm-workspace--current t)
+        (dolist (pair exwm--id-buffer-alist)
+          (with-current-buffer (cdr pair)
+            (when (and exwm--floating-frame
+                       (eq exwm--frame exwm-workspace--current))
+              (redirect-frame-focus exwm--floating-frame exwm--frame))))))))
 
 (defun exwm-input--finish-key-sequence ()
   "Mark the end of a key sequence (with the aid of `pre-command-hook')."
@@ -169,12 +175,8 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
              ;; Resize
              (exwm-floating--start-moveresize event))
             (t
-             ;; Click to focus
-             (unless (and (boundp 'exwm--id) (= event exwm--id))
-               (with-current-buffer (exwm--id->buffer event)
-                 (select-frame-set-input-focus (or exwm--floating-frame
-                                                   exwm--frame))
-                 (select-window (get-buffer-window nil 'visible))))
+             (select-window (get-buffer-window (exwm--id->buffer event)
+                                               'visible))
              ;; The event should be replayed
              (setq mode xcb:Allow:ReplayPointer))))
     (xcb:+request exwm--connection
@@ -246,7 +248,6 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
 ;;       (when (and keysym
 ;;                  (setq event (xcb:keysyms:keysym->event keysym state))
 ;;                  (or exwm-input--during-key-sequence
-;;                      (= exwm-input--focus-id xcb:Window:None)
 ;;                      (setq window (active-minibuffer-window))
 ;;                      (eq event ?\C-c)   ;mode-specific key
 ;;                      (memq event exwm-input--global-prefix-keys)
@@ -273,7 +274,6 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
       (if (and keysym
                (setq event (xcb:keysyms:keysym->event keysym state))
                (or exwm-input--during-key-sequence
-                   (= exwm-input--focus-id xcb:Window:None)
                    (setq minibuffer-window (active-minibuffer-window))
                    (eq event ?\C-c)   ;mode-specific key
                    (memq event exwm-input--global-prefix-keys)
@@ -466,7 +466,8 @@ SIMULATION-KEYS is a list of alist (key-sequence1 . key-sequence2)."
   ;; `pre-command-hook' marks the end of a key sequence (existing or not)
   (add-hook 'pre-command-hook 'exwm-input--finish-key-sequence)
   ;; Update focus when buffer list updates
-  (add-hook 'buffer-list-update-hook 'exwm-input--update-focus)
+  (add-hook 'buffer-list-update-hook 'exwm-input--on-buffer-list-update)
+  (add-hook 'focus-in-hook 'exwm-input--on-focus-in)
   ;; Update prefix keys for global keys
   (exwm-input--update-global-prefix-keys))
 

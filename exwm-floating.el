@@ -179,12 +179,7 @@
             exwm--floating-frame frame)
       (set-window-buffer window (current-buffer)) ;this changes current buffer
       (set-window-dedicated-p window t))
-    (with-current-buffer (exwm--id->buffer id)
-      ;; Some window should not get input focus on creation
-      ;; FIXME: other conditions?
-      (unless (memq xcb:Atom:_NET_WM_WINDOW_TYPE_UTILITY exwm-window-type)
-        (x-focus-frame exwm--floating-frame)
-        (exwm-input--set-focus id)))))
+    (select-window window)))
 
 (defun exwm-floating--unset-floating (id)
   "Make window ID non-floating."
@@ -212,11 +207,12 @@
         (set-window-dedicated-p (frame-first-window exwm--floating-frame) nil)
         (delete-frame exwm--floating-frame))) ;remove the floating frame
     (with-current-buffer buffer
-      (setq exwm--floating-frame nil
+      (setq window-size-fixed nil
+            exwm--floating-frame nil
             exwm--frame exwm-workspace--current))
-    (select-frame exwm-workspace--current t)
-    (set-window-buffer nil buffer)
-    (exwm-input--set-focus id)))
+    (let ((window (frame-selected-window exwm-workspace--current)))
+      (set-window-buffer window buffer)
+      (select-window window))))
 
 (defun exwm-floating-toggle-floating ()
   "Toggle the current window between floating and non-floating states."

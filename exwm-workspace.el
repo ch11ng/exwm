@@ -188,9 +188,6 @@ The optional FORCE option is for internal use only."
           ;; Move the window itself
           (bury-buffer)
           (exwm-layout--hide id)
-          ;; Force update input focus
-          (setq exwm-input--focus-id xcb:Window:None)
-          (exwm-input--update-focus)
           (xcb:+request exwm--connection
               (make-instance 'xcb:ReparentWindow
                              :window id

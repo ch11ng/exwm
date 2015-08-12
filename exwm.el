@@ -195,15 +195,9 @@
 (defun exwm-reset ()
   "Reset window to standard state: non-fullscreen, line-mode."
   (interactive)
-  (unless (frame-parameter nil 'exwm-window-id)
-    ;; Move focus away form a non-EXWM frame
-    (x-focus-frame exwm-workspace--current))
   (with-current-buffer (window-buffer)
     (when (eq major-mode 'exwm-mode)
       (when exwm--fullscreen (exwm-layout-unset-fullscreen))
-      ;; Force update input focus
-      (setq exwm-input--focus-id xcb:Window:None)
-      (exwm-input--update-focus)
       ;; Force refresh
       (exwm-layout--refresh)
       (exwm-input-grab-keyboard))))
@@ -709,12 +703,12 @@
 
 (defun exwm--ido-buffer-window-other-frame (orig-fun buffer)
   "Wrapper for `ido-buffer-window-other-frame' to exclude invisible windows."
-  (let* ((window (funcall orig-fun buffer))
-         (frame (window-frame window)))
-    ;; Exclude windows on other workspaces
-    (unless (and (memq frame exwm-workspace--list)
-                 (not (eq frame exwm-workspace--current)))
-      window)))
+  (with-current-buffer buffer
+    (if (eq major-mode 'exwm-mode)
+        ;; `ido-mode' works well with `exwm-mode' buffers
+        (funcall orig-fun buffer)
+      ;; Other buffers should be selected within the same workspace
+      (get-buffer-window buffer exwm-workspace--current))))
 
 (defun exwm--fix-ido-buffer-window-other-frame ()
   "Fix `ido-buffer-window-other-frame'."
