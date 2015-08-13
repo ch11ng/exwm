@@ -77,7 +77,7 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
                          :time xcb:Time:CurrentTime)))
     (xcb:flush exwm--connection)))
 
-(defvar exwm-input--focus-buffer nil "The buffer to be focused.")
+(defvar exwm-input--focus-window nil "The (Emacs) window to be focused.")
 (defvar exwm-input--redirected nil
   "Indicate next update on buffer list is actually a result of redirection.")
 (defvar exwm-input--timer nil "Currently running timer.")
@@ -85,15 +85,17 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
 (defun exwm-input--on-buffer-list-update ()
   "Run in buffer-list-update-hook to track input focus."
   (let ((frame (selected-frame))
+        (window (selected-window))
         (buffer (current-buffer)))
     (when (and (not (minibufferp buffer))
                (frame-parameter frame 'exwm-window-id) ;e.g. emacsclient frame
                (eq buffer (window-buffer))) ;e.g. `with-temp-buffer'
       (unless (and exwm-input--redirected
-                   exwm-input--focus-buffer
-                   (with-current-buffer exwm-input--focus-buffer
+                   exwm-input--focus-window
+                   (with-current-buffer (window-buffer
+                                         exwm-input--focus-window)
                      exwm--floating-frame))
-        (setq exwm-input--focus-buffer buffer)
+        (setq exwm-input--focus-window window)
         (when exwm-input--timer (cancel-timer exwm-input--timer))
         (setq exwm-input--timer
               (run-with-timer 0.01 nil 'exwm-input--update-focus)))
@@ -108,22 +110,23 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
 
 (defun exwm-input--update-focus ()
   "Update input focus."
-  (when exwm-input--focus-buffer
-    (with-current-buffer exwm-input--focus-buffer
-      (exwm--log "Set focus on %s" exwm-input--focus-buffer)
-      (setq exwm-input--focus-buffer nil)
+  (when exwm-input--focus-window
+    (with-current-buffer (window-buffer exwm-input--focus-window)
+      (exwm--log "Set focus on %s" exwm-input--focus-window)
       (if (eq major-mode 'exwm-mode)
           (progn
             (when exwm--floating-frame
               (redirect-frame-focus exwm--floating-frame nil)
               (select-frame-set-input-focus exwm--floating-frame t))
             (exwm-input--set-focus exwm--id))
-        (select-frame-set-input-focus exwm-workspace--current t)
+        (select-frame-set-input-focus (window-frame exwm-input--focus-window)
+                                      t)
         (dolist (pair exwm--id-buffer-alist)
           (with-current-buffer (cdr pair)
             (when (and exwm--floating-frame
                        (eq exwm--frame exwm-workspace--current))
-              (redirect-frame-focus exwm--floating-frame exwm--frame))))))))
+              (redirect-frame-focus exwm--floating-frame exwm--frame)))))
+      (setq exwm-input--focus-window nil))))
 
 (defun exwm-input--finish-key-sequence ()
   "Mark the end of a key sequence (with the aid of `pre-command-hook')."

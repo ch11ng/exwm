@@ -111,8 +111,9 @@
                                                xcb:ConfigWindow:Width
                                                xcb:ConfigWindow:Height)
                            :x 0 :y 0
-                           :width (x-display-pixel-width)
-                           :height (x-display-pixel-height))))
+                           :width (frame-pixel-width exwm-workspace--current)
+                           :height (frame-pixel-height
+                                    exwm-workspace--current))))
       (xcb:flush exwm--connection))
     (xcb:+request exwm--connection
         (make-instance 'xcb:ConfigureWindow
@@ -122,8 +123,8 @@
                                            xcb:ConfigWindow:Width
                                            xcb:ConfigWindow:Height)
                        :x 0 :y 0
-                       :width (x-display-pixel-width)
-                       :height (x-display-pixel-height)))
+                       :width (frame-pixel-width exwm-workspace--current)
+                       :height (frame-pixel-height exwm-workspace--current)))
     (xcb:+request exwm--connection
         (make-instance 'xcb:ewmh:set-_NET_WM_STATE
                        :window exwm--id
@@ -168,11 +169,11 @@
         (if (frame-parameter frame 'exwm-window-id)
             ;; Refresh a floating frame
             (progn
-              (cl-assert (eq major-mode 'exwm-mode))
-              (let ((window (frame-first-window frame)))
-                (with-current-buffer (window-buffer window)
-                  (exwm--log "Refresh floating window #x%x" exwm--id)
-                  (exwm-layout--show exwm--id window))))
+              (when (eq major-mode 'exwm-mode)
+                (let ((window (frame-first-window frame)))
+                  (with-current-buffer (window-buffer window)
+                    (exwm--log "Refresh floating window #x%x" exwm--id)
+                    (exwm-layout--show exwm--id window)))))
           ;; Other frames (e.g. terminal/graphical frame of emacsclient)
           ;; We shall bury all `exwm-mode' buffers in this case
           (unless placeholder ;create the *scratch* buffer if it's killed

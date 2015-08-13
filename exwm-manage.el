@@ -98,8 +98,14 @@ corresponding buffer.")
                                :window id
                                :value-mask (logior xcb:ConfigWindow:X
                                                    xcb:ConfigWindow:Y)
-                               :x (/ (- (x-display-pixel-width) width) 2)
-                               :y (/ (- (x-display-pixel-height) height) 2)))))
+                               :x (/ (- (frame-pixel-width
+                                         exwm-workspace--current)
+                                        width)
+                                     2)
+                               :y (/ (- (frame-pixel-height
+                                         exwm-workspace--current)
+                                        height)
+                                     2)))))
         (xcb:flush exwm--connection)
         (setq kill-buffer-query-functions nil)
         (setq exwm--id-buffer-alist (assq-delete-all id exwm--id-buffer-alist))
@@ -277,7 +283,8 @@ corresponding buffer.")
             (setq edges
                   (if exwm--fullscreen
                       (list 0 0
-                            (x-display-pixel-width) (x-display-pixel-height))
+                            (frame-pixel-width exwm-workspace--current)
+                            (frame-pixel-height exwm-workspace--current))
                     (or exwm--floating-edges
                         (window-inside-absolute-pixel-edges
                          (get-buffer-window)))))

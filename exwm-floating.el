@@ -39,8 +39,9 @@
 (defun exwm-floating--set-floating (id)
   "Make window ID floating."
   (interactive)
-  (when (get-buffer-window (exwm--id->buffer id)) ;window in non-floating state
-    (set-window-buffer (selected-window) (other-buffer))) ;hide it first
+  (let ((window (get-buffer-window (exwm--id->buffer id))))
+    (when window                        ;window in non-floating state
+      (set-window-buffer window (other-buffer)))) ;hide it first
   (let* ((original-frame
           (with-current-buffer (exwm--id->buffer id)
             (if (and exwm-transient-for (exwm--id->buffer exwm-transient-for))
@@ -78,8 +79,8 @@
         (exwm-workspace--update-switch-history)))
     ;; Fix illegal parameters
     ;; FIXME: check normal hints restrictions
-    (let* ((display-width (x-display-pixel-width))
-           (display-height (- (x-display-pixel-height)
+    (let* ((display-width (frame-pixel-width original-frame))
+           (display-height (- (frame-pixel-height original-frame)
                               (window-pixel-height (minibuffer-window
                                                     original-frame))
                               (* 2 (window-mode-line-height))
@@ -373,6 +374,8 @@
   "Perform move/resize."
   (when exwm-floating--moveresize-calculate
     (let ((obj (make-instance 'xcb:MotionNotify))
+          (frame-x (or (frame-parameter exwm-workspace--current 'exwm-x) 0))
+          (frame-y (or (frame-parameter exwm-workspace--current 'exwm-y) 0))
           result)
       (xcb:unmarshal obj data)
       (setq result (funcall exwm-floating--moveresize-calculate
@@ -380,7 +383,8 @@
       (xcb:+request exwm--connection
           (make-instance 'xcb:ConfigureWindow
                          :window (elt result 0) :value-mask (elt result 1)
-                         :x (elt result 2) :y (elt result 3)
+                         :x (- (elt result 2) frame-x)
+                         :y (-  (elt result 3) frame-y)
                          :width (elt result 4) :height (elt result 5)))
       (xcb:flush exwm--connection))))
 

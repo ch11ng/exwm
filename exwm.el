@@ -144,7 +144,6 @@
 (require 'exwm-floating)
 (require 'exwm-manage)
 (require 'exwm-input)
-(require 'exwm-randr)
 
 (defvar exwm-debug-on nil "Non-nil to turn on debug for EXWM.")
 
@@ -616,7 +615,6 @@
         (exwm-floating--init)
         (exwm-manage--init)
         (exwm-input--init)
-        (exwm-randr--init)
         (exwm--unlock)
         ;; Manage exiting windows
         (exwm-manage--scan)

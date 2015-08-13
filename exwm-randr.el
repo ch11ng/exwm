@@ -26,8 +26,11 @@
 ;; tools such as xrandr(1) to properly configure RandR first. This dependency
 ;; may be removed in the future, but more work is needed before that.
 
-;; To use this module, first set `exwm-randr-workspace-output-plist':
+;; To use this module, first load/enable it and properly configure the variable
+;; `exwm-randr-workspace-output-plist':
+;;   (require 'exwm-randr)
 ;;   (setq exwm-randr-workspace-output-plist '(0 "VGA1"))
+;;   (exwm-randr-enable)
 ;; Then configure RandR with 'xrandr':
 ;;   $ xrandr --output VGA1 --left-of LVDS1 --auto
 ;; With above lines, workspace 0 should be assigned to the output named "VGA1",
@@ -82,6 +85,8 @@
           (setq geometry default-geometry
                 output nil))
         (set-frame-parameter frame 'exwm-randr-output output)
+        (set-frame-parameter frame 'exwm-x (elt geometry 0))
+        (set-frame-parameter frame 'exwm-y (elt geometry 1))
         (xcb:+request exwm--connection
             (make-instance 'xcb:ConfigureWindow
                            :window (frame-parameter frame 'exwm-outer-id)
@@ -108,9 +113,11 @@
         (exwm-randr--refresh)
         (xcb:+event exwm--connection 'xcb:randr:ScreenChangeNotify
                     (lambda (data synthetic)
+                      (exwm--log "(RandR) ScreenChangeNotify")
                       (exwm-randr--refresh)))
         ;; (xcb:+event exwm--connection 'xcb:randr:Notify
         ;;             (lambda (data synthetic)
+        ;;               (exwm--log "(RandR) Notify")
         ;;               (exwm-randr--refresh)))
         (xcb:+request exwm--connection
             (make-instance 'xcb:randr:SelectInput
@@ -123,6 +130,10 @@
                            ;;          xcb:randr:NotifyMask:CrtcChange)
                            ))
         (xcb:flush exwm--connection)))))
+
+(defun exwm-randr-enable ()
+  "Enable RandR support for EXWM."
+  (add-hook 'exwm-init-hook 'exwm-randr--init))
 
 
 
