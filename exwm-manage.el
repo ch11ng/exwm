@@ -71,7 +71,8 @@ corresponding buffer.")
                   (memq xcb:Atom:_NET_WM_WINDOW_TYPE_DIALOG exwm-window-type)
                   (memq xcb:Atom:_NET_WM_WINDOW_TYPE_NORMAL exwm-window-type)))
              ;; For Java applications
-             (and exwm-instance-name
+             (and (memq xcb:Atom:_NET_WM_WINDOW_TYPE_NORMAL exwm-window-type)
+                  exwm-instance-name
                   (string-prefix-p "sun-awt-X11-" exwm-instance-name)
                   (not (string-suffix-p "XFramePeer" exwm-instance-name))))
         (exwm--log "No need to manage #x%x" id)
@@ -274,9 +275,11 @@ corresponding buffer.")
   (let ((obj (make-instance 'xcb:ConfigureRequest))
         buffer edges)
     (xcb:unmarshal obj data)
-    (with-slots (window x y width height border-width) obj
-      (exwm--log "ConfigureRequest from #x%x @%dx%d%+d%+d, border: %d"
-                 window width height x y border-width)
+    (with-slots (stack-mode window sibling x y width height border-width
+                            value-mask)
+        obj
+      (exwm--log "ConfigureRequest from #x%x (#x%x) @%dx%d%+d%+d, border: %d"
+                 value-mask window width height x y border-width)
       (if (setq buffer (exwm--id->buffer window))
           ;; Send client message for managed windows
           (with-current-buffer buffer
@@ -308,13 +311,10 @@ corresponding buffer.")
         (xcb:+request exwm--connection
             (make-instance 'xcb:ConfigureWindow
                            :window window
-                           :value-mask (logior xcb:ConfigWindow:X
-                                               xcb:ConfigWindow:Y
-                                               xcb:ConfigWindow:Width
-                                               xcb:ConfigWindow:Height
-                                               xcb:ConfigWindow:BorderWidth)
+                           :value-mask value-mask
                            :x x :y y :width width :height height
-                           :border-width border-width)))))
+                           :border-width border-width
+                           :sibling sibling :stack-mode stack-mode)))))
   (xcb:flush exwm--connection))
 
 (defun exwm-manage--on-MapRequest (data synthetic)
