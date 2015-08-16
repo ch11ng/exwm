@@ -260,10 +260,9 @@ corresponding buffer.")
   "Kill an X client."
   (interactive)
   (unless id (setq id (exwm--buffer->id (current-buffer))))
-  (let ((pid (slot-value
-              (xcb:+request-unchecked+reply exwm--connection
-                  (make-instance 'xcb:ewmh:get-_NET_WM_PID :window id))
-              'value)))
+  (let* ((response (xcb:+request-unchecked+reply exwm--connection
+                       (make-instance 'xcb:ewmh:get-_NET_WM_PID :window id)))
+         (pid (and response (slot-value response 'value))))
     (if pid
         (signal-process pid 'SIGKILL)
       (xcb:+request exwm--connection
