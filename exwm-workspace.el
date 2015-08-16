@@ -168,9 +168,9 @@ The optional FORCE option is for internal use only."
   (unless id (setq id (exwm--buffer->id (window-buffer))))
   (unless (and (<= 0 index) (< index exwm-workspace-number))
     (user-error "[EXWM] Workspace index out of range: %d" index))
-  (when (/= exwm-workspace-current-index index)
+  (with-current-buffer (exwm--id->buffer id)
     (let ((frame (elt exwm-workspace--list index)))
-      (with-current-buffer (exwm--id->buffer id)
+      (when (not (equal exwm--frame frame))
         (setq exwm--frame frame)
         (exwm-workspace-rename-buffer
          (concat " " (replace-regexp-in-string "^\\s-*" "" (buffer-name))))
