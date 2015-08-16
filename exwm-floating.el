@@ -36,6 +36,11 @@
 (defvar exwm-floating-border-color "blue"
   "Border color of the floating window.")
 
+(defvar exwm-floating-setup-hook nil
+  "Normal hook run when a window has been made floating.")
+(defvar exwm-floating-exit-hook nil
+  "Normal hook run when a window has exited floating state.")
+
 (defun exwm-floating--set-floating (id)
   "Make window ID floating."
   (interactive)
@@ -180,7 +185,8 @@
             exwm--floating-frame frame)
       (set-window-buffer window (current-buffer)) ;this changes current buffer
       (set-window-dedicated-p window t))
-    (select-window window)))
+    (select-window window))
+  (run-hooks 'exwm-floating-setup-hook))
 
 (defun exwm-floating--unset-floating (id)
   "Make window ID non-floating."
@@ -213,7 +219,8 @@
             exwm--frame exwm-workspace--current))
     (let ((window (frame-selected-window exwm-workspace--current)))
       (set-window-buffer window buffer)
-      (select-window window))))
+      (select-window window)))
+  (run-hooks 'exwm-floating-exit-hook))
 
 (defun exwm-floating-toggle-floating ()
   "Toggle the current window between floating and non-floating states."
