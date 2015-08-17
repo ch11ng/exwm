@@ -93,6 +93,8 @@
   "Make window ID fullscreen."
   (interactive)
   (with-current-buffer (if id (exwm--id->buffer id) (window-buffer))
+    (when exwm--fullscreen
+      (user-error "Already in full-screen mode."))
     ;; Set the floating frame fullscreen first when the client is floating
     (when exwm--floating-frame
       (let* ((outer-id (frame-parameter exwm--floating-frame 'exwm-outer-id))
@@ -130,7 +132,6 @@
                        :window exwm--id
                        :data (vector xcb:Atom:_NET_WM_STATE_FULLSCREEN)))
     (xcb:flush exwm--connection)
-    (cl-assert (not exwm--fullscreen))
     (setq exwm--fullscreen t)
     (exwm-input-release-keyboard)))
 
@@ -138,6 +139,8 @@
   "Restore window from fullscreen state."
   (interactive)
   (with-current-buffer (if id (exwm--id->buffer id) (window-buffer))
+    (unless exwm--fullscreen
+      (user-error "Not in full-screen mode."))
     ;; Restore the floating frame if the client is floating
     (when exwm--floating-frame
       (xcb:+request exwm--connection
@@ -156,7 +159,6 @@
     (xcb:+request exwm--connection
         (make-instance 'xcb:ewmh:set-_NET_WM_STATE :window exwm--id :data []))
     (xcb:flush exwm--connection)
-    (cl-assert exwm--fullscreen)
     (setq exwm--fullscreen nil)
     (exwm-input-grab-keyboard)))
 

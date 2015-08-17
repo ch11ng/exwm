@@ -56,26 +56,27 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
 
 (defun exwm-input--set-focus (id)
   "Set input focus to window ID in a proper way."
-  (with-current-buffer (exwm--id->buffer id)
-    (if (and (not exwm--hints-input)
-             (memq xcb:Atom:WM_TAKE_FOCUS exwm--protocols))
-        (progn
-          (exwm--log "Focus on #x%x with WM_TAKE_FOCUS" id)
-          (xcb:+request exwm--connection
-              (make-instance 'xcb:icccm:SendEvent
-                             :destination id
-                             :event (xcb:marshal
-                                     (make-instance 'xcb:icccm:WM_TAKE_FOCUS
-                                                    :window id
-                                                    :time
-                                                    exwm-input--timestamp)
-                                     exwm--connection))))
-      (exwm--log "Focus on #x%x with SetInputFocus" id)
-      (xcb:+request exwm--connection
-          (make-instance 'xcb:SetInputFocus
-                         :revert-to xcb:InputFocus:Parent :focus id
-                         :time xcb:Time:CurrentTime)))
-    (xcb:flush exwm--connection)))
+  (when (exwm--id->buffer id)
+    (with-current-buffer (exwm--id->buffer id)
+      (if (and (not exwm--hints-input)
+               (memq xcb:Atom:WM_TAKE_FOCUS exwm--protocols))
+          (progn
+            (exwm--log "Focus on #x%x with WM_TAKE_FOCUS" id)
+            (xcb:+request exwm--connection
+                (make-instance 'xcb:icccm:SendEvent
+                               :destination id
+                               :event (xcb:marshal
+                                       (make-instance 'xcb:icccm:WM_TAKE_FOCUS
+                                                      :window id
+                                                      :time
+                                                      exwm-input--timestamp)
+                                       exwm--connection))))
+        (exwm--log "Focus on #x%x with SetInputFocus" id)
+        (xcb:+request exwm--connection
+            (make-instance 'xcb:SetInputFocus
+                           :revert-to xcb:InputFocus:Parent :focus id
+                           :time xcb:Time:CurrentTime)))
+      (xcb:flush exwm--connection))))
 
 (defvar exwm-input--focus-window nil "The (Emacs) window to be focused.")
 (defvar exwm-input--redirected nil
@@ -311,27 +312,27 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
 (defun exwm-input--grab-keyboard (&optional id)
   "Grab all key events on window ID."
   (unless id (setq id (exwm--buffer->id (window-buffer))))
-  (cl-assert id)
-  (when (xcb:+request-checked+request-check exwm--connection
-            (make-instance 'xcb:GrabKey
-                           :owner-events 0 :grab-window id
-                           :modifiers xcb:ModMask:Any
-                           :key xcb:Grab:Any
-                           :pointer-mode xcb:GrabMode:Async
-                           :keyboard-mode xcb:GrabMode:Async))
-    (exwm--log "Failed to grab keyboard for #x%x" id))
-  (setq exwm--on-KeyPress 'exwm-input--on-KeyPress-line-mode))
+  (when id
+    (when (xcb:+request-checked+request-check exwm--connection
+              (make-instance 'xcb:GrabKey
+                             :owner-events 0 :grab-window id
+                             :modifiers xcb:ModMask:Any
+                             :key xcb:Grab:Any
+                             :pointer-mode xcb:GrabMode:Async
+                             :keyboard-mode xcb:GrabMode:Async))
+      (exwm--log "Failed to grab keyboard for #x%x" id))
+    (setq exwm--on-KeyPress 'exwm-input--on-KeyPress-line-mode)))
 
 (defun exwm-input--release-keyboard (&optional id)
   "Ungrab all key events on window ID."
   (unless id (setq id (exwm--buffer->id (window-buffer))))
-  (cl-assert id)
-  (when (xcb:+request-checked+request-check exwm--connection
-            (make-instance 'xcb:UngrabKey
-                           :key xcb:Grab:Any :grab-window id
-                           :modifiers xcb:ModMask:Any))
-    (exwm--log "Failed to release keyboard for #x%x" id))
-  (setq exwm--on-KeyPress 'exwm-input--on-KeyPress-char-mode))
+  (when id
+    (when (xcb:+request-checked+request-check exwm--connection
+              (make-instance 'xcb:UngrabKey
+                             :key xcb:Grab:Any :grab-window id
+                             :modifiers xcb:ModMask:Any))
+      (exwm--log "Failed to release keyboard for #x%x" id))
+    (setq exwm--on-KeyPress 'exwm-input--on-KeyPress-char-mode)))
 
 (defun exwm-input-grab-keyboard (&optional id)
   "Switch to line-mode."
