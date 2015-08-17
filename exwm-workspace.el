@@ -171,9 +171,11 @@ The optional FORCE option is for internal use only."
   (with-current-buffer (exwm--id->buffer id)
     (let ((frame (elt exwm-workspace--list index)))
       (when (not (equal exwm--frame frame))
+        (let ((name (replace-regexp-in-string "^\\s-*" "" (buffer-name))))
+          (exwm-workspace-rename-buffer (if (= index exwm-workspace-current-index)
+                                            name
+                                          (concat " " name))))
         (setq exwm--frame frame)
-        (exwm-workspace-rename-buffer
-         (concat " " (replace-regexp-in-string "^\\s-*" "" (buffer-name))))
         (if exwm--floating-frame
             ;; Move the floating frame is enough
             (progn
