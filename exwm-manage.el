@@ -278,7 +278,7 @@ corresponding buffer.")
                             value-mask)
         obj
       (exwm--log "ConfigureRequest from #x%x (#x%x) @%dx%d%+d%+d, border: %d"
-                 value-mask window width height x y border-width)
+                 window value-mask width height x y border-width)
       (if (setq buffer (exwm--id->buffer window))
           ;; Send client message for managed windows
           (with-current-buffer buffer
@@ -320,8 +320,13 @@ corresponding buffer.")
   "Handle MapRequest event."
   (let ((obj (make-instance 'xcb:MapRequest)))
     (xcb:unmarshal obj data)
-    (exwm--log "MapRequest from #x%x" (slot-value obj 'window))
-    (exwm-manage--manage-window (slot-value obj 'window))))
+    (with-slots (parent window) obj
+      (if (/= exwm--root parent)
+          (progn (xcb:+request exwm--connection
+                     (make-instance xcb:MapWindow :window window))
+                 (xcb:flush exwm--connection))
+        (exwm--log "MapRequest from #x%x" window)
+        (exwm-manage--manage-window window)))))
 
 (defun exwm-manage--on-UnmapNotify (data synthetic)
   "Handle UnmapNotify event."
