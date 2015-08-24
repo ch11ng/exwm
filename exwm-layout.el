@@ -162,6 +162,34 @@
     (setq exwm--fullscreen nil)
     (exwm-input-grab-keyboard)))
 
+;; This function is superficially similar to `exwm-layout-set-fullscreen', but
+;; they do very different things: `exwm-layout--set-frame-fullscreen' resizes a
+;; frame to the actual monitor size, `exwm-layout-set-fullscreen' resizes an X
+;; window to the frame size.
+(defun exwm-layout--set-frame-fullscreen (frame)
+  "Make frame FRAME fullscreen, with regard to its XRandR output if applicable."
+  (let ((geometry (or (frame-parameter frame 'exwm-geometry)
+                      (xcb:+request-unchecked+reply
+                          exwm--connection
+                          (make-instance 'xcb:GetGeometry
+                                         :drawable exwm--root))
+                      (make-instance 'xcb:RECTANGLE :x 0 :y 0
+                                     :width (x-display-width)
+                                     :height (x-display-height))))
+         (id (frame-parameter frame 'exwm-outer-id)))
+    (with-slots (x y width height) geometry
+                (xcb:+request exwm--connection
+                    (make-instance 'xcb:ConfigureWindow
+                                   :window id
+                                   :value-mask (logior xcb:ConfigWindow:X
+                                                       xcb:ConfigWindow:Y
+                                                       xcb:ConfigWindow:Width
+                                                       xcb:ConfigWindow:Height)
+                                   :x x :y y
+                                   :width width
+                                   :height height))
+                (xcb:flush exwm--connection))))
+
 (defun exwm-layout--refresh ()
   "Refresh layout."
   (let ((frame (selected-frame))
