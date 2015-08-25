@@ -302,11 +302,6 @@ The optional FORCE option is for internal use only."
     (cl-assert (= 1 (exwm-workspace--count)))
     ;; Prevent user from deleting this frame by accident
     (set-frame-parameter (car exwm-workspace--list) 'client nil))
-  ;; Create remaining frames
-  (dotimes (i (1- exwm-workspace-number))
-    (nconc exwm-workspace--list
-           (list (make-frame '((window-system . x)
-                               (visibility . nil))))))
   ;; Configure workspaces
   (dolist (i exwm-workspace--list)
     (exwm-workspace--add-frame-as-workspace i))
