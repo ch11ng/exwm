@@ -85,6 +85,12 @@
           (setq geometry default-geometry
                 output nil))
         (set-frame-parameter frame 'exwm-randr-output output)
+        (set-frame-parameter frame 'exwm-geometry
+                             (make-instance 'xcb:RECTANGLE
+                                            :x (elt geometry 0)
+                                            :y (elt geometry 1)
+                                            :width (elt geometry 2)
+                                            :height (elt geometry 3)))
         (set-frame-parameter frame 'exwm-x (elt geometry 0))
         (set-frame-parameter frame 'exwm-y (elt geometry 1))
         (xcb:+request exwm--connection

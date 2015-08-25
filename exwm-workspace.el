@@ -231,13 +231,11 @@ The optional FORCE option is for internal use only."
       (unless (frame-parameter i 'window-id)
         (setq exwm-workspace--list (delq i exwm-workspace--list)))))
   (cl-assert (= 1 (length exwm-workspace--list)))
-  (exwm--make-emacs-idle-for 0.1)      ;wait for the frame ready
-  ;; Configure the existing frame
-  (set-frame-parameter (car exwm-workspace--list) 'fullscreen 'fullboth)
   ;; Create remaining frames
   (dotimes (i (1- exwm-workspace-number))
     (nconc exwm-workspace--list
-           (list (make-frame '((window-system . x) (fullscreen . fullboth))))))
+           (list (make-frame '((window-system . x)
+                               (visibility . nil))))))
   ;; Configure workspaces
   (dolist (i exwm-workspace--list)
     (let ((window-id (string-to-int (frame-parameter i 'window-id)))
@@ -256,6 +254,14 @@ The optional FORCE option is for internal use only."
                          :window window-id :value-mask xcb:CW:EventMask
                          :event-mask xcb:EventMask:SubstructureRedirect))))
   (xcb:flush exwm--connection)
+  ;; We have to delay making the frame visible until the
+  ;; override-redirect flag has been set.
+  (select-frame-set-input-focus (car exwm-workspace--list))
+  (dolist (i exwm-workspace--list)
+    (set-frame-parameter i 'visibility t)
+    (lower-frame i)
+    (set-frame-parameter i 'fullscreen 'fullboth))
+  (raise-frame (car exwm-workspace--list))
   ;; Handle unexpected frame switch
   (add-hook 'focus-in-hook 'exwm-workspace--on-focus-in)
   ;; Switch to the first workspace
