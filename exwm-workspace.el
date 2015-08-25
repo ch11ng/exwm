@@ -28,6 +28,11 @@
 
 (defvar exwm-workspace-number 4 "Number of workspaces (1 ~ 10).")
 (defvar exwm-workspace--list nil "List of all workspaces (Emacs frames).")
+
+(defun exwm-workspace--count ()
+  "Retrieve total number of workspaces."
+  (length exwm-workspace--list))
+
 (defvar exwm-workspace--switch-map
   (let ((map (make-sparse-keymap)))
     (define-key map [t] (lambda () (interactive)))
@@ -41,7 +46,7 @@
     (define-key map "\C-a" (lambda () (interactive) (goto-history-element 1)))
     (define-key map "\C-e" (lambda ()
                              (interactive)
-                             (goto-history-element (length exwm-workspace--list))))
+                             (goto-history-element (exwm-workspace--count))))
     (define-key map "\C-g" 'abort-recursive-edit)
     (define-key map "\C-]" 'abort-recursive-edit)
     (define-key map "\C-j" 'exit-minibuffer)
@@ -61,7 +66,7 @@
 
 (defun exwm-workspace--update-switch-history ()
   "Update the history for switching workspace to reflect the latest status."
-  (let* ((num (length exwm-workspace--list))
+  (let* ((num (exwm-workspace--count))
          (sequence (number-sequence 0 (1- num)))
          (not-empty (make-vector num nil)))
     (dolist (i exwm--id-buffer-alist)
@@ -105,7 +110,7 @@ The optional FORCE option is for internal use only."
                      . ,(1+ exwm-workspace-current-index)))))
         (cl-position idx exwm-workspace--switch-history :test 'equal)))))
   (when index
-    (unless (and (<= 0 index) (< index (length exwm-workspace--list)))
+    (unless (and (<= 0 index) (< index (exwm-workspace--count)))
       (user-error "[EXWM] Workspace index out of range: %d" index))
     (when (or force (/= exwm-workspace-current-index index))
       (let ((frame (elt exwm-workspace--list index)))
@@ -164,7 +169,7 @@ The optional FORCE option is for internal use only."
                    . ,(1+ exwm-workspace-current-index)))))
       (cl-position idx exwm-workspace--switch-history :test 'equal))))
   (unless id (setq id (exwm--buffer->id (window-buffer))))
-  (unless (and (<= 0 index) (< index (length exwm-workspace--list)))
+  (unless (and (<= 0 index) (< index (exwm-workspace--count)))
     (user-error "[EXWM] Workspace index out of range: %d" index))
   (with-current-buffer (exwm--id->buffer id)
     (let ((frame (elt exwm-workspace--list index)))
@@ -215,7 +220,7 @@ The optional FORCE option is for internal use only."
 (defun exwm-workspace--add-frame-as-workspace (frame)
   "Configure frame FRAME to be treated as a workspace."
   (cond
-   ((>= (length exwm-workspace--list) exwm-workspace-number)
+   ((>= (exwm-workspace--count) exwm-workspace-number)
     (delete-frame frame)
     (user-error "[EXWM] Too many workspaces: maximum is %d" exwm-workspace-number))
    ((memq frame exwm-workspace--list)
@@ -252,7 +257,7 @@ The optional FORCE option is for internal use only."
 (defun exwm-workspace--remove-frame-as-workspace (frame)
   "Stop treating frame FRAME as a workspace."
   (cond
-   ((= 1 (llength exwm-workspace--list))
+   ((= 1 (exwm-workspace--count))
     (exwm--log "Cannot remove last workspace"))
    ((not (memq frame exwm-workspace--list))
     (exwm--log "Frame is not a workspace: %s" frame))
@@ -289,12 +294,12 @@ The optional FORCE option is for internal use only."
                                     x (if (= x 1) "" "s") prompt))))))
   ;; Initialize workspaces
   (setq exwm-workspace--list (frame-list))
-  (when (< 1 (length exwm-workspace--list))
+  (when (< 1 (exwm-workspace--count))
     ;; Emacs client creates an extra (but unusable) frame
     (dolist (i exwm-workspace--list)
       (unless (frame-parameter i 'window-id)
         (setq exwm-workspace--list (delq i exwm-workspace--list))))
-    (cl-assert (= 1 (length exwm-workspace--list)))
+    (cl-assert (= 1 (exwm-workspace--count)))
     ;; Prevent user from deleting this frame by accident
     (set-frame-parameter (car exwm-workspace--list) 'client nil))
   ;; Create remaining frames

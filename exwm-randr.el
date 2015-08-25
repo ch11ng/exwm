@@ -76,7 +76,7 @@
               (unless default-geometry ;assume the first output as primary
                 (setq default-geometry geometry)))))))
     (cl-assert (<= 2 (length output-plist)))
-    (dotimes (i (length exwm-workspace--list))
+    (dotimes (i (exwm-workspace--count))
       (let* ((output (plist-get exwm-randr-workspace-output-plist i))
              (geometry (lax-plist-get output-plist output))
              (frame (elt exwm-workspace--list i)))
