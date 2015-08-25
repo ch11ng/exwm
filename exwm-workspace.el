@@ -26,7 +26,7 @@
 
 ;;; Code:
 
-(defvar exwm-workspace-number 4 "Number of workspaces (1 ~ 10).")
+(defvar exwm-workspace-max-count 10 "Maximum number of workspaces.")
 (defvar exwm-workspace--list nil "List of all workspaces (Emacs frames).")
 
 (defun exwm-workspace--count ()
@@ -40,7 +40,7 @@
       (define-key map (int-to-string i)
         `(lambda ()
            (interactive)
-           (when (< ,i exwm-workspace-number)
+           (when (< ,i exwm-workspace-max-count)
              (goto-history-element ,(1+ i))
              (exit-minibuffer)))))
     (define-key map "\C-a" (lambda () (interactive) (goto-history-element 1)))
@@ -220,9 +220,9 @@ The optional FORCE option is for internal use only."
 (defun exwm-workspace--add-frame-as-workspace (frame)
   "Configure frame FRAME to be treated as a workspace."
   (cond
-   ((>= (exwm-workspace--count) exwm-workspace-number)
+   ((>= (exwm-workspace--count) exwm-workspace-max-count)
     (delete-frame frame)
-    (user-error "[EXWM] Too many workspaces: maximum is %d" exwm-workspace-number))
+    (user-error "[EXWM] Too many workspaces: maximum is %d" exwm-workspace-max-count))
    ((memq frame exwm-workspace--list)
     (exwm--log "Frame is already a workspace: %s" frame))
    (t
@@ -284,7 +284,7 @@ The optional FORCE option is for internal use only."
 
 (defun exwm-workspace--init ()
   "Initialize workspace module."
-  (cl-assert (and (< 0 exwm-workspace-number) (>= 10 exwm-workspace-number)))
+  (cl-assert (and (< 0 exwm-workspace-max-count) (>= 10 exwm-workspace-max-count)))
   ;; Prevent unexpected exit
   (setq confirm-kill-emacs
         (lambda (prompt)

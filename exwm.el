@@ -571,17 +571,17 @@
   ;; Set _NET_NUMBER_OF_DESKTOPS
   (xcb:+request exwm--connection
       (make-instance 'xcb:ewmh:set-_NET_NUMBER_OF_DESKTOPS
-                     :window exwm--root :data exwm-workspace-number))
+                     :window exwm--root :data exwm-workspace-max-count))
   ;; Set _NET_DESKTOP_VIEWPORT
   (xcb:+request exwm--connection
       (make-instance 'xcb:ewmh:set-_NET_DESKTOP_VIEWPORT
                      :window exwm--root
-                     :data (make-vector (* 2 exwm-workspace-number) 0)))
+                     :data (make-vector (* 2 exwm-workspace-max-count) 0)))
   ;; Set _NET_WORKAREA (with minibuffer and bottom mode-line excluded)
   (let* ((workareas
           (vector 0 0 (x-display-pixel-width) (x-display-pixel-height)))
          (workareas (mapconcat (lambda (i) workareas)
-                               (make-list exwm-workspace-number 0) [])))
+                               (make-list exwm-workspace-max-count 0) [])))
     (xcb:+request exwm--connection
         (make-instance 'xcb:ewmh:set-_NET_WORKAREA
                        :window exwm--root :data workareas)))
