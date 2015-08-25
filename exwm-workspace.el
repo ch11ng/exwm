@@ -41,7 +41,7 @@
     (define-key map "\C-a" (lambda () (interactive) (goto-history-element 1)))
     (define-key map "\C-e" (lambda ()
                              (interactive)
-                             (goto-history-element exwm-workspace-number)))
+                             (goto-history-element (length exwm-workspace--list))))
     (define-key map "\C-g" 'abort-recursive-edit)
     (define-key map "\C-]" 'abort-recursive-edit)
     (define-key map "\C-j" 'exit-minibuffer)
@@ -61,8 +61,9 @@
 
 (defun exwm-workspace--update-switch-history ()
   "Update the history for switching workspace to reflect the latest status."
-  (let ((sequence (number-sequence 0 (1- exwm-workspace-number)))
-        (not-empty (make-vector exwm-workspace-number nil)))
+  (let* ((num (length exwm-workspace--list))
+         (sequence (number-sequence 0 (1- num)))
+         (not-empty (make-vector num nil)))
     (dolist (i exwm--id-buffer-alist)
       (with-current-buffer (cdr i)
         (when exwm--frame
@@ -104,7 +105,7 @@ The optional FORCE option is for internal use only."
                      . ,(1+ exwm-workspace-current-index)))))
         (cl-position idx exwm-workspace--switch-history :test 'equal)))))
   (when index
-    (unless (and (<= 0 index) (< index exwm-workspace-number))
+    (unless (and (<= 0 index) (< index (length exwm-workspace--list)))
       (user-error "[EXWM] Workspace index out of range: %d" index))
     (when (or force (/= exwm-workspace-current-index index))
       (let ((frame (elt exwm-workspace--list index)))
@@ -163,7 +164,7 @@ The optional FORCE option is for internal use only."
                    . ,(1+ exwm-workspace-current-index)))))
       (cl-position idx exwm-workspace--switch-history :test 'equal))))
   (unless id (setq id (exwm--buffer->id (window-buffer))))
-  (unless (and (<= 0 index) (< index exwm-workspace-number))
+  (unless (and (<= 0 index) (< index (length exwm-workspace--list)))
     (user-error "[EXWM] Workspace index out of range: %d" index))
   (with-current-buffer (exwm--id->buffer id)
     (let ((frame (elt exwm-workspace--list index)))
@@ -211,6 +212,71 @@ The optional FORCE option is for internal use only."
       (setq newname (format "%s<%d>" basename (cl-incf counter))))
     (rename-buffer (concat (and hidden " ") newname))))
 
+(defun exwm-workspace--add-frame-as-workspace (frame)
+  "Configure frame FRAME to be treated as a workspace."
+  (cond
+   ((>= (length exwm-workspace--list) exwm-workspace-number)
+    (delete-frame frame)
+    (user-error "[EXWM] Too many workspaces: maximum is %d" exwm-workspace-number))
+   ((memq frame exwm-workspace--list)
+    (exwm--log "Frame is already a workspace: %s" frame))
+   (t
+    (exwm--log "Adding workspace: %s" frame)
+    (setq exwm-workspace--list (nconc exwm-workspace--list (list frame)))
+    (let ((window-id (string-to-number (frame-parameter frame 'window-id)))
+          (outer-id (string-to-number (frame-parameter frame 'outer-window-id))))
+      ;; Save window IDs
+      (set-frame-parameter frame 'exwm-window-id window-id)
+      (set-frame-parameter frame 'exwm-outer-id outer-id)
+      ;; Set OverrideRedirect on all frames
+      (xcb:+request exwm--connection
+          (make-instance 'xcb:ChangeWindowAttributes
+                         :window outer-id :value-mask xcb:CW:OverrideRedirect
+                         :override-redirect 1))
+      ;; Select events on all virtual roots
+      (xcb:+request exwm--connection
+          (make-instance 'xcb:ChangeWindowAttributes
+                         :window window-id :value-mask xcb:CW:EventMask
+                         :event-mask xcb:EventMask:SubstructureRedirect)))
+    (xcb:flush exwm--connection)
+    ;; We have to delay making the frame visible until the
+    ;; override-redirect flag has been set.
+    (set-frame-parameter frame 'visibility t)
+    (lower-frame frame)
+    (set-frame-parameter frame 'fullscreen 'fullboth)
+    ;; Update EWMH properties.
+    (exwm-workspace--update-ewmh-props)
+    ;; Update switch history.
+    (exwm-workspace--update-switch-history))))
+
+(defun exwm-workspace--remove-frame-as-workspace (frame)
+  "Stop treating frame FRAME as a workspace."
+  (cond
+   ((= 1 (llength exwm-workspace--list))
+    (exwm--log "Cannot remove last workspace"))
+   ((not (memq frame exwm-workspace--list))
+    (exwm--log "Frame is not a workspace: %s" frame))
+   (t
+    (exwm--log "Removing workspace: %s" frame)
+    (setq exwm-workspace--list (delete frame exwm-workspace--list))
+    ;; Update EWMH properties.
+    (exwm-workspace--update-ewmh-props)
+    ;; Update switch history.
+    (exwm-workspace--update-switch-history))))
+
+(defun exwm-workspace--update-ewmh-props ()
+  "Update EWMH properties to match the workspace list."
+  ;; Set _NET_VIRTUAL_ROOTS
+  (let ((num-workspaces (exwm-workspace--count)))
+    (xcb:+request exwm--connection
+        (make-instance 'xcb:ewmh:set-_NET_VIRTUAL_ROOTS
+                       :window exwm--root
+                       :data (vconcat (mapcar
+                                       (lambda (i)
+                                         (frame-parameter i 'exwm-window-id))
+                                       exwm-workspace--list))))
+    (xcb:flush exwm--connection)))
+
 (defun exwm-workspace--init ()
   "Initialize workspace module."
   (cl-assert (and (< 0 exwm-workspace-number) (>= 10 exwm-workspace-number)))
@@ -238,40 +304,14 @@ The optional FORCE option is for internal use only."
                                (visibility . nil))))))
   ;; Configure workspaces
   (dolist (i exwm-workspace--list)
-    (let ((window-id (string-to-int (frame-parameter i 'window-id)))
-          (outer-id (string-to-int (frame-parameter i 'outer-window-id))))
-      ;; Save window IDs
-      (set-frame-parameter i 'exwm-window-id window-id)
-      (set-frame-parameter i 'exwm-outer-id outer-id)
-      ;; Set OverrideRedirect on all frames
-      (xcb:+request exwm--connection
-          (make-instance 'xcb:ChangeWindowAttributes
-                         :window outer-id :value-mask xcb:CW:OverrideRedirect
-                         :override-redirect 1))
-      ;; Select events on all virtual roots
-      (xcb:+request exwm--connection
-          (make-instance 'xcb:ChangeWindowAttributes
-                         :window window-id :value-mask xcb:CW:EventMask
-                         :event-mask xcb:EventMask:SubstructureRedirect))))
-  (xcb:flush exwm--connection)
-  ;; We have to delay making the frame visible until the
-  ;; override-redirect flag has been set.
+    (exwm-workspace--add-frame-as-workspace i))
   (select-frame-set-input-focus (car exwm-workspace--list))
-  (dolist (i exwm-workspace--list)
-    (set-frame-parameter i 'visibility t)
-    (lower-frame i)
-    (set-frame-parameter i 'fullscreen 'fullboth))
-  (raise-frame (car exwm-workspace--list))
   ;; Handle unexpected frame switch
   (add-hook 'focus-in-hook 'exwm-workspace--on-focus-in)
-  ;; Set _NET_VIRTUAL_ROOTS
-  (xcb:+request exwm--connection
-      (make-instance 'xcb:ewmh:set-_NET_VIRTUAL_ROOTS
-                     :window exwm--root
-                     :data (vconcat (mapcar
-                                     (lambda (i)
-                                       (frame-parameter i 'exwm-window-id))
-                                     exwm-workspace--list))))
+  ;; Make new frames create new workspaces.
+  (setq window-system-default-frame-alist '((x . ((visibility . nil)))))
+  (add-hook 'after-make-frame-functions #'exwm-workspace--add-frame-as-workspace)
+  (add-hook 'delete-frame-functions #'exwm-workspace--remove-frame-as-workspace)
   ;; Switch to the first workspace
   (exwm-workspace-switch 0 t))
 
