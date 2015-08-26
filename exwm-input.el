@@ -241,61 +241,27 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
 (defvar exwm-input--temp-line-mode nil
   "Non-nil indicates it's in temporary line-mode for char-mode.")
 
-;; ;; This implementation has a problem that it also releases queued keys after
-;; ;; requesting AllowEvent. The client window will capture unexpected key events
-;; ;; in this case.
-;; ;; P.S.; to use this implementation, comment out the KeyRelease listener
-;; ;;       together with this one and make GrabKey in Sync mode.
-;; (cl-defmethod exwm-input--on-KeyPress-line-mode ((obj xcb:KeyPress))
-;;   "Parse X KeyPress event to Emacs key event and then feed the command loop."
-;;   (with-slots (detail state) obj
-;;     (let ((keysym (xcb:keysyms:keycode->keysym exwm--connection detail state))
-;;           event window mode)
-;;       (when (and keysym
-;;                  (setq event (xcb:keysyms:keysym->event keysym state))
-;;                  (or exwm-input--during-key-sequence
-;;                      (setq window (active-minibuffer-window))
-;;                      (eq event ?\C-c)   ;mode-specific key
-;;                      (memq event exwm-input--global-prefix-keys)
-;;                      (memq event exwm-input-prefix-keys)
-;;                      (memq event
-;;                            exwm-input--simulation-prefix-keys)))
-;;         (setq mode xcb:Allow:SyncKeyboard)
-;;         (unless window (setq exwm-input--during-key-sequence t))
-;;         (push event unread-command-events))
-;;       (xcb:+request exwm--connection
-;;           (make-instance 'xcb:AllowEvents
-;;                          :mode (or mode xcb:Allow:ReplayKeyboard)
-;;                          :time xcb:Time:CurrentTime))
-;;       (xcb:flush exwm--connection))))
-
-;; This implementation has a drawback that some (legacy) applications
-;; (e.g. xterm) ignore the synthetic key events, making it only viable for EXWM
-;; to work in char-mode in such case.
 (cl-defmethod exwm-input--on-KeyPress-line-mode ((obj xcb:KeyPress))
   "Parse X KeyPress event to Emacs key event and then feed the command loop."
   (with-slots (detail state) obj
     (let ((keysym (xcb:keysyms:keycode->keysym exwm--connection detail state))
-          event minibuffer-window)
-      (if (and keysym
-               (setq event (xcb:keysyms:keysym->event keysym state))
-               (or exwm-input--during-key-sequence
-                   (setq minibuffer-window (active-minibuffer-window))
-                   (eq event ?\C-c)   ;mode-specific key
-                   (memq event exwm-input--global-prefix-keys)
-                   (memq event exwm-input-prefix-keys)
-                   (memq event exwm-input--simulation-prefix-keys)))
-          ;; Forward key to Emacs frame
-          (progn (unless minibuffer-window
-                   (setq exwm-input--during-key-sequence t))
-                 (push event unread-command-events))
-        ;; Forward key to window
-        (xcb:+request exwm--connection
-            (make-instance 'xcb:SendEvent
-                           :propagate 0 :destination (slot-value obj 'event)
-                           :event-mask xcb:EventMask:NoEvent
-                           :event (xcb:marshal obj exwm--connection)))
-        (xcb:flush exwm--connection)))))
+          event minibuffer-window mode)
+      (when (and keysym
+                 (setq event (xcb:keysyms:keysym->event keysym state))
+                 (or exwm-input--during-key-sequence
+                     (setq minibuffer-window (active-minibuffer-window))
+                     (eq event ?\C-c)   ;mode-specific key
+                     (memq event exwm-input--global-prefix-keys)
+                     (memq event exwm-input-prefix-keys)
+                     (memq event exwm-input--simulation-prefix-keys)))
+        (setq mode xcb:Allow:AsyncKeyboard)
+        (unless minibuffer-window (setq exwm-input--during-key-sequence t))
+        (push event unread-command-events))
+      (xcb:+request exwm--connection
+          (make-instance 'xcb:AllowEvents
+                         :mode (or mode xcb:Allow:ReplayKeyboard)
+                         :time xcb:Time:CurrentTime))
+      (xcb:flush exwm--connection))))
 
 (cl-defmethod exwm-input--on-KeyPress-char-mode ((obj xcb:KeyPress))
   "Handle KeyPress event in char-mode."
@@ -307,7 +273,12 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
           (setq exwm-input--temp-line-mode t
                 exwm-input--during-key-sequence t)
           (exwm-input--grab-keyboard)) ;grab keyboard temporarily
-        (push event unread-command-events)))))
+        (push event unread-command-events))))
+  (xcb:+request exwm--connection
+      (make-instance 'xcb:AllowEvents
+                     :mode xcb:Allow:AsyncKeyboard
+                     :time xcb:Time:CurrentTime))
+  (xcb:flush exwm--connection))
 
 (defun exwm-input--grab-keyboard (&optional id)
   "Grab all key events on window ID."
@@ -319,7 +290,7 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
                              :modifiers xcb:ModMask:Any
                              :key xcb:Grab:Any
                              :pointer-mode xcb:GrabMode:Async
-                             :keyboard-mode xcb:GrabMode:Async))
+                             :keyboard-mode xcb:GrabMode:Sync))
       (exwm--log "Failed to grab keyboard for #x%x" id))
     (setq exwm--on-KeyPress 'exwm-input--on-KeyPress-line-mode)))
 
