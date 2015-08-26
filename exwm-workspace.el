@@ -202,16 +202,17 @@ The optional FORCE option is for internal use only."
 
 (defun exwm-workspace-rename-buffer (newname)
   "Rename a buffer."
-  (if (/= ?\s (aref newname 0))
-      (rename-buffer newname t)
-    ;; If a buffer name is prefixed with a space, Emacs append a random
-    ;; number before renaming it. This is not desired behavior.
-    (let ((name (replace-regexp-in-string "<[0-9]+>$" "" newname))
-          (counter 1))
-      (while (and (get-buffer newname)
-                  (not (eq (get-buffer newname) (current-buffer))))
-        (setq newname (format "%s<%d>" name (cl-incf counter)))))
-    (rename-buffer newname)))
+  (let ((hidden (= ?\s (aref newname 0)))
+        (basename (replace-regexp-in-string "<[0-9]+>$" "" newname))
+        (counter 1)
+        tmp)
+    (when hidden (setq basename (substring basename 1)))
+    (setq newname basename)
+    (while (and (setq tmp (or (get-buffer newname)
+                              (get-buffer (concat " " newname))))
+                (not (eq tmp (current-buffer))))
+      (setq newname (format "%s<%d>" basename (cl-incf counter))))
+    (rename-buffer (concat (and hidden " ") newname))))
 
 (defun exwm-workspace--init ()
   "Initialize workspace module."
