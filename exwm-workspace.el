@@ -263,7 +263,19 @@ The optional FORCE option is for internal use only."
     (exwm--log "Frame is not a workspace: %s" frame))
    (t
     (exwm--log "Removing workspace: %s" frame)
-    (setq exwm-workspace--list (delete frame exwm-workspace--list))
+    ;; When removing current workspace (common case), switch to the one that
+    ;; will receive clients on the removed one.  Do this before removing the
+    ;; frame from the workspace list, so as not to confuse the indices.
+    (let* ((index (cl-position frame exwm-workspace--list))
+           (lastp (= index (1- (length exwm-workspace--list)))))
+      (when (= index exwm-workspace-current-index)
+        ;; As we are removing this workspace, the one on its left is its natural
+        ;; substitutes... except when this is already the last one and there is
+        ;; none on its left.
+        (exwm-workspace-switch (+ index (if lastp -1 +1)))
+      ;; Now delete it from the workspace list, and update current index.
+      (setq exwm-workspace--list (delete frame exwm-workspace--list))
+      (cl-incf exwm-workspace-current-index (if lastp 0 -1))))
     ;; Update EWMH properties.
     (exwm-workspace--update-ewmh-props)
     ;; Update switch history.
