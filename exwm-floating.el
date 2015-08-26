@@ -381,9 +381,13 @@
   "Perform move/resize."
   (when exwm-floating--moveresize-calculate
     (let ((obj (make-instance 'xcb:MotionNotify))
-          (frame-x (or (frame-parameter exwm-workspace--current 'exwm-x) 0))
-          (frame-y (or (frame-parameter exwm-workspace--current 'exwm-y) 0))
+          (geometry (frame-parameter exwm-workspace--current 'exwm-geometry))
+          (frame-x 0)
+          (frame-y 0)
           result)
+      (when geometry
+        (setq frame-x (slot-value geometry 'x)
+              frame-y (slot-value geometry 'y)))
       (xcb:unmarshal obj data)
       (setq result (funcall exwm-floating--moveresize-calculate
                             (slot-value obj 'root-x) (slot-value obj 'root-y)))

@@ -36,9 +36,6 @@
 ;; With above lines, workspace 0 should be assigned to the output named "VGA1",
 ;; staying at the left of other workspaces on the output "LVDS1".
 
-;; Todo:
-;; + Update EWMH hints.
-
 ;; References:
 ;; + RandR (http://www.x.org/archive/X11R7.7/doc/randrproto/randrproto.txt)
 
@@ -50,7 +47,7 @@
 
 (defun exwm-randr--refresh ()
   "Refresh workspaces according to the updated RandR info."
-  (let (output-plist default-geometry)
+  (let (geometry output-plist default-geometry workareas viewports)
     ;; Query all outputs
     (with-slots (config-timestamp outputs)
         (xcb:+request-unchecked+reply exwm--connection
@@ -72,10 +69,12 @@
                     (make-instance 'xcb:randr:GetCrtcInfo
                                    :crtc crtc
                                    :config-timestamp config-timestamp))
-              (setq output-plist (plist-put output-plist name
-                                            (vector x y width height)))
+              (setq geometry (make-instance 'xcb:RECTANGLE
+                                            :x x :y y
+                                            :width width :height height)
+                    output-plist (plist-put output-plist name geometry))
               (unless default-geometry ;assume the first output as primary
-                (setq default-geometry (vector x y width height))))))))
+                (setq default-geometry geometry)))))))
     (cl-assert (<= 2 (length output-plist)))
     (dotimes (i exwm-workspace-number)
       (let* ((output (plist-get exwm-randr-workspace-output-plist i))
@@ -85,23 +84,27 @@
           (setq geometry default-geometry
                 output nil))
         (set-frame-parameter frame 'exwm-randr-output output)
-        (set-frame-parameter frame 'exwm-geometry
-                             (make-instance 'xcb:RECTANGLE
-                                            :x (elt geometry 0)
-                                            :y (elt geometry 1)
-                                            :width (elt geometry 2)
-                                            :height (elt geometry 3)))
-        (set-frame-parameter frame 'exwm-x (elt geometry 0))
-        (set-frame-parameter frame 'exwm-y (elt geometry 1))
-        (xcb:+request exwm--connection
-            (make-instance 'xcb:ConfigureWindow
-                           :window (frame-parameter frame 'exwm-outer-id)
-                           :value-mask (logior xcb:ConfigWindow:X
-                                               xcb:ConfigWindow:Y
-                                               xcb:ConfigWindow:Width
-                                               xcb:ConfigWindow:Height)
-                           :x (elt geometry 0) :y (elt geometry 1)
-                           :width (elt geometry 2) :height (elt geometry 3)))))
+        (set-frame-parameter frame 'exwm-geometry geometry)
+        (with-slots (x y width height) geometry
+          (xcb:+request exwm--connection
+              (make-instance 'xcb:ConfigureWindow
+                             :window (frame-parameter frame 'exwm-outer-id)
+                             :value-mask (logior xcb:ConfigWindow:X
+                                                 xcb:ConfigWindow:Y
+                                                 xcb:ConfigWindow:Width
+                                                 xcb:ConfigWindow:Height)
+                             :x x :y y :width width :height height))
+          (setq workareas (nconc workareas (list x y width height))
+                viewports (nconc viewports (list x y))))))
+    ;; Update _NET_WORKAREA
+    (xcb:+request exwm--connection
+        (make-instance 'xcb:ewmh:set-_NET_WORKAREA
+                       :window exwm--root :data (vconcat workareas)))
+    ;; Update _NET_DESKTOP_VIEWPORT
+    (xcb:+request exwm--connection
+      (make-instance 'xcb:ewmh:set-_NET_DESKTOP_VIEWPORT
+                     :window exwm--root
+                     :data (vconcat viewports)))
     (xcb:flush exwm--connection)))
 
 (defun exwm-randr--init ()

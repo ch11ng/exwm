@@ -579,20 +579,12 @@
                      :data (make-vector (* 2 exwm-workspace-number) 0)))
   ;; Set _NET_WORKAREA (with minibuffer and bottom mode-line excluded)
   (let* ((workareas
-          (vconcat (window-absolute-pixel-edges (get-largest-window t))))
+          (vector 0 0 (x-display-pixel-width) (x-display-pixel-height)))
          (workareas (mapconcat (lambda (i) workareas)
                                (make-list exwm-workspace-number 0) [])))
     (xcb:+request exwm--connection
         (make-instance 'xcb:ewmh:set-_NET_WORKAREA
                        :window exwm--root :data workareas)))
-  ;; Set _NET_VIRTUAL_ROOTS
-  (xcb:+request exwm--connection
-      (make-instance 'xcb:ewmh:set-_NET_VIRTUAL_ROOTS
-                     :window exwm--root
-                     :data (vconcat (mapcar
-                                     (lambda (i)
-                                       (frame-parameter i 'exwm-window-id))
-                                     exwm-workspace--list))))
   (xcb:flush exwm--connection))
 
 (defvar exwm-init-hook nil

@@ -264,6 +264,14 @@ The optional FORCE option is for internal use only."
   (raise-frame (car exwm-workspace--list))
   ;; Handle unexpected frame switch
   (add-hook 'focus-in-hook 'exwm-workspace--on-focus-in)
+  ;; Set _NET_VIRTUAL_ROOTS
+  (xcb:+request exwm--connection
+      (make-instance 'xcb:ewmh:set-_NET_VIRTUAL_ROOTS
+                     :window exwm--root
+                     :data (vconcat (mapcar
+                                     (lambda (i)
+                                       (frame-parameter i 'exwm-window-id))
+                                     exwm-workspace--list))))
   ;; Switch to the first workspace
   (exwm-workspace-switch 0 t))
 
