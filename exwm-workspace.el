@@ -292,6 +292,26 @@ The optional FORCE option is for internal use only."
                                        (lambda (i)
                                          (frame-parameter i 'exwm-window-id))
                                        exwm-workspace--list))))
+    ;; Set _NET_NUMBER_OF_DESKTOPS
+    (xcb:+request exwm--connection
+        (make-instance 'xcb:ewmh:set-_NET_NUMBER_OF_DESKTOPS
+                       :window exwm--root
+                       :data num-workspaces))
+    ;; Set _NET_DESKTOP_VIEWPORT
+    (xcb:+request exwm--connection
+        (make-instance 'xcb:ewmh:set-_NET_DESKTOP_VIEWPORT
+                       :window exwm--root
+                       :data (make-vector (* 2 num-workspaces) 0)))
+
+    ;; Set _NET_WORKAREA (with minibuffer and bottom mode-line excluded)
+    (let* ((workareas
+            (vector 0 0 (x-display-pixel-width) (x-display-pixel-height)))
+           (workareas (mapconcat (lambda (i) workareas)
+                                 (make-list num-workspaces 0) [])))
+      (xcb:+request exwm--connection
+          (make-instance 'xcb:ewmh:set-_NET_WORKAREA
+                         :window exwm--root
+                         :data workareas)))
     (xcb:flush exwm--connection)))
 
 (defun exwm-workspace--init ()
