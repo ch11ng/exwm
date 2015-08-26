@@ -293,19 +293,22 @@ The optional FORCE option is for internal use only."
             (x (yes-or-no-p (format "[EXWM] %d window%s currently alive. %s"
                                     x (if (= x 1) "" "s") prompt))))))
   ;; Initialize workspaces
-  (setq exwm-workspace--list (frame-list))
-  (when (< 1 (exwm-workspace--count))
-    ;; Emacs client creates an extra (but unusable) frame
-    (dolist (i exwm-workspace--list)
-      (unless (frame-parameter i 'window-id)
-        (setq exwm-workspace--list (delq i exwm-workspace--list))))
-    (cl-assert (= 1 (exwm-workspace--count)))
-    ;; Prevent user from deleting this frame by accident
-    (set-frame-parameter (car exwm-workspace--list) 'client nil))
-  ;; Configure workspaces
-  (dolist (i exwm-workspace--list)
-    (exwm-workspace--add-frame-as-workspace i))
-  (select-frame-set-input-focus (car exwm-workspace--list))
+  (let ((initial-workspaces (frame-list)))
+    (when (< 1 (length initial-workspaces))
+      ;; Emacs client creates an extra (but unusable) frame
+      (dolist (i initial-workspaces)
+        (unless (frame-parameter i 'window-id)
+          (setq initial-workspaces (delq i initial-workspaces))))
+      (cl-assert (= 1 (exwm-workspace--count)))
+      ;; Prevent user from deleting this frame by accident
+      (set-frame-parameter (car initial-workspaces) 'client nil))
+    ;; TODO: this prevents user having a creating initial workspaces by making
+    ;;       frames in their configuration before launching EXWM.
+    (cl-assert (= 1 (length initial-workspaces)))
+    ;; Configure workspaces
+    (dolist (i initial-workspaces)
+      (exwm-workspace--add-frame-as-workspace i))
+    (select-frame-set-input-focus (car initial-workspaces)))
   ;; Handle unexpected frame switch
   (add-hook 'focus-in-hook 'exwm-workspace--on-focus-in)
   ;; Make new frames create new workspaces.
