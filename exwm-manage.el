@@ -289,7 +289,7 @@ corresponding buffer.")
                             (frame-pixel-height exwm-workspace--current))
                     (or exwm--floating-edges
                         (window-inside-absolute-pixel-edges
-                         (get-buffer-window)))))
+                         (get-buffer-window buffer t)))))
             (exwm--log "Reply with ConfigureNotify (edges): %s" edges)
             (xcb:+request exwm--connection
                 (make-instance 'xcb:SendEvent

@@ -98,8 +98,8 @@
                        width display-width))
         ;; Invalid width
         (when (= 0 width) (setq width (/ display-width 2)))
-        ;; Completely outsize
-        (when (or (> x display-width) (> 0 (+ x display-width)))
+        ;; Make sure at least half of the window is visible
+        (when (or (> (+ x (/ width 2)) display-width) (> 0 (+ x (/ width 2))))
           (setq x (/ (- display-width width) 2))))
       (if (> height display-height)
           ;; Too tall
@@ -107,8 +107,9 @@
                 height display-height)
         ;; Invalid height
         (when (= 0 height) (setq height (/ display-height 2)))
-        ;; Completely outside
-        (when (or (> y display-height) (> 0 (+ y display-height)))
+        ;; Make sure at least half of the window is visible
+        (when (or (> (+ y (/ height 2)) display-height)
+                  (> 0 (+ y (/ height 2))))
           (setq y (/ (- display-height height) 2))))
       ;; Center floating windows
       (when (and (= x 0) (= y 0))
