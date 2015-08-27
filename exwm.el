@@ -489,7 +489,7 @@
             (when (memq xcb:Atom:_NET_WM_STATE_DEMANDS_ATTENTION props)
               (when (= action xcb:ewmh:_NET_WM_STATE_ADD)
                 (let ((idx (cl-position exwm--frame exwm-workspace--list)))
-                  (unless (= idx exwm-workspace-current-index)
+                  (unless (= idx exwm-workspace--current-index)
                     (set-frame-parameter exwm--frame 'exwm--urgency t)
                     (exwm-workspace--update-switch-history))))
               ;; xcb:ewmh:_NET_WM_STATE_REMOVE?

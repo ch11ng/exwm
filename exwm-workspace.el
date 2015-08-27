@@ -27,6 +27,8 @@
 ;;; Code:
 
 (defvar exwm-workspace--list nil "List of all workspaces (Emacs frames).")
+(defvar exwm-workspace--current nil "Current active workspace.")
+(defvar exwm-workspace--current-index 0 "Index of current active workspace.")
 
 (defun exwm-workspace--count ()
   "Retrieve total number of workspaces."
@@ -85,9 +87,6 @@
               sequence ""))
            sequence))))
 
-(defvar exwm-workspace--current nil "Current active workspace.")
-(defvar exwm-workspace-current-index 0 "Index of current active workspace.")
-
 (defun exwm-workspace--switch-map-by-number (&optional prefix-digits)
   "Allow selecting a workspace by number.
 
@@ -140,18 +139,18 @@ The optional FORCE option is for internal use only."
       (let* ((history-add-new-input nil)  ;prevent modifying history
              (idx (read-from-minibuffer
                    "Workspace: " (elt exwm-workspace--switch-history
-                                      exwm-workspace-current-index)
+                                      exwm-workspace--current-index)
                    exwm-workspace--switch-map nil
                    `(exwm-workspace--switch-history
-                     . ,(1+ exwm-workspace-current-index)))))
+                     . ,(1+ exwm-workspace--current-index)))))
         (cl-position idx exwm-workspace--switch-history :test 'equal)))))
   (when index
     (unless (and (<= 0 index) (< index (exwm-workspace--count)))
       (user-error "[EXWM] Workspace index out of range: %d" index))
-    (when (or force (/= exwm-workspace-current-index index))
+    (when (or force (/= exwm-workspace--current-index index))
       (let ((frame (elt exwm-workspace--list index)))
         (setq exwm-workspace--current frame
-              exwm-workspace-current-index index)
+              exwm-workspace--current-index index)
         (select-frame-set-input-focus frame)
         ;; Move mouse when necessary
         (let ((position (mouse-pixel-position))
@@ -188,7 +187,7 @@ The optional FORCE option is for internal use only."
   "Fix unexpected frame switch."
   (let ((index (cl-position (selected-frame) exwm-workspace--list)))
     (exwm--log "Focus on workspace %s" index)
-    (when (and index (/= index exwm-workspace-current-index))
+    (when (and index (/= index exwm-workspace--current-index))
       (exwm--log "Workspace was switched unexpectedly")
       (exwm-workspace-switch index))))
 
@@ -199,10 +198,10 @@ The optional FORCE option is for internal use only."
     (let* ((history-add-new-input nil)  ;prevent modifying history
            (idx (read-from-minibuffer
                  "Workspace: " (elt exwm-workspace--switch-history
-                                    exwm-workspace-current-index)
+                                    exwm-workspace--current-index)
                  exwm-workspace--switch-map nil
                  `(exwm-workspace--switch-history
-                   . ,(1+ exwm-workspace-current-index)))))
+                   . ,(1+ exwm-workspace--current-index)))))
       (cl-position idx exwm-workspace--switch-history :test 'equal))))
   (unless id (setq id (exwm--buffer->id (window-buffer))))
   (unless (and (<= 0 index) (< index (exwm-workspace--count)))
@@ -211,7 +210,7 @@ The optional FORCE option is for internal use only."
     (let ((frame (elt exwm-workspace--list index)))
       (when (not (equal exwm--frame frame))
         (let ((name (replace-regexp-in-string "^\\s-*" "" (buffer-name))))
-          (exwm-workspace-rename-buffer (if (= index exwm-workspace-current-index)
+          (exwm-workspace-rename-buffer (if (= index exwm-workspace--current-index)
                                             name
                                           (concat " " name))))
         (setq exwm--frame frame)
@@ -301,14 +300,14 @@ The optional FORCE option is for internal use only."
     ;; frame from the workspace list, so as not to confuse the indices.
     (let* ((index (cl-position frame exwm-workspace--list))
            (lastp (= index (1- (length exwm-workspace--list)))))
-      (when (= index exwm-workspace-current-index)
+      (when (= index exwm-workspace--current-index)
         ;; As we are removing this workspace, the one on its left is its natural
         ;; substitutes... except when this is already the last one and there is
         ;; none on its left.
         (exwm-workspace-switch (+ index (if lastp -1 +1)))
       ;; Now delete it from the workspace list, and update current index.
       (setq exwm-workspace--list (delete frame exwm-workspace--list))
-      (cl-incf exwm-workspace-current-index (if lastp 0 -1))))
+      (cl-incf exwm-workspace--current-index (if lastp 0 -1))))
     ;; Update EWMH properties.
     (exwm-workspace--update-ewmh-props)
     ;; Update switch history.
