@@ -26,7 +26,6 @@
 
 ;;; Code:
 
-(defvar exwm-workspace-max-count 10 "Maximum number of workspaces.")
 (defvar exwm-workspace--list nil "List of all workspaces (Emacs frames).")
 
 (defun exwm-workspace--count ()
@@ -37,12 +36,7 @@
   (let ((map (make-sparse-keymap)))
     (define-key map [t] (lambda () (interactive)))
     (dotimes (i 10)
-      (define-key map (int-to-string i)
-        `(lambda ()
-           (interactive)
-           (when (< ,i exwm-workspace-max-count)
-             (goto-history-element ,(1+ i))
-             (exit-minibuffer)))))
+      (define-key map (int-to-string i) #'exwm-workspace--switch-map-by-number))
     (define-key map "\C-a" (lambda () (interactive) (goto-history-element 1)))
     (define-key map "\C-e" (lambda ()
                              (interactive)
@@ -93,6 +87,48 @@
 
 (defvar exwm-workspace--current nil "Current active workspace.")
 (defvar exwm-workspace-current-index 0 "Index of current active workspace.")
+
+(defun exwm-workspace--switch-map-by-number (&optional prefix-digits)
+  "Allow selecting a workspace by number.
+
+PREFIX-DIGITS is a list of the digits introduced so far."
+  (interactive)
+  (let* ((ev (this-command-keys-vector))
+         (off (1- (length ev)))
+         (k (elt ev off))
+         ;; 0 is ASCII 48.
+         (d (- k 48))
+         ;; Convert prefix-digits to number.  For example, '(2 1) to 120.
+         (o 1)
+         (pn (apply #'+ (mapcar (lambda (x)
+                                  (setq o (* 10 o))
+                                  (* o x))
+                                prefix-digits)))
+         (n (+ pn d))
+         (num-workspaces (exwm-workspace--count)))
+    (if (= (length prefix-digits)           ; Go ahead if there are enough
+           (floor (log num-workspaces 10))) ; digits to select any workspace.
+        (exwm-workspace--switch-map-select-number n)
+      (set-transient-map
+       (let ((map (make-sparse-keymap))
+             (cmd `(lambda ()
+                     (interactive)
+                     (exwm-workspace--switch-map-by-number ',(cons d prefix-digits))
+                     )))
+         (dotimes (i 10)
+           (define-key map (int-to-string i) cmd))
+         ;; Accept
+         (define-key map [return]
+           `(lambda ()
+              (interactive)
+              (exwm-workspace--switch-map-select-number ,n)))
+         map)))))
+
+(defun exwm-workspace--switch-map-select-number (n)
+  "Select Nth workspace."
+  (interactive)
+  (goto-history-element (1+ n))
+  (exit-minibuffer))
 
 (defun exwm-workspace-switch (index &optional force)
   "Switch to workspace INDEX. Query for INDEX if it's not specified.
@@ -220,9 +256,6 @@ The optional FORCE option is for internal use only."
 (defun exwm-workspace--add-frame-as-workspace (frame)
   "Configure frame FRAME to be treated as a workspace."
   (cond
-   ((>= (exwm-workspace--count) exwm-workspace-max-count)
-    (delete-frame frame)
-    (user-error "[EXWM] Too many workspaces: maximum is %d" exwm-workspace-max-count))
    ((memq frame exwm-workspace--list)
     (exwm--log "Frame is already a workspace: %s" frame))
    (t
@@ -316,7 +349,6 @@ The optional FORCE option is for internal use only."
 
 (defun exwm-workspace--init ()
   "Initialize workspace module."
-  (cl-assert (and (< 0 exwm-workspace-max-count) (>= 10 exwm-workspace-max-count)))
   ;; Prevent unexpected exit
   (setq confirm-kill-emacs
         (lambda (prompt)
