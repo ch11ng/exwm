@@ -257,6 +257,11 @@ The optional FORCE option is for internal use only."
   (cond
    ((memq frame exwm-workspace--list)
     (exwm--log "Frame is already a workspace: %s" frame))
+   ((not (display-graphic-p frame))
+    (exwm--log "Frame is not graphical: %s" frame))
+   ((not (eq (slot-value exwm--connection 'display)
+             (frame-parameter frame 'display)))
+    (exwm--log "Frame is on a different DISPLAY: %s" frame))
    (t
     (exwm--log "Adding workspace: %s" frame)
     (setq exwm-workspace--list (nconc exwm-workspace--list (list frame)))
