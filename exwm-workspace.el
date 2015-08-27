@@ -24,9 +24,6 @@
 
 ;; This module adds workspace support for EXWM.
 
-;; Todo:
-;; + prevent from deleting frames of Emacs client (`frame-delete-functions')
-
 ;;; Code:
 
 (defvar exwm-workspace-number 4 "Number of workspaces (1 ~ 10).")
@@ -230,8 +227,10 @@ The optional FORCE option is for internal use only."
     ;; Emacs client creates an extra (but unusable) frame
     (dolist (i exwm-workspace--list)
       (unless (frame-parameter i 'window-id)
-        (setq exwm-workspace--list (delq i exwm-workspace--list)))))
-  (cl-assert (= 1 (length exwm-workspace--list)))
+        (setq exwm-workspace--list (delq i exwm-workspace--list))))
+    (cl-assert (= 1 (length exwm-workspace--list)))
+    ;; Prevent user from deleting this frame by accident
+    (set-frame-parameter (car exwm-workspace--list) 'client nil))
   ;; Create remaining frames
   (dotimes (i (1- exwm-workspace-number))
     (nconc exwm-workspace--list
