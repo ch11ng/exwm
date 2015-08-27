@@ -362,12 +362,8 @@ The optional FORCE option is for internal use only."
       (dolist (i initial-workspaces)
         (unless (frame-parameter i 'window-id)
           (setq initial-workspaces (delq i initial-workspaces))))
-      (cl-assert (= 1 (exwm-workspace--count)))
-      ;; Prevent user from deleting this frame by accident
+      ;; Prevent user from deleting the first frame by accident
       (set-frame-parameter (car initial-workspaces) 'client nil))
-    ;; TODO: this prevents user having a creating initial workspaces by making
-    ;;       frames in their configuration before launching EXWM.
-    (cl-assert (= 1 (length initial-workspaces)))
     ;; Configure workspaces
     (dolist (i initial-workspaces)
       (exwm-workspace--add-frame-as-workspace i))
