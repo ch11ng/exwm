@@ -117,13 +117,12 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
           (progn
             (when exwm--floating-frame
               (redirect-frame-focus exwm--floating-frame nil)
-              (select-frame-set-input-focus exwm--floating-frame t))
+              (exwm-workspace--select-frame exwm--floating-frame t))
             (exwm--log "Set focus on #x%x" exwm--id)
             (exwm-input--set-focus exwm--id))
         (when (eq (selected-window) exwm-input--focus-window)
           (exwm--log "Focus on %s" exwm-input--focus-window)
-          (select-frame-set-input-focus (window-frame exwm-input--focus-window)
-                                        t)
+          (exwm-workspace--select-frame (window-frame exwm-input--focus-window) t)
           (dolist (pair exwm--id-buffer-alist)
             (with-current-buffer (cdr pair)
               (when (and exwm--floating-frame
