@@ -83,7 +83,7 @@ corresponding buffer.")
                            :event-mask xcb:EventMask:NoEvent))
         ;; The window needs to be mapped
         (xcb:+request exwm--connection
-            (make-instance xcb:MapWindow :window id))
+            (make-instance 'xcb:MapWindow :window id))
         (with-slots (x y width height) exwm--geometry
           ;; Reparent to virtual root (essential)
           (xcb:+request exwm--connection
@@ -323,7 +323,7 @@ corresponding buffer.")
     (with-slots (parent window) obj
       (if (/= exwm--root parent)
           (progn (xcb:+request exwm--connection
-                     (make-instance xcb:MapWindow :window window))
+                     (make-instance 'xcb:MapWindow :window window))
                  (xcb:flush exwm--connection))
         (exwm--log "MapRequest from #x%x" window)
         (exwm-manage--manage-window window)))))
