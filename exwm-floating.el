@@ -234,6 +234,19 @@
 (defvar exwm-floating--moveresize-calculate nil
   "Calculate move/resize parameters [frame-id event-mask x y width height].")
 
+;; Test if the pointer can be grabbed
+(defun exwm-floating--grab-pointer (frame-id)
+  (let ((result (xcb:+request-unchecked+reply exwm--connection
+                    (make-instance 'xcb:GrabPointer
+                                   :owner-events 0 :grab-window frame-id
+                                   :event-mask xcb:EventMask:NoEvent
+                                   :pointer-mode xcb:GrabMode:Async
+                                   :keyboard-mode xcb:GrabMode:Async
+                                   :confine-to xcb:Window:None
+                                   :cursor xcb:Cursor:None
+                                   :time xcb:Time:CurrentTime))))
+    (and result (= (slot-value result 'status) xcb:GrabStatus:Success))))
+
 (defun exwm-floating--start-moveresize (id &optional type)
   "Start move/resize."
   (let ((buffer (exwm--id->buffer id))
@@ -241,19 +254,7 @@
     (when (and buffer
                (setq frame (with-current-buffer buffer exwm--floating-frame))
                (setq frame-id (frame-parameter frame 'exwm-outer-id))
-               ;; Test if the pointer can be grabbed
-               (= xcb:GrabStatus:Success
-                  (slot-value
-                   (xcb:+request-unchecked+reply exwm--connection
-                       (make-instance 'xcb:GrabPointer
-                                      :owner-events 0 :grab-window frame-id
-                                      :event-mask xcb:EventMask:NoEvent
-                                      :pointer-mode xcb:GrabMode:Async
-                                      :keyboard-mode xcb:GrabMode:Async
-                                      :confine-to xcb:Window:None
-                                      :cursor xcb:Cursor:None
-                                      :time xcb:Time:CurrentTime))
-                   'status)))
+               (exwm-floating--grab-pointer frame-id))
       (setq exwm--floating-edges nil)   ;invalid by now
       (with-slots (root-x root-y win-x win-y)
           (xcb:+request-unchecked+reply exwm--connection
