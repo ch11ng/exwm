@@ -26,22 +26,23 @@
 
 ;;; Code:
 
-(defvar exwm-workspace-number 4 "Number of workspaces (1 ~ 10).")
 (defvar exwm-workspace--list nil "List of all workspaces (Emacs frames).")
+(defvar exwm-workspace--current nil "Current active workspace.")
+(defvar exwm-workspace--current-index 0 "Index of current active workspace.")
+
+(defun exwm-workspace--count ()
+  "Retrieve total number of workspaces."
+  (length exwm-workspace--list))
+
 (defvar exwm-workspace--switch-map
   (let ((map (make-sparse-keymap)))
     (define-key map [t] (lambda () (interactive)))
     (dotimes (i 10)
-      (define-key map (int-to-string i)
-        `(lambda ()
-           (interactive)
-           (when (< ,i exwm-workspace-number)
-             (goto-history-element ,(1+ i))
-             (exit-minibuffer)))))
+      (define-key map (int-to-string i) #'exwm-workspace--switch-map-by-number))
     (define-key map "\C-a" (lambda () (interactive) (goto-history-element 1)))
     (define-key map "\C-e" (lambda ()
                              (interactive)
-                             (goto-history-element exwm-workspace-number)))
+                             (goto-history-element (exwm-workspace--count))))
     (define-key map "\C-g" 'abort-recursive-edit)
     (define-key map "\C-]" 'abort-recursive-edit)
     (define-key map "\C-j" 'exit-minibuffer)
@@ -61,8 +62,9 @@
 
 (defun exwm-workspace--update-switch-history ()
   "Update the history for switching workspace to reflect the latest status."
-  (let ((sequence (number-sequence 0 (1- exwm-workspace-number)))
-        (not-empty (make-vector exwm-workspace-number nil)))
+  (let* ((num (exwm-workspace--count))
+         (sequence (number-sequence 0 (1- num)))
+         (not-empty (make-vector num nil)))
     (dolist (i exwm--id-buffer-alist)
       (with-current-buffer (cdr i)
         (when exwm--frame
@@ -85,8 +87,47 @@
               sequence ""))
            sequence))))
 
-(defvar exwm-workspace--current nil "Current active workspace.")
-(defvar exwm-workspace-current-index 0 "Index of current active workspace.")
+(defun exwm-workspace--switch-map-by-number (&optional prefix-digits)
+  "Allow selecting a workspace by number.
+
+PREFIX-DIGITS is a list of the digits introduced so far."
+  (interactive)
+  (let* ((ev (this-command-keys-vector))
+         (off (1- (length ev)))
+         (k (elt ev off))
+         ;; 0 is ASCII 48.
+         (d (- k 48))
+         ;; Convert prefix-digits to number.  For example, '(2 1) to 120.
+         (o 1)
+         (pn (apply #'+ (mapcar (lambda (x)
+                                  (setq o (* 10 o))
+                                  (* o x))
+                                prefix-digits)))
+         (n (+ pn d))
+         (num-workspaces (exwm-workspace--count)))
+    (if (= (length prefix-digits)           ; Go ahead if there are enough
+           (floor (log num-workspaces 10))) ; digits to select any workspace.
+        (exwm-workspace--switch-map-select-number n)
+      (set-transient-map
+       (let ((map (make-sparse-keymap))
+             (cmd `(lambda ()
+                     (interactive)
+                     (exwm-workspace--switch-map-by-number ',(cons d prefix-digits))
+                     )))
+         (dotimes (i 10)
+           (define-key map (int-to-string i) cmd))
+         ;; Accept
+         (define-key map [return]
+           `(lambda ()
+              (interactive)
+              (exwm-workspace--switch-map-select-number ,n)))
+         map)))))
+
+(defun exwm-workspace--switch-map-select-number (n)
+  "Select Nth workspace."
+  (interactive)
+  (goto-history-element (1+ n))
+  (exit-minibuffer))
 
 (defun exwm-workspace-switch (index &optional force)
   "Switch to workspace INDEX. Query for INDEX if it's not specified.
@@ -98,18 +139,18 @@ The optional FORCE option is for internal use only."
       (let* ((history-add-new-input nil)  ;prevent modifying history
              (idx (read-from-minibuffer
                    "Workspace: " (elt exwm-workspace--switch-history
-                                      exwm-workspace-current-index)
+                                      exwm-workspace--current-index)
                    exwm-workspace--switch-map nil
                    `(exwm-workspace--switch-history
-                     . ,(1+ exwm-workspace-current-index)))))
+                     . ,(1+ exwm-workspace--current-index)))))
         (cl-position idx exwm-workspace--switch-history :test 'equal)))))
   (when index
-    (unless (and (<= 0 index) (< index exwm-workspace-number))
+    (unless (and (<= 0 index) (< index (exwm-workspace--count)))
       (user-error "[EXWM] Workspace index out of range: %d" index))
-    (when (or force (/= exwm-workspace-current-index index))
+    (when (or force (/= exwm-workspace--current-index index))
       (let ((frame (elt exwm-workspace--list index)))
         (setq exwm-workspace--current frame
-              exwm-workspace-current-index index)
+              exwm-workspace--current-index index)
         (select-frame-set-input-focus frame)
         ;; Move mouse when necessary
         (let ((position (mouse-pixel-position))
@@ -146,7 +187,7 @@ The optional FORCE option is for internal use only."
   "Fix unexpected frame switch."
   (let ((index (cl-position (selected-frame) exwm-workspace--list)))
     (exwm--log "Focus on workspace %s" index)
-    (when (and index (/= index exwm-workspace-current-index))
+    (when (and index (/= index exwm-workspace--current-index))
       (exwm--log "Workspace was switched unexpectedly")
       (exwm-workspace-switch index))))
 
@@ -157,19 +198,19 @@ The optional FORCE option is for internal use only."
     (let* ((history-add-new-input nil)  ;prevent modifying history
            (idx (read-from-minibuffer
                  "Workspace: " (elt exwm-workspace--switch-history
-                                    exwm-workspace-current-index)
+                                    exwm-workspace--current-index)
                  exwm-workspace--switch-map nil
                  `(exwm-workspace--switch-history
-                   . ,(1+ exwm-workspace-current-index)))))
+                   . ,(1+ exwm-workspace--current-index)))))
       (cl-position idx exwm-workspace--switch-history :test 'equal))))
   (unless id (setq id (exwm--buffer->id (window-buffer))))
-  (unless (and (<= 0 index) (< index exwm-workspace-number))
+  (unless (and (<= 0 index) (< index (exwm-workspace--count)))
     (user-error "[EXWM] Workspace index out of range: %d" index))
   (with-current-buffer (exwm--id->buffer id)
     (let ((frame (elt exwm-workspace--list index)))
       (when (not (equal exwm--frame frame))
         (let ((name (replace-regexp-in-string "^\\s-*" "" (buffer-name))))
-          (exwm-workspace-rename-buffer (if (= index exwm-workspace-current-index)
+          (exwm-workspace-rename-buffer (if (= index exwm-workspace--current-index)
                                             name
                                           (concat " " name))))
         (setq exwm--frame frame)
@@ -211,38 +252,24 @@ The optional FORCE option is for internal use only."
       (setq newname (format "%s<%d>" basename (cl-incf counter))))
     (rename-buffer (concat (and hidden " ") newname))))
 
-(defun exwm-workspace--init ()
-  "Initialize workspace module."
-  (cl-assert (and (< 0 exwm-workspace-number) (>= 10 exwm-workspace-number)))
-  ;; Prevent unexpected exit
-  (setq confirm-kill-emacs
-        (lambda (prompt)
-          (pcase (length exwm--id-buffer-alist)
-            (0 (y-or-n-p prompt))
-            (x (yes-or-no-p (format "[EXWM] %d window%s currently alive. %s"
-                                    x (if (= x 1) "" "s") prompt))))))
-  ;; Initialize workspaces
-  (setq exwm-workspace--list (frame-list))
-  (when (< 1 (length exwm-workspace--list))
-    ;; Emacs client creates an extra (but unusable) frame
-    (dolist (i exwm-workspace--list)
-      (unless (frame-parameter i 'window-id)
-        (setq exwm-workspace--list (delq i exwm-workspace--list))))
-    (cl-assert (= 1 (length exwm-workspace--list)))
-    ;; Prevent user from deleting this frame by accident
-    (set-frame-parameter (car exwm-workspace--list) 'client nil))
-  ;; Create remaining frames
-  (dotimes (i (1- exwm-workspace-number))
-    (nconc exwm-workspace--list
-           (list (make-frame '((window-system . x)
-                               (visibility . nil))))))
-  ;; Configure workspaces
-  (dolist (i exwm-workspace--list)
-    (let ((window-id (string-to-int (frame-parameter i 'window-id)))
-          (outer-id (string-to-int (frame-parameter i 'outer-window-id))))
+(defun exwm-workspace--add-frame-as-workspace (frame)
+  "Configure frame FRAME to be treated as a workspace."
+  (cond
+   ((memq frame exwm-workspace--list)
+    (exwm--log "Frame is already a workspace: %s" frame))
+   ((not (display-graphic-p frame))
+    (exwm--log "Frame is not graphical: %s" frame))
+   ((not (eq (slot-value exwm--connection 'display)
+             (frame-parameter frame 'display)))
+    (exwm--log "Frame is on a different DISPLAY: %s" frame))
+   (t
+    (exwm--log "Adding workspace: %s" frame)
+    (setq exwm-workspace--list (nconc exwm-workspace--list (list frame)))
+    (let ((window-id (string-to-number (frame-parameter frame 'window-id)))
+          (outer-id (string-to-number (frame-parameter frame 'outer-window-id))))
       ;; Save window IDs
-      (set-frame-parameter i 'exwm-window-id window-id)
-      (set-frame-parameter i 'exwm-outer-id outer-id)
+      (set-frame-parameter frame 'exwm-window-id window-id)
+      (set-frame-parameter frame 'exwm-outer-id outer-id)
       ;; Set OverrideRedirect on all frames
       (xcb:+request exwm--connection
           (make-instance 'xcb:ChangeWindowAttributes
@@ -252,26 +279,106 @@ The optional FORCE option is for internal use only."
       (xcb:+request exwm--connection
           (make-instance 'xcb:ChangeWindowAttributes
                          :window window-id :value-mask xcb:CW:EventMask
-                         :event-mask xcb:EventMask:SubstructureRedirect))))
-  (xcb:flush exwm--connection)
-  ;; We have to delay making the frame visible until the
-  ;; override-redirect flag has been set.
-  (select-frame-set-input-focus (car exwm-workspace--list))
-  (dolist (i exwm-workspace--list)
-    (set-frame-parameter i 'visibility t)
-    (lower-frame i)
-    (set-frame-parameter i 'fullscreen 'fullboth))
-  (raise-frame (car exwm-workspace--list))
+                         :event-mask xcb:EventMask:SubstructureRedirect)))
+    (xcb:flush exwm--connection)
+    ;; We have to delay making the frame visible until the
+    ;; override-redirect flag has been set.
+    (set-frame-parameter frame 'visibility t)
+    (lower-frame frame)
+    (set-frame-parameter frame 'fullscreen 'fullboth)
+    ;; Update EWMH properties.
+    (exwm-workspace--update-ewmh-props)
+    ;; Update switch history.
+    (exwm-workspace--update-switch-history))))
+
+(defun exwm-workspace--remove-frame-as-workspace (frame)
+  "Stop treating frame FRAME as a workspace."
+  (cond
+   ((= 1 (exwm-workspace--count))
+    (exwm--log "Cannot remove last workspace"))
+   ((not (memq frame exwm-workspace--list))
+    (exwm--log "Frame is not a workspace: %s" frame))
+   (t
+    (exwm--log "Removing workspace: %s" frame)
+    ;; When removing current workspace (common case), switch to the one that
+    ;; will receive clients on the removed one.  Do this before removing the
+    ;; frame from the workspace list, so as not to confuse the indices.
+    (let* ((index (cl-position frame exwm-workspace--list))
+           (lastp (= index (1- (length exwm-workspace--list)))))
+      (when (= index exwm-workspace--current-index)
+        ;; As we are removing this workspace, the one on its left is its natural
+        ;; substitutes... except when this is already the last one and there is
+        ;; none on its left.
+        (exwm-workspace-switch (+ index (if lastp -1 +1)))
+      ;; Now delete it from the workspace list, and update current index.
+      (setq exwm-workspace--list (delete frame exwm-workspace--list))
+      (cl-incf exwm-workspace--current-index (if lastp 0 -1))))
+    ;; Update EWMH properties.
+    (exwm-workspace--update-ewmh-props)
+    ;; Update switch history.
+    (exwm-workspace--update-switch-history))))
+
+(defun exwm-workspace--update-ewmh-props ()
+  "Update EWMH properties to match the workspace list."
+  ;; Set _NET_VIRTUAL_ROOTS
+  (let ((num-workspaces (exwm-workspace--count)))
+    (xcb:+request exwm--connection
+        (make-instance 'xcb:ewmh:set-_NET_VIRTUAL_ROOTS
+                       :window exwm--root
+                       :data (vconcat (mapcar
+                                       (lambda (i)
+                                         (frame-parameter i 'exwm-window-id))
+                                       exwm-workspace--list))))
+    ;; Set _NET_NUMBER_OF_DESKTOPS
+    (xcb:+request exwm--connection
+        (make-instance 'xcb:ewmh:set-_NET_NUMBER_OF_DESKTOPS
+                       :window exwm--root
+                       :data num-workspaces))
+    ;; Set _NET_DESKTOP_VIEWPORT
+    (xcb:+request exwm--connection
+        (make-instance 'xcb:ewmh:set-_NET_DESKTOP_VIEWPORT
+                       :window exwm--root
+                       :data (make-vector (* 2 num-workspaces) 0)))
+
+    ;; Set _NET_WORKAREA (with minibuffer and bottom mode-line excluded)
+    (let* ((workareas
+            (vector 0 0 (x-display-pixel-width) (x-display-pixel-height)))
+           (workareas (mapconcat (lambda (i) workareas)
+                                 (make-list num-workspaces 0) [])))
+      (xcb:+request exwm--connection
+          (make-instance 'xcb:ewmh:set-_NET_WORKAREA
+                         :window exwm--root
+                         :data workareas)))
+    (xcb:flush exwm--connection)))
+
+(defun exwm-workspace--init ()
+  "Initialize workspace module."
+  ;; Prevent unexpected exit
+  (setq confirm-kill-emacs
+        (lambda (prompt)
+          (pcase (length exwm--id-buffer-alist)
+            (0 (y-or-n-p prompt))
+            (x (yes-or-no-p (format "[EXWM] %d window%s currently alive. %s"
+                                    x (if (= x 1) "" "s") prompt))))))
+  ;; Initialize workspaces
+  (let ((initial-workspaces (frame-list)))
+    (when (< 1 (length initial-workspaces))
+      ;; Emacs client creates an extra (but unusable) frame
+      (dolist (i initial-workspaces)
+        (unless (frame-parameter i 'window-id)
+          (setq initial-workspaces (delq i initial-workspaces))))
+      ;; Prevent user from deleting the first frame by accident
+      (set-frame-parameter (car initial-workspaces) 'client nil))
+    ;; Configure workspaces
+    (dolist (i initial-workspaces)
+      (exwm-workspace--add-frame-as-workspace i))
+    (select-frame-set-input-focus (car initial-workspaces)))
   ;; Handle unexpected frame switch
   (add-hook 'focus-in-hook 'exwm-workspace--on-focus-in)
-  ;; Set _NET_VIRTUAL_ROOTS
-  (xcb:+request exwm--connection
-      (make-instance 'xcb:ewmh:set-_NET_VIRTUAL_ROOTS
-                     :window exwm--root
-                     :data (vconcat (mapcar
-                                     (lambda (i)
-                                       (frame-parameter i 'exwm-window-id))
-                                     exwm-workspace--list))))
+  ;; Make new frames create new workspaces.
+  (setq window-system-default-frame-alist '((x . ((visibility . nil)))))
+  (add-hook 'after-make-frame-functions #'exwm-workspace--add-frame-as-workspace)
+  (add-hook 'delete-frame-functions #'exwm-workspace--remove-frame-as-workspace)
   ;; Switch to the first workspace
   (exwm-workspace-switch 0 t))
 

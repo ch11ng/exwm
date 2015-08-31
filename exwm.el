@@ -489,7 +489,7 @@
             (when (memq xcb:Atom:_NET_WM_STATE_DEMANDS_ATTENTION props)
               (when (= action xcb:ewmh:_NET_WM_STATE_ADD)
                 (let ((idx (cl-position exwm--frame exwm-workspace--list)))
-                  (unless (= idx exwm-workspace-current-index)
+                  (unless (= idx exwm-workspace--current-index)
                     (set-frame-parameter exwm--frame 'exwm--urgency t)
                     (exwm-workspace--update-switch-history))))
               ;; xcb:ewmh:_NET_WM_STATE_REMOVE?
@@ -568,23 +568,6 @@
       (xcb:+request exwm--connection
           (make-instance 'xcb:ewmh:set-_NET_WM_NAME
                          :window i :data "EXWM"))))
-  ;; Set _NET_NUMBER_OF_DESKTOPS
-  (xcb:+request exwm--connection
-      (make-instance 'xcb:ewmh:set-_NET_NUMBER_OF_DESKTOPS
-                     :window exwm--root :data exwm-workspace-number))
-  ;; Set _NET_DESKTOP_VIEWPORT
-  (xcb:+request exwm--connection
-      (make-instance 'xcb:ewmh:set-_NET_DESKTOP_VIEWPORT
-                     :window exwm--root
-                     :data (make-vector (* 2 exwm-workspace-number) 0)))
-  ;; Set _NET_WORKAREA (with minibuffer and bottom mode-line excluded)
-  (let* ((workareas
-          (vector 0 0 (x-display-pixel-width) (x-display-pixel-height)))
-         (workareas (mapconcat (lambda (i) workareas)
-                               (make-list exwm-workspace-number 0) [])))
-    (xcb:+request exwm--connection
-        (make-instance 'xcb:ewmh:set-_NET_WORKAREA
-                       :window exwm--root :data workareas)))
   (xcb:flush exwm--connection))
 
 (defvar exwm-init-hook nil
