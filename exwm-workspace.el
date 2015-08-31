@@ -88,10 +88,32 @@
 (defvar exwm-workspace--current nil "Current active workspace.")
 (defvar exwm-workspace-current-index 0 "Index of current active workspace.")
 
-(defun exwm-workspace-switch (index &optional force)
+(defun exwm-workspace--select-frame (frame &optional norecord)
+  ;; Move mouse when necessary
+  (let* ((position (mouse-pixel-position))
+         (x (+ (cadr position) (car (frame-position (car position)))))
+         (y (+ (cddr position) (cdr (frame-position (car position)))))
+         (edges (frame-edges frame)))
+    (if (or (not (memq frame exwm-workspace--list))
+            (and x
+                 (>= x (nth 0 edges))
+                 (> (nth 2 edges) x)
+                 (>= y (nth 1 edges))
+                 (> (nth 3 edges) y)))
+        (progn (select-frame frame)
+               (raise-frame frame)
+               (x-focus-frame frame))
+      (select-frame-set-input-focus frame norecord)
+      (when (or (>= x (nth 2 edges)) (>= y (nth 3 edges)))
+        (setq x (/ (- (nth 2 edges) (nth 0 edges)) 2)
+              y (/ (- (nth 3 edges) (nth 1 edges)) 2))
+        (set-mouse-pixel-position frame x y)))))
+
+(defun exwm-workspace-switch (index &optional force selected)
   "Switch to workspace INDEX. Query for INDEX if it's not specified.
 
-The optional FORCE option is for internal use only."
+The optional FORCE option is for internal use only.  The optional
+SELECTED option indicates that the frame is already selected."
   (interactive
    (list
     (unless (and (eq major-mode 'exwm-mode) exwm--fullscreen) ;it's invisible
@@ -110,19 +132,8 @@ The optional FORCE option is for internal use only."
       (let ((frame (elt exwm-workspace--list index)))
         (setq exwm-workspace--current frame
               exwm-workspace-current-index index)
-        (select-frame-set-input-focus frame)
-        ;; Move mouse when necessary
-        (let ((position (mouse-pixel-position))
-              x y w h)
-          (unless (eq frame (car position))
-            (setq x (cadr position)
-                  y (cddr position)
-                  w (frame-pixel-width frame)
-                  h (frame-pixel-height frame))
-            (when (or (> x w) (> y h))
-              (setq x (/ w 2)
-                    y (/ h 2)))
-            (set-mouse-pixel-position frame x y)))
+        (unless selected
+          (exwm-workspace--select-frame frame))
         (setq default-minibuffer-frame frame)
         ;; Hide windows in other workspaces by preprending a space
         (dolist (i exwm--id-buffer-alist)
@@ -135,7 +146,6 @@ The optional FORCE option is for internal use only."
         (set-frame-parameter frame 'exwm--urgency nil)
         ;; Update switch workspace history
         (exwm-workspace--update-switch-history)
-        (exwm--make-emacs-idle-for 0.1) ;FIXME
         ;; Update _NET_CURRENT_DESKTOP
         (xcb:+request exwm--connection
             (make-instance 'xcb:ewmh:set-_NET_CURRENT_DESKTOP
@@ -148,7 +158,7 @@ The optional FORCE option is for internal use only."
     (exwm--log "Focus on workspace %s" index)
     (when (and index (/= index exwm-workspace-current-index))
       (exwm--log "Workspace was switched unexpectedly")
-      (exwm-workspace-switch index))))
+      (exwm-workspace-switch index nil t))))
 
 (defun exwm-workspace-move-window (index &optional id)
   "Move window ID to workspace INDEX."
