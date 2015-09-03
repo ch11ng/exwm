@@ -278,7 +278,8 @@
                            ((> x 2) xcb:ewmh:_NET_WM_MOVERESIZE_SIZE_RIGHT)
                            ((> y 2) xcb:ewmh:_NET_WM_MOVERESIZE_SIZE_BOTTOM)
                            ((< x 1) xcb:ewmh:_NET_WM_MOVERESIZE_SIZE_LEFT))))
-        (when type
+        (if (not type)
+            (exwm-floating--stop-moveresize)
           (cond ((= type xcb:ewmh:_NET_WM_MOVERESIZE_MOVE)
                  (setq cursor exwm-floating--cursor-move
                        exwm-floating--moveresize-calculate
