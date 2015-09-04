@@ -1,24 +1,23 @@
 ;;; exwm-layout.el --- Layout Module for EXWM  -*- lexical-binding: t -*-
 
-;; Copyright (C) 2015 Chris Feng
+;; Copyright (C) 2015 Free Software Foundation, Inc.
 
 ;; Author: Chris Feng <chris.w.feng@gmail.com>
-;; Keywords: unix
 
-;; This file is not part of GNU Emacs.
+;; This file is part of GNU Emacs.
 
-;; This file is free software: you can redistribute it and/or modify
+;; GNU Emacs is free software: you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
 ;; the Free Software Foundation, either version 3 of the License, or
 ;; (at your option) any later version.
 
-;; This file is distributed in the hope that it will be useful,
+;; GNU Emacs is distributed in the hope that it will be useful,
 ;; but WITHOUT ANY WARRANTY; without even the implied warranty of
 ;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with this file.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -26,6 +25,10 @@
 
 ;;; Code:
 
+(require 'exwm-core)
+(eval-when-compile (require 'exwm-workspace))
+
+;;;###autoload
 (defun exwm-layout--show (id &optional window)
   "Show window ID exactly fit in the Emacs window WINDOW."
   (exwm--log "Show #x%x in %s" id window)
@@ -68,6 +71,7 @@
                                exwm--connection))))
   (xcb:flush exwm--connection))
 
+;;;###autoload
 (defun exwm-layout--hide (id)
   "Hide window ID."
   (unless (eq xcb:icccm:WM_STATE:IconicState ;already hidden
@@ -89,6 +93,7 @@
                        :icon xcb:Window:None))
     (xcb:flush exwm--connection)))
 
+;;;###autoload
 (defun exwm-layout-set-fullscreen (&optional id)
   "Make window ID fullscreen."
   (interactive)
@@ -248,9 +253,9 @@
 (defun exwm-layout--init ()
   "Initialize layout module."
   ;; Auto refresh layout
-  (add-hook 'window-configuration-change-hook 'exwm-layout--refresh)
+  (add-hook 'window-configuration-change-hook #'exwm-layout--refresh)
   ;; Refresh when minibuffer grows
-  (add-hook 'minibuffer-setup-hook 'exwm-layout--on-minibuffer-setup t))
+  (add-hook 'minibuffer-setup-hook #'exwm-layout--on-minibuffer-setup t))
 
 
 

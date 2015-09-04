@@ -1,80 +1,46 @@
 ;;; exwm.el --- Emacs X Window Manager  -*- lexical-binding: t -*-
 
-;; Copyright (C) 2015 Chris Feng
+;; Copyright (C) 2015 Free Software Foundation, Inc.
 
 ;; Author: Chris Feng <chris.w.feng@gmail.com>
+;; Maintainer: Chris Feng <chris.w.feng@gmail.com>
+;; Version: 0
+;; Package-Requires: ((xelb "0.1"))
 ;; Keywords: unix
+;; URL: https://github.com/ch11ng/exwm
 
-;; This file is not part of GNU Emacs.
+;; This file is part of GNU Emacs.
 
-;; This file is free software: you can redistribute it and/or modify
+;; GNU Emacs is free software: you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
 ;; the Free Software Foundation, either version 3 of the License, or
 ;; (at your option) any later version.
 
-;; This file is distributed in the hope that it will be useful,
+;; GNU Emacs is distributed in the hope that it will be useful,
 ;; but WITHOUT ANY WARRANTY; without even the implied warranty of
 ;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with this file.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
 ;; Overview
 ;; --------
-;; EXWM (Emacs X Window Manager) turns Emacs into a full-featured tiling X
-;; window manager. It's built on top of XELB, thus purely consists of Elisp
-;; codes. Some features include:
-;; + It's fully keyboard-driven.
-;;   - You have full access to all key bindings in Emacs.
-;;   - It allows you to bind additional key sequences with `exwm-input-set-key'
-;;     (just like `global-set-key').
-;;   - It supports simulation keys (i.e., map one key sequence to another).
-;; + Workspace support.
-;;   - EXWM support up to 10 workspaces.
-;; + ICCCM/EWMH compliance.
-;;   - Note that the support for EWMH can never be complete since EXWM is not a
-;;     conventional window manager.
-
-;; How it works
-;; ------------
-;; Emacs itself is a tiling window manager, though unfortunately not for
-;; managing X things. EXWM has therefore been created to overcome this limitation
-;; by relating X concepts to Emacs ones as shown in the following table.
-;;
-;; +=============+=========+
-;; | X Window    | Emacs   |
-;; +=============+=========+
-;; | window      | buffer  |
-;; +-------------+---------+
-;; | container*  | window  |
-;; +-------------+---------+
-;; | workspace / | frame** |
-;; | decoration  |         |
-;; +=============+=========+
-;; *  Here a container means the parent of an X client window created by window
-;;    manager for layout management.
-;; ** In EXWM, A frame usually acts as a workspace. But for a floating window,
-;;    it's the decoration around the top-level window.
-;;
-;; Each X client window corresponds to a dedicated buffer in EXWM mode. When
-;; such a buffer is buried or unburied, the attached X client window is hide or
-;; shown accordingly. The position and size of the X client window is then
-;; determined by the Emacs window its corresponding buffer displayed in.
-;;
-;; A buffer in EXWM mode also records which workspace it belongs to, and its
-;; attached X client window is made a child (in the sense of X) of the
-;; workspace frame. The switch between workspaces is simply done by switching
-;; corresponding Emacs frames.
+;; EXWM (Emacs X Window Manager) is a full-featured tiling X window manager for
+;; Emacs built on top of XELB.  It features:
+;; + Fully keyboard-driven operation
+;; + Hybrid layout modes (tiling & stacking)
+;; + Workspace support
+;; + ICCCM/EWMH compliance
+;; + Basic RandR support (optional)
 
 ;; Installation & configuration
 ;; ----------------------------
 ;; Here are the minimal steps to get EXWM working:
-;; 0. Install xelb and xelb-util first.
-;; 1. Put EXWM somewhere on your disk and make sure it's in `load-path'.
-;; 2. In your Emacs init file, add following lines (modify accordingly):
+;; 1. Install XELB and EXWM, and make sure they are in `load-path'.
+;; 2. In '~/.emacs', add following lines (please modify accordingly):
 ;;
 ;;    (require 'exwm)
 ;;    ;; We always need a way to go back from char-mode to line-mode
@@ -83,51 +49,23 @@
 ;;    (exwm-input-set-key (kbd "s-w") 'exwm-workspace-switch)
 ;;    ;; Use class name to name an EXWM buffer
 ;;    (add-hook 'exwm-update-class-hook
-;;              (lambda () (rename-buffer exwm-class-name t)))
+;;              (lambda () (exwm-workspace-rename-buffer exwm-class-name t)))
 ;;    ;; Enable EXWM
 ;;    (exwm-enable)
 ;;
-;; 3. Make a file '~/.xinitrc' with the content
+;; 3. Make a file '~/.xinitrc' with the following lines:
 ;;
+;;    # You may need to comment out the next line to disable access control
+;;    #xhost +
 ;;    exec emacs
 ;;
-;; 4. Launch EXWM in a console with
+;; 4. Launch EXWM in a console (e.g. tty1) with
 ;;
-;;    xinit
+;;    xinit -- vt01
 ;;
-;; You should refer to other resources on how to further configure '~/.xinitrc'
-;; and other init scripts to improve the working experience. Besides, you
-;; should hide the menu-bar, tool-bar, etc to increase the usable space.
-
-;; Interactive modes
-;; -----------------
-;; There are two modes in EXWM to interact with an X client window: line mode
-;; and char mode. They are analogous to those concepts in `ansi-term'. EXWM
-;; buffers are created in line mode by default.
-;;
-;; In line mode, all key events are intercepted and then forwarded to the X
-;; client window except
-;; + it forms a mode-specific key sequence (which begins with 'C-c'), or
-;; + it forms a key sequence bound with `exwm-input-set-key', or
-;; + it forms a key sequence starting with a line mode prefix key, or
-;; + it forms a key sequence in line mode simulation keys.
-;; You can use 'C-c q' (bound to `exwm-input-send-next-key', can be 'C-u'
-;; prefixed) to send these keys to the client.
-;;
-;; In char mode however, no key event is intercepted except those bound with
-;; `exwm-input-set-key'. Therefore you will almost always need to
-;; 'exwm-input-set-key' a key sequence to go from char mode to line mode.
-
-;; Related projects
-;; ----------------
-;; EXWM is not the first attempt to make Emacs an X window manger; there is
-;; another ancient project called XWEM (http://www.nongnu.org/xwem/) for
-;; XEmacs, though it seems nobody have ever got it working on GNU Emacs.
-
-;; Todo:
-;; + Investigate DnD support (e.g. drag a chromium tab to another window).
-;; + Auto hide minibuffer, or allow users to place it elsewhere.
-;; + Add system tray support.
+;; You should additionally hide the menu-bar, tool-bar, etc to increase the
+;; usable space.  Please check the wiki (https://github.com/ch11ng/exwm/wiki)
+;; for more detailed instructions on installation, configuration, usage, etc.
 
 ;; References:
 ;; + dwm (http://dwm.suckless.org/)
@@ -136,60 +74,12 @@
 
 ;;; Code:
 
-(require 'xcb)
-(require 'xcb-icccm)
-(require 'xcb-ewmh)
+(require 'exwm-core)
 (require 'exwm-workspace)
 (require 'exwm-layout)
 (require 'exwm-floating)
 (require 'exwm-manage)
 (require 'exwm-input)
-
-(defvar exwm-debug-on nil "Non-nil to turn on debug for EXWM.")
-
-(defmacro exwm--log (format-string &rest args)
-  "Print debug message."
-  (when exwm-debug-on
-    `(message (concat "[EXWM] " ,format-string) ,@args)))
-
-(defconst exwm--client-event-mask
-  (logior xcb:EventMask:StructureNotify xcb:EventMask:PropertyChange)
-  "Event mask set on all managed windows.")
-
-(defvar exwm--connection nil "X connection.")
-(defvar exwm--root nil "Root window.")
-(defvar exwm--id-buffer-alist nil "Alist of (<X window ID> . <Emacs buffer>)")
-
-(defsubst exwm--id->buffer (id)
-  "X window ID => Emacs buffer."
-  (cdr (assoc id exwm--id-buffer-alist)))
-
-(defsubst exwm--buffer->id (buffer)
-  "Emacs buffer => X window ID."
-  (car (rassoc buffer exwm--id-buffer-alist)))
-
-(defun exwm--lock (&rest args)          ;args are for abnormal hook
-  "Lock (disable all events)."
-  (xcb:+request exwm--connection
-      (make-instance 'xcb:ChangeWindowAttributes
-                     :window exwm--root
-                     :value-mask xcb:CW:EventMask
-                     :event-mask xcb:EventMask:NoEvent))
-  (xcb:flush exwm--connection))
-
-(defun exwm--unlock (&rest args)        ;args are for abnormal hook
-  "Unlock (enable all events)."
-  (xcb:+request exwm--connection
-      (make-instance 'xcb:ChangeWindowAttributes
-                     :window exwm--root
-                     :value-mask xcb:CW:EventMask
-                     :event-mask (logior xcb:EventMask:StructureNotify
-                                         xcb:EventMask:SubstructureRedirect)))
-  (xcb:flush exwm--connection))
-
-(defun exwm--make-emacs-idle-for (seconds)
-  "Put Emacs in idle state for SECONDS seconds."
-  (with-timeout (seconds) (read-event)))
 
 (defun exwm-reset ()
   "Reset window to standard state: non-fullscreen, line-mode."
@@ -201,6 +91,7 @@
       (exwm-layout--refresh)
       (exwm-input-grab-keyboard))))
 
+;;;###autoload
 (defun exwm--update-window-type (id &optional force)
   "Update _NET_WM_WINDOW_TYPE."
   (with-current-buffer (exwm--id->buffer id)
@@ -214,6 +105,7 @@
 (defvar exwm-update-class-hook nil
   "Normal hook run when window class is updated.")
 
+;;;###autoload
 (defun exwm--update-class (id &optional force)
   "Update WM_CLASS."
   (with-current-buffer (exwm--id->buffer id)
@@ -229,6 +121,7 @@
 (defvar exwm-update-title-hook nil
   "Normal hook run when window title is updated.")
 
+;;;###autoload
 (defun exwm--update-utf8-title (id &optional force)
   "Update _NET_WM_NAME."
   (with-current-buffer (exwm--id->buffer id)
@@ -241,6 +134,7 @@
             (setq exwm--title-is-utf8 t)
             (run-hooks 'exwm-update-title-hook)))))))
 
+;;;###autoload
 (defun exwm--update-ctext-title (id &optional force)
   "Update WM_NAME."
   (with-current-buffer (exwm--id->buffer id)
@@ -253,11 +147,13 @@
           (when exwm-title
             (run-hooks 'exwm-update-title-hook)))))))
 
+;;;###autoload
 (defun exwm--update-title (id)
   "Update _NET_WM_NAME or WM_NAME."
   (exwm--update-utf8-title id)
   (exwm--update-ctext-title id))
 
+;;;###autoload
 (defun exwm--update-transient-for (id &optional force)
   "Update WM_TRANSIENT_FOR."
   (with-current-buffer (exwm--id->buffer id)
@@ -268,6 +164,7 @@
         (when reply                     ;nil when destroyed
           (setq exwm-transient-for (slot-value reply 'value)))))))
 
+;;;###autoload
 (defun exwm--update-normal-hints (id &optional force)
   "Update WM_NORMAL_HINTS."
   (with-current-buffer (exwm--id->buffer id)
@@ -315,6 +212,7 @@
                        (= exwm--normal-hints-min-height
                           exwm--normal-hints-max-height)))))))))
 
+;;;###autoload
 (defun exwm--update-hints (id &optional force)
   "Update WM_HINTS."
   (with-current-buffer (exwm--id->buffer id)
@@ -334,6 +232,7 @@
               (set-frame-parameter exwm--frame 'exwm--urgency t)
               (exwm-workspace--update-switch-history))))))))
 
+;;;###autoload
 (defun exwm--update-protocols (id &optional force)
   "Update WM_PROTOCOLS."
   (with-current-buffer (exwm--id->buffer id)
@@ -344,6 +243,7 @@
         (when reply                     ;nil when destroyed
           (setq exwm--protocols (append (slot-value reply 'value) nil)))))))
 
+;;;###autoload
 (defun exwm--update-state (id &optional force)
   "Update WM_STATE."
   (with-current-buffer (exwm--id->buffer id)
@@ -355,16 +255,14 @@
                                ;; Default to normal state
                                xcb:icccm:WM_STATE:NormalState)))))))
 
-(defun exwm--on-PropertyNotify (data synthetic)
+(defun exwm--on-PropertyNotify (data _synthetic)
   "Handle PropertyNotify event."
   (let ((obj (make-instance 'xcb:PropertyNotify))
-        atom window state
-        buffer)
+        atom id buffer)
     (xcb:unmarshal obj data)
     (setq id (slot-value obj 'window)
           atom (slot-value obj 'atom)
-          exwm-input--timestamp (slot-value obj 'time)
-          state (slot-value obj 'state))
+          exwm-input--timestamp (slot-value obj 'time))
     (setq buffer (exwm--id->buffer id))
     (when (buffer-live-p buffer)
       (with-current-buffer buffer
@@ -391,7 +289,7 @@
                             (x-get-atom-name atom exwm-workspace--current)
                             atom)))))))
 
-(defun exwm--on-ClientMessage (raw-data synthetic)
+(defun exwm--on-ClientMessage (raw-data _synthetic)
   "Handle ClientMessage event."
   (let ((obj (make-instance 'xcb:ClientMessage))
         type id data)
@@ -420,20 +318,20 @@
      ;; _NET_REQUEST_FRAME_EXTENTS
      ((= type xcb:Atom:_NET_REQUEST_FRAME_EXTENTS)
       (let ((buffer (exwm--id->buffer id))
-            left right top bottom)
+            left right top btm)
         (if (or (not buffer)
                 (with-current-buffer buffer
                   (not exwm--floating-frame)))
-            (setq left 0 right 0 top 0 bottom 0)
+            (setq left 0 right 0 top 0 btm 0)
           (setq left exwm-floating-border-width
                 right exwm-floating-border-width
                 top (+ exwm-floating-border-width (window-header-line-height))
-                bottom (+ exwm-floating-border-width
-                          (window-mode-line-height))))
+                btm (+ exwm-floating-border-width
+                       (window-mode-line-height))))
         (xcb:+request exwm--connection
             (make-instance 'xcb:ewmh:set-_NET_FRAME_EXTENTS
                            :window id :left left :right right
-                           :top top :bottom bottom)))
+                           :top top :bottom btm)))
       (xcb:flush exwm--connection))
      ;; _NET_WM_STATE
      ((= type xcb:Atom:_NET_WM_STATE)
@@ -502,18 +400,18 @@
      ((= type xcb:Atom:WM_PROTOCOLS)
       (let ((type (elt data 0)))
         (cond ((= type xcb:Atom:_NET_WM_PING)
-               (setq exwm--ping-lock nil))
+               (setq exwm-manage--ping-lock nil))
               (t (exwm--log "Unhandled WM_PROTOCOLS of type: %d" type)))))
      (t (exwm--log "Unhandled client message: %s" obj)))))
 
 (defun exwm--init-icccm-ewmh ()
   "Initialize ICCCM/EWMH support."
   ;; Handle PropertyNotify event
-  (xcb:+event exwm--connection 'xcb:PropertyNotify 'exwm--on-PropertyNotify)
+  (xcb:+event exwm--connection 'xcb:PropertyNotify #'exwm--on-PropertyNotify)
   ;; Handle relevant client messages
   ;; FIXME: WM_STATE client messages (normal => iconic)
   ;;        WM_COLORMAP_NOTIFY
-  (xcb:+event exwm--connection 'xcb:ClientMessage 'exwm--on-ClientMessage)
+  (xcb:+event exwm--connection 'xcb:ClientMessage #'exwm--on-ClientMessage)
   ;; Set _NET_SUPPORTED
   (xcb:+request exwm--connection
       (make-instance 'xcb:ewmh:set-_NET_SUPPORTED
@@ -580,7 +478,7 @@
   ;; Set _NET_WORKAREA (with minibuffer and bottom mode-line excluded)
   (let* ((workareas
           (vector 0 0 (x-display-pixel-width) (x-display-pixel-height)))
-         (workareas (mapconcat (lambda (i) workareas)
+         (workareas (mapconcat (lambda (_) workareas)
                                (make-list exwm-workspace-number 0) [])))
     (xcb:+request exwm--connection
         (make-instance 'xcb:ewmh:set-_NET_WORKAREA
@@ -626,84 +524,14 @@
         (exwm-manage--scan)
         (run-hooks 'exwm-init-hook)))))
 
-(defvar exwm-mode-map
-  (let ((map (make-sparse-keymap)))
-    (define-key map "\C-ck" 'exwm-input-release-keyboard)
-    (define-key map "\C-cf" 'exwm-layout-set-fullscreen)
-    (define-key map "\C-cm" 'exwm-floating-toggle-floating)
-    (define-key map "\C-cq" 'exwm-input-send-next-key)
-    (define-key map "\C-cv" 'exwm-workspace-move-window)
-    map)
-  "Keymap for `exwm-mode'.")
-
-(define-derived-mode exwm-mode nil "EXWM"
-  "Major mode for managing X windows.
-
-\\{exwm-mode-map}"
-  ;; Internal variables
-  (make-local-variable 'exwm--id)              ;window id
-  (set (make-local-variable 'exwm--frame) nil) ;workspace frame
-  (set (make-local-variable 'exwm--floating-frame) nil) ;floating frame
-  (set (make-local-variable 'exwm--floating-edges) nil) ;four edges
-  (set (make-local-variable 'exwm--fullscreen) nil) ;used in fullscreen
-  (set (make-local-variable 'exwm--floating-frame-geometry) nil) ;in fullscreen
-  (set (make-local-variable 'exwm--fixed-size) nil) ;fixed size
-  (set (make-local-variable 'exwm--on-KeyPress) ;KeyPress event handler
-       'exwm-input--on-KeyPress-line-mode)
-  ;; Properties
-  (set (make-local-variable 'exwm-window-type) nil)
-  (set (make-local-variable 'exwm--geometry) nil)
-  (set (make-local-variable 'exwm-class-name) nil)
-  (set (make-local-variable 'exwm-instance-name) nil)
-  (set (make-local-variable 'exwm-title) nil)
-  (set (make-local-variable 'exwm--title-is-utf8) nil)
-  (set (make-local-variable 'exwm-transient-for) nil)
-  ;; _NET_WM_NORMAL_HINTS
-  (set (make-local-variable 'exwm--normal-hints-x) nil)
-  (set (make-local-variable 'exwm--normal-hints-y) nil)
-  (set (make-local-variable 'exwm--normal-hints-width) nil)
-  (set (make-local-variable 'exwm--normal-hints-height) nil)
-  (set (make-local-variable 'exwm--normal-hints-min-width) nil)
-  (set (make-local-variable 'exwm--normal-hints-min-height) nil)
-  (set (make-local-variable 'exwm--normal-hints-max-width) nil)
-  (set (make-local-variable 'exwm--normal-hints-max-height) nil)
-  ;; (set (make-local-variable 'exwm--normal-hints-win-gravity) nil)
-  ;; WM_HINTS
-  (set (make-local-variable 'exwm--hints-input) nil) ;FIXME
-  (set (make-local-variable 'exwm--hints-urgency) nil)
-  ;;
-  (set (make-local-variable 'exwm--protocols) nil)
-  (set (make-local-variable 'exwm-state) nil)
-  ;; Change major-mode is not allowed
-  (set (make-local-variable 'change-major-mode-hook) 'kill-buffer)
-  ;;
-  (setq mode-name
-        '(:eval (propertize "EXWM" 'face
-                            (when (cl-some (lambda (i)
-                                             (frame-parameter i
-                                                              'exwm--urgency))
-                                           exwm-workspace--list)
-                              'font-lock-warning-face))))
-  ;; Kill buffer -> close window
-  (set (make-local-variable 'kill-buffer-query-functions)
-       (list (lambda ()
-               (exwm-manage--close-window exwm--id (current-buffer))
-               nil)))
-  (setq buffer-read-only t
-        left-margin-width nil
-        right-margin-width nil
-        left-fringe-width 0
-        right-fringe-width 0
-        vertical-scroll-bar nil))
-
 (defun exwm-enable (&optional undo)
-  "Enable/Disable EXWM"
+  "Enable/Disable EXWM."
   (if (eq undo 'undo)
-      (progn (remove-hook 'window-setup-hook 'exwm-init)
-             (remove-hook 'after-make-frame-functions 'exwm-init))
-    (setq frame-resize-pixelwise t)            ;mandatory; before init
-    (add-hook 'window-setup-hook 'exwm-init t) ;for Emacs
-    (add-hook 'after-make-frame-functions 'exwm-init t))) ;for Emacs Client
+      (progn (remove-hook 'window-setup-hook #'exwm-init)
+             (remove-hook 'after-make-frame-functions #'exwm-init))
+    (setq frame-resize-pixelwise t)     ;mandatory; before init
+    (add-hook 'window-setup-hook #'exwm-init t)            ;for Emacs
+    (add-hook 'after-make-frame-functions #'exwm-init t))) ;for Emacs Client
 
 (defun exwm--ido-buffer-window-other-frame (orig-fun buffer)
   "Wrapper for `ido-buffer-window-other-frame' to exclude invisible windows."
@@ -717,17 +545,17 @@
 (defun exwm--fix-ido-buffer-window-other-frame ()
   "Fix `ido-buffer-window-other-frame'."
   (advice-add 'ido-buffer-window-other-frame :around
-              'exwm--ido-buffer-window-other-frame))
+              #'exwm--ido-buffer-window-other-frame))
 
 (defun exwm-enable-ido-workaround ()
-  "Enable workarounds for `ido-mode'."
-  (add-hook 'exwm-init-hook 'exwm--fix-ido-buffer-window-other-frame))
+  "Enable workarounds for 'ido-mode'."
+  (add-hook 'exwm-init-hook #'exwm--fix-ido-buffer-window-other-frame))
 
 (defun exwm-disable-ido-workaround ()
-  "Disable workarounds for `ido-mode'."
-  (remove-hook 'exwm-init-hook 'exwm--fix-ido-buffer-window-other-frame)
+  "Disable workarounds for 'ido-mode'."
+  (remove-hook 'exwm-init-hook #'exwm--fix-ido-buffer-window-other-frame)
   (advice-remove 'ido-buffer-window-other-frame
-                 'exwm--ido-buffer-window-other-frame))
+                 #'exwm--ido-buffer-window-other-frame))
 
 
 

@@ -1,24 +1,23 @@
 ;;; exwm-floating.el --- Floating Module for EXWM  -*- lexical-binding: t -*-
 
-;; Copyright (C) 2015 Chris Feng
+;; Copyright (C) 2015 Free Software Foundation, Inc.
 
 ;; Author: Chris Feng <chris.w.feng@gmail.com>
-;; Keywords: unix
 
-;; This file is not part of GNU Emacs.
+;; This file is part of GNU Emacs.
 
-;; This file is free software: you can redistribute it and/or modify
+;; GNU Emacs is free software: you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
 ;; the Free Software Foundation, either version 3 of the License, or
 ;; (at your option) any later version.
 
-;; This file is distributed in the hope that it will be useful,
+;; GNU Emacs is distributed in the hope that it will be useful,
 ;; but WITHOUT ANY WARRANTY; without even the implied warranty of
 ;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with this file.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -31,6 +30,8 @@
 ;;; Code:
 
 (require 'xcb-cursor)
+(require 'exwm-core)
+(eval-when-compile (require 'exwm-workspace))
 
 (defvar exwm-floating-border-width 1 "Border width of the floating window.")
 (defvar exwm-floating-border-color "blue"
@@ -41,6 +42,18 @@
 (defvar exwm-floating-exit-hook nil
   "Normal hook run when a window has exited floating state.")
 
+;; Cursors for moving/resizing a window
+(defvar exwm-floating--cursor-move nil)
+(defvar exwm-floating--cursor-top-left nil)
+(defvar exwm-floating--cursor-top nil)
+(defvar exwm-floating--cursor-top-right nil)
+(defvar exwm-floating--cursor-right nil)
+(defvar exwm-floating--cursor-bottom-right nil)
+(defvar exwm-floating--cursor-bottom nil)
+(defvar exwm-floating--cursor-bottom-left nil)
+(defvar exwm-floating--cursor-left nil)
+
+;;;###autoload
 (defun exwm-floating--set-floating (id)
   "Make window ID floating."
   (interactive)
@@ -66,8 +79,8 @@
                          (internal-border-width . ,exwm-floating-border-width)
                          (unsplittable . t))) ;and fix the size later
                     (exwm--unlock))))
-         (frame-id (string-to-int (frame-parameter frame 'window-id)))
-         (outer-id (string-to-int (frame-parameter frame 'outer-window-id)))
+         (frame-id (string-to-number (frame-parameter frame 'window-id)))
+         (outer-id (string-to-number (frame-parameter frame 'outer-window-id)))
          (window (frame-first-window frame)) ;and it's the only window
          (x (slot-value exwm--geometry 'x))
          (y (slot-value exwm--geometry 'y))
@@ -189,6 +202,7 @@
     (select-window window))
   (run-hooks 'exwm-floating-setup-hook))
 
+;;;###autoload
 (defun exwm-floating--unset-floating (id)
   "Make window ID non-floating."
   (interactive)
@@ -223,6 +237,7 @@
       (select-window window)))
   (run-hooks 'exwm-floating-exit-hook))
 
+;;;###autoload
 (defun exwm-floating-toggle-floating ()
   "Toggle the current window between floating and non-floating states."
   (interactive)
@@ -234,10 +249,11 @@
 (defvar exwm-floating--moveresize-calculate nil
   "Calculate move/resize parameters [frame-id event-mask x y width height].")
 
+;;;###autoload
 (defun exwm-floating--start-moveresize (id &optional type)
   "Start move/resize."
   (let ((buffer (exwm--id->buffer id))
-        frame frame-id cursor)
+        frame frame-id x y width height cursor)
     (when (and buffer
                (setq frame (with-current-buffer buffer exwm--floating-frame))
                (setq frame-id (frame-parameter frame 'exwm-outer-id))
@@ -372,14 +388,16 @@
                              :cursor cursor
                              :time xcb:Time:CurrentTime)))))))
 
-(defun exwm-floating--stop-moveresize (&rest args)
+;;;###autoload
+(defun exwm-floating--stop-moveresize (&rest _args)
   "Stop move/resize."
   (xcb:+request exwm--connection
       (make-instance 'xcb:UngrabPointer :time xcb:Time:CurrentTime))
   (xcb:flush exwm--connection)
   (setq exwm-floating--moveresize-calculate nil))
 
-(defun exwm-floating--do-moveresize (data synthetic)
+;;;###autoload
+(defun exwm-floating--do-moveresize (data _synthetic)
   "Perform move/resize."
   (when exwm-floating--moveresize-calculate
     (let ((obj (make-instance 'xcb:MotionNotify))
@@ -400,17 +418,6 @@
                          :y (-  (elt result 3) frame-y)
                          :width (elt result 4) :height (elt result 5)))
       (xcb:flush exwm--connection))))
-
-;; Cursors for moving/resizing a window
-(defvar exwm-floating--cursor-move nil)
-(defvar exwm-floating--cursor-top-left nil)
-(defvar exwm-floating--cursor-top nil)
-(defvar exwm-floating--cursor-top-right nil)
-(defvar exwm-floating--cursor-right nil)
-(defvar exwm-floating--cursor-bottom-right nil)
-(defvar exwm-floating--cursor-bottom nil)
-(defvar exwm-floating--cursor-bottom-left nil)
-(defvar exwm-floating--cursor-left nil)
 
 (defun exwm-floating--init ()
   "Initialize floating module."

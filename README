@@ -1,8 +1,0 @@
-Emacs X Window Manager
-======================
-
-EXWM (Emacs X Window Manager) turns Emacs into a full-featured tiling X window
-manager. Please check the wiki (https://github.com/ch11ng/exwm/wiki) for more
-details.
-
-EXWM is built on top of XELB (https://github.com/ch11ng/xelb).

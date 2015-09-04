@@ -1,24 +1,23 @@
 ;;; exwm-input.el --- Input Module for EXWM  -*- lexical-binding: t -*-
 
-;; Copyright (C) 2015 Chris Feng
+;; Copyright (C) 2015 Free Software Foundation, Inc.
 
 ;; Author: Chris Feng <chris.w.feng@gmail.com>
-;; Keywords: unix
 
-;; This file is not part of GNU Emacs.
+;; This file is part of GNU Emacs.
 
-;; This file is free software: you can redistribute it and/or modify
+;; GNU Emacs is free software: you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
 ;; the Free Software Foundation, either version 3 of the License, or
 ;; (at your option) any later version.
 
-;; This file is distributed in the hope that it will be useful,
+;; GNU Emacs is distributed in the hope that it will be useful,
 ;; but WITHOUT ANY WARRANTY; without even the implied warranty of
 ;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with this file.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -33,11 +32,13 @@
 ;; + Simulation keys to mimic Emacs key bindings for text edit (redo, select,
 ;;   cancel, clear, etc). Some of them are not present on common keyboard
 ;;   (keycode = 0). May need to use XKB extension.
+;; + Investigate DnD support (e.g. drag a chromium tab to another window).
 
 ;;; Code:
 
 (require 'xcb-keysyms)
-(require 'exwm-floating)
+(require 'exwm-core)
+(eval-when-compile (require 'exwm-workspace))
 
 (defvar exwm-input-move-event 's-down-mouse-1
   "Emacs event to start moving a window.")
@@ -99,7 +100,7 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
         (setq exwm-input--focus-window window)
         (when exwm-input--timer (cancel-timer exwm-input--timer))
         (setq exwm-input--timer
-              (run-with-timer 0.01 nil 'exwm-input--update-focus)))
+              (run-with-timer 0.01 nil #'exwm-input--update-focus)))
       (setq exwm-input--redirected nil))))
 
 (defun exwm-input--on-focus-in ()
@@ -131,6 +132,11 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
                 (redirect-frame-focus exwm--floating-frame exwm--frame))))))
       (setq exwm-input--focus-window nil))))
 
+(defvar exwm-input--during-key-sequence nil
+  "Non-nil indicates Emacs is waiting for more keys to form a key sequence.")
+(defvar exwm-input--temp-line-mode nil
+  "Non-nil indicates it's in temporary line-mode for char-mode.")
+
 (defun exwm-input--finish-key-sequence ()
   "Mark the end of a key sequence (with the aid of `pre-command-hook')."
   (when (and exwm-input--during-key-sequence
@@ -140,7 +146,7 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
       (setq exwm-input--temp-line-mode nil)
       (exwm-input--release-keyboard))))
 
-(defun exwm-input--on-MappingNotify (data synthetic)
+(defun exwm-input--on-MappingNotify (data _synthetic)
   "Handle MappingNotify event."
   (let ((obj (make-instance 'xcb:MappingNotify)))
     (xcb:unmarshal obj data)
@@ -157,7 +163,7 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
         (xcb:keysyms:update-keyboard-mapping exwm--connection
                                              first-keycode count))))))
 
-(defun exwm-input--on-ButtonPress (data synthetic)
+(defun exwm-input--on-ButtonPress (data _synthetic)
   "Handle ButtonPress event."
   (let ((obj (make-instance 'xcb:ButtonPress))
         (mode xcb:Allow:SyncPointer))
@@ -167,8 +173,8 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
       (cond ((and (= state exwm-input--move-mask)
                   (= detail exwm-input--move-keysym))
              ;; Move
-             (exwm-floating--start-moveresize event
-                                             xcb:ewmh:_NET_WM_MOVERESIZE_MOVE))
+             (exwm-floating--start-moveresize
+              event xcb:ewmh:_NET_WM_MOVERESIZE_MOVE))
             ((and (= state exwm-input--resize-mask)
                   (= detail exwm-input--resize-keysym))
              ;; Resize
@@ -182,7 +188,7 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
         (make-instance 'xcb:AllowEvents :mode mode :time xcb:Time:CurrentTime))
     (xcb:flush exwm--connection)))
 
-(defun exwm-input--on-KeyPress (data synthetic)
+(defun exwm-input--on-KeyPress (data _synthetic)
   "Handle KeyPress event."
   (let ((obj (make-instance 'xcb:KeyPress)))
     (xcb:unmarshal obj data)
@@ -194,6 +200,12 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
 (defvar exwm-input--global-keys nil "Global key bindings.")
 (defvar exwm-input--global-prefix-keys nil
   "List of prefix keys of global key bindings.")
+(defvar exwm-input-prefix-keys
+  '(?\C-x ?\C-u ?\C-h ?\M-x ?\M-` ?\M-! ?\M-& ?\M-:)
+  "List of prefix keys EXWM should forward to Emacs when in line-mode.")
+(defvar exwm-input--simulation-keys nil "Simulation keys in line-mode.")
+(defvar exwm-input--simulation-prefix-keys nil
+  "List of prefix keys of simulation keys in line-mode.")
 
 (defun exwm-input--update-global-prefix-keys ()
   "Update `exwm-input--global-prefix-keys'."
@@ -229,14 +241,10 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
   (global-set-key key command)
   (cl-pushnew key exwm-input--global-keys))
 
-(defvar exwm-input--during-key-sequence nil
-  "Non-nil indicates Emacs is waiting for more keys to form a key sequence.")
-(defvar exwm-input--temp-line-mode nil
-  "Non-nil indicates it's in temporary line-mode for char-mode.")
-
-(cl-defmethod exwm-input--on-KeyPress-line-mode ((obj xcb:KeyPress))
+;;;###autoload
+(defun exwm-input--on-KeyPress-line-mode (key-press)
   "Parse X KeyPress event to Emacs key event and then feed the command loop."
-  (with-slots (detail state) obj
+  (with-slots (detail state) key-press
     (let ((keysym (xcb:keysyms:keycode->keysym exwm--connection detail state))
           event minibuffer-window mode)
       (when (and keysym
@@ -256,16 +264,16 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
                          :time xcb:Time:CurrentTime))
       (xcb:flush exwm--connection))))
 
-(cl-defmethod exwm-input--on-KeyPress-char-mode ((obj xcb:KeyPress))
+(defun exwm-input--on-KeyPress-char-mode (key-press)
   "Handle KeyPress event in char-mode."
-  (with-slots (detail state) obj
+  (with-slots (detail state) key-press
     (let ((keysym (xcb:keysyms:keycode->keysym exwm--connection detail state))
           event)
       (when (and keysym (setq event (xcb:keysyms:keysym->event keysym state)))
         (when (eq major-mode 'exwm-mode)
           (setq exwm-input--temp-line-mode t
                 exwm-input--during-key-sequence t)
-          (exwm-input--grab-keyboard)) ;grab keyboard temporarily
+          (exwm-input--grab-keyboard))  ;grab keyboard temporarily
         (push event unread-command-events))))
   (xcb:+request exwm--connection
       (make-instance 'xcb:AllowEvents
@@ -285,7 +293,7 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
                              :pointer-mode xcb:GrabMode:Async
                              :keyboard-mode xcb:GrabMode:Sync))
       (exwm--log "Failed to grab keyboard for #x%x" id))
-    (setq exwm--on-KeyPress 'exwm-input--on-KeyPress-line-mode)))
+    (setq exwm--on-KeyPress #'exwm-input--on-KeyPress-line-mode)))
 
 (defun exwm-input--release-keyboard (&optional id)
   "Ungrab all key events on window ID."
@@ -296,8 +304,9 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
                              :key xcb:Grab:Any :grab-window id
                              :modifiers xcb:ModMask:Any))
       (exwm--log "Failed to release keyboard for #x%x" id))
-    (setq exwm--on-KeyPress 'exwm-input--on-KeyPress-char-mode)))
+    (setq exwm--on-KeyPress #'exwm-input--on-KeyPress-char-mode)))
 
+;;;###autoload
 (defun exwm-input-grab-keyboard (&optional id)
   "Switch to line-mode."
   (interactive)
@@ -314,6 +323,7 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
                          (down-mouse-1 . exwm-input-release-keyboard))))))
   (force-mode-line-update))
 
+;;;###autoload
 (defun exwm-input-release-keyboard (&optional id)
   "Switch to char-mode."
   (interactive)
@@ -353,6 +363,7 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
                                  exwm--connection))))
     (xcb:flush exwm--connection)))
 
+;;;###autoload
 (defun exwm-input-send-next-key (times)
   "Send next key to client window."
   (interactive "p")
@@ -376,19 +387,11 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
 ;;   (unless (listp last-input-event)      ;not a key event
 ;;     (exwm-input--fake-key last-input-event)))
 
-(defvar exwm-input-prefix-keys
-  '(?\C-x ?\C-u ?\C-h ?\M-x ?\M-` ?\M-! ?\M-& ?\M-:)
-  "List of prefix keys EXWM should forward to Emacs when in line-mode.")
-
-(defvar exwm-input--simulation-keys nil "Simulation keys in line-mode.")
-(defvar exwm-input--simulation-prefix-keys nil
-  "List of prefix keys of simulation keys in line-mode.")
-
 (defun exwm-input--update-simulation-prefix-keys ()
   "Update the list of prefix keys of simulation keys."
   (setq exwm-input--simulation-prefix-keys nil)
   (dolist (i exwm-input--simulation-keys)
-    (define-key exwm-mode-map (car i) 'exwm-input-send-simulation-key)
+    (define-key exwm-mode-map (car i) #'exwm-input-send-simulation-key)
     (cl-pushnew (elt (car i) 0) exwm-input--simulation-prefix-keys)))
 
 (defun exwm-input-set-simulation-keys (simulation-keys)
@@ -403,14 +406,12 @@ SIMULATION-KEYS is a list of alist (key-sequence1 . key-sequence2)."
 (defun exwm-input-send-simulation-key (times)
   "Fake a key event according to last input key sequence."
   (interactive "p")
-  (let ((pair (assoc (this-single-command-keys)
-                     exwm-input--simulation-keys))
-        key)
+  (let ((pair (assoc (this-single-command-keys) exwm-input--simulation-keys)))
     (when pair
       (setq pair (cdr pair))
       (unless (listp pair)
         (setq pair (list pair)))
-      (dotimes (i times)
+      (dotimes (_ times)
         (dolist (j pair)
           (exwm-input--fake-key j))))))
 
@@ -427,17 +428,18 @@ SIMULATION-KEYS is a list of alist (key-sequence1 . key-sequence2)."
           exwm-input--resize-mask (cadr resize-key)))
   ;; Attach event listeners
   (xcb:+event exwm--connection 'xcb:MappingNotify
-              'exwm-input--on-MappingNotify)
-  (xcb:+event exwm--connection 'xcb:KeyPress 'exwm-input--on-KeyPress)
-  (xcb:+event exwm--connection 'xcb:ButtonPress 'exwm-input--on-ButtonPress)
+              #'exwm-input--on-MappingNotify)
+  (xcb:+event exwm--connection 'xcb:KeyPress #'exwm-input--on-KeyPress)
+  (xcb:+event exwm--connection 'xcb:ButtonPress #'exwm-input--on-ButtonPress)
   (xcb:+event exwm--connection 'xcb:ButtonRelease
-              'exwm-floating--stop-moveresize)
-  (xcb:+event exwm--connection 'xcb:MotionNotify 'exwm-floating--do-moveresize)
+              #'exwm-floating--stop-moveresize)
+  (xcb:+event exwm--connection 'xcb:MotionNotify
+              #'exwm-floating--do-moveresize)
   ;; `pre-command-hook' marks the end of a key sequence (existing or not)
-  (add-hook 'pre-command-hook 'exwm-input--finish-key-sequence)
+  (add-hook 'pre-command-hook #'exwm-input--finish-key-sequence)
   ;; Update focus when buffer list updates
-  (add-hook 'buffer-list-update-hook 'exwm-input--on-buffer-list-update)
-  (add-hook 'focus-in-hook 'exwm-input--on-focus-in)
+  (add-hook 'buffer-list-update-hook #'exwm-input--on-buffer-list-update)
+  (add-hook 'focus-in-hook #'exwm-input--on-focus-in)
   ;; Update prefix keys for global keys
   (exwm-input--update-global-prefix-keys))
 

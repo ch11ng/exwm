@@ -1,25 +1,24 @@
 ;;; exwm-manage.el --- Window Management Module for  -*- lexical-binding: t -*-
 ;;;                    EXWM
 
-;; Copyright (C) 2015 Chris Feng
+;; Copyright (C) 2015 Free Software Foundation, Inc.
 
 ;; Author: Chris Feng <chris.w.feng@gmail.com>
-;; Keywords: unix
 
-;; This file is not part of GNU Emacs.
+;; This file is part of GNU Emacs.
 
-;; This file is free software: you can redistribute it and/or modify
+;; GNU Emacs is free software: you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
 ;; the Free Software Foundation, either version 3 of the License, or
 ;; (at your option) any later version.
 
-;; This file is distributed in the hope that it will be useful,
+;; GNU Emacs is distributed in the hope that it will be useful,
 ;; but WITHOUT ANY WARRANTY; without even the implied warranty of
 ;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with this file.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -27,7 +26,8 @@
 
 ;;; Code:
 
-(require 'exwm-input)
+(require 'exwm-core)
+(eval-when-compile (require 'exwm-workspace))
 
 (defvar exwm-manage-finish-hook nil
   "Normal hook run after a window is just managed, in the context of the
@@ -208,6 +208,7 @@ corresponding buffer.")
   "Non-nil indicates EXWM is pinging a window.")
 (defvar exwm-manage-ping-timeout 3 "Seconds to wait before killing a client.")
 
+;;;###autoload
 (defun exwm-manage--close-window (id &optional buffer)
   "Close window ID in a proper way."
   (catch 'return
@@ -269,7 +270,7 @@ corresponding buffer.")
           (make-instance 'xcb:KillClient :resource id))
       (xcb:flush exwm--connection))))
 
-(defun exwm-manage--on-ConfigureRequest (data synthetic)
+(defun exwm-manage--on-ConfigureRequest (data _synthetic)
   "Handle ConfigureRequest event."
   (let ((obj (make-instance 'xcb:ConfigureRequest))
         buffer edges)
@@ -316,7 +317,7 @@ corresponding buffer.")
                            :sibling sibling :stack-mode stack-mode)))))
   (xcb:flush exwm--connection))
 
-(defun exwm-manage--on-MapRequest (data synthetic)
+(defun exwm-manage--on-MapRequest (data _synthetic)
   "Handle MapRequest event."
   (let ((obj (make-instance 'xcb:MapRequest)))
     (xcb:unmarshal obj data)
@@ -347,11 +348,11 @@ corresponding buffer.")
 (defun exwm-manage--init ()
   "Initialize manage module."
   (xcb:+event exwm--connection 'xcb:ConfigureRequest
-              'exwm-manage--on-ConfigureRequest)
-  (xcb:+event exwm--connection 'xcb:MapRequest 'exwm-manage--on-MapRequest)
-  (xcb:+event exwm--connection 'xcb:UnmapNotify 'exwm-manage--on-UnmapNotify)
+              #'exwm-manage--on-ConfigureRequest)
+  (xcb:+event exwm--connection 'xcb:MapRequest #'exwm-manage--on-MapRequest)
+  (xcb:+event exwm--connection 'xcb:UnmapNotify #'exwm-manage--on-UnmapNotify)
   (xcb:+event exwm--connection 'xcb:DestroyNotify
-              'exwm-manage--on-DestroyNotify))
+              #'exwm-manage--on-DestroyNotify))
 
 
 

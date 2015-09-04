@@ -1,24 +1,23 @@
 ;;; exwm-randr.el --- RandR Module for EXWM  -*- lexical-binding: t -*-
 
-;; Copyright (C) 2015 Chris Feng
+;; Copyright (C) 2015 Free Software Foundation, Inc.
 
 ;; Author: Chris Feng <chris.w.feng@gmail.com>
-;; Keywords: unix
 
-;; This file is not part of GNU Emacs.
+;; This file is part of GNU Emacs.
 
-;; This file is free software: you can redistribute it and/or modify
+;; GNU Emacs is free software: you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
 ;; the Free Software Foundation, either version 3 of the License, or
 ;; (at your option) any later version.
 
-;; This file is distributed in the hope that it will be useful,
+;; GNU Emacs is distributed in the hope that it will be useful,
 ;; but WITHOUT ANY WARRANTY; without even the implied warranty of
 ;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with this file.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -42,6 +41,8 @@
 ;;; Code:
 
 (require 'xcb-randr)
+(require 'exwm-core)
+(eval-when-compile (require 'exwm-workspace))
 
 (defvar exwm-randr-workspace-output-plist nil)
 
@@ -60,7 +61,7 @@
                                :output output
                                :config-timestamp config-timestamp))
           (setq name                    ;UTF-8 encoded
-                (decode-coding-string (apply 'unibyte-string name) 'utf-8))
+                (decode-coding-string (apply #'unibyte-string name) 'utf-8))
           (if (or (/= connection xcb:randr:Connection:Connected)
                   (= 0 crtc))           ;FIXME
               (plist-put output-plist name nil)
@@ -102,9 +103,9 @@
                        :window exwm--root :data (vconcat workareas)))
     ;; Update _NET_DESKTOP_VIEWPORT
     (xcb:+request exwm--connection
-      (make-instance 'xcb:ewmh:set-_NET_DESKTOP_VIEWPORT
-                     :window exwm--root
-                     :data (vconcat viewports)))
+        (make-instance 'xcb:ewmh:set-_NET_DESKTOP_VIEWPORT
+                       :window exwm--root
+                       :data (vconcat viewports)))
     (xcb:flush exwm--connection)))
 
 (defun exwm-randr--init ()
@@ -121,11 +122,11 @@
                  major-version minor-version)
         (exwm-randr--refresh)
         (xcb:+event exwm--connection 'xcb:randr:ScreenChangeNotify
-                    (lambda (data synthetic)
+                    (lambda (_data _synthetic)
                       (exwm--log "(RandR) ScreenChangeNotify")
                       (exwm-randr--refresh)))
         ;; (xcb:+event exwm--connection 'xcb:randr:Notify
-        ;;             (lambda (data synthetic)
+        ;;             (lambda (_data _synthetic)
         ;;               (exwm--log "(RandR) Notify")
         ;;               (exwm-randr--refresh)))
         (xcb:+request exwm--connection
@@ -142,7 +143,7 @@
 
 (defun exwm-randr-enable ()
   "Enable RandR support for EXWM."
-  (add-hook 'exwm-init-hook 'exwm-randr--init))
+  (add-hook 'exwm-init-hook #'exwm-randr--init))
 
 
 
