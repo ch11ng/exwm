@@ -72,7 +72,7 @@
     (dolist (i exwm--id-buffer-alist)
       (with-current-buffer (cdr i)
         (when exwm--frame
-          (setf (elt not-empty (cl-position exwm--frame exwm-workspace--list))
+          (setf (aref not-empty (cl-position exwm--frame exwm-workspace--list))
                 t))))
     (setq exwm-workspace--switch-history
           (mapcar
@@ -86,7 +86,7 @@
                          (cond ((frame-parameter (elt exwm-workspace--list j)
                                                  'exwm--urgency)
                                 '(:foreground "orange"))
-                               ((elt not-empty j) '(:foreground "green"))
+                               ((aref not-empty j) '(:foreground "green"))
                                (t nil)))))
               sequence ""))
            sequence))))
