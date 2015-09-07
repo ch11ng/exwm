@@ -166,17 +166,7 @@
                     (+ width exwm-floating-border-width)
                     (+ height exwm-floating-border-width))))
     ;; Fit frame to client
-    (xcb:+request exwm--connection
-        (make-instance 'xcb:ConfigureWindow
-                       :window outer-id
-                       :value-mask (logior xcb:ConfigWindow:Width
-                                           xcb:ConfigWindow:Height
-                                           xcb:ConfigWindow:StackMode)
-                       :width (+ width (* 2 exwm-floating-border-width))
-                       :height (+ height (* 2 exwm-floating-border-width)
-                                  (window-mode-line-height)
-                                  (window-header-line-height))
-                       :stack-mode xcb:StackMode:Above)) ;top-most
+    (exwm-floating--fit-frame-to-window outer-id width height)
     ;; Reparent window to this frame
     (xcb:+request exwm--connection
         (make-instance 'xcb:ChangeWindowAttributes
@@ -245,6 +235,59 @@
     (if exwm--floating-frame
         (exwm-floating--unset-floating exwm--id)
       (exwm-floating--set-floating exwm--id))))
+
+(defun exwm-floating--fit-frame-to-window (&optional frame-outer-id
+                                                     width height)
+  "Resize a floating frame to make it fit the size of the window.
+
+Default to resize `exwm--floating-frame' unless FRAME-OUTER-ID is non-nil.
+This function will issue an `xcb:GetGeometry' request unless WIDTH and HEIGHT
+are provided. You should call `xcb:flush' and assign `window-size-fixed' a
+non-nil value afterwards."
+  (setq window-size-fixed nil)
+  (unless (and width height)
+    (let ((geometry (xcb:+request-unchecked+reply exwm--connection
+                        (make-instance 'xcb:GetGeometry :drawable exwm--id))))
+      (setq width (slot-value geometry 'width)
+            height (slot-value geometry 'height))))
+  (xcb:+request exwm--connection
+      (make-instance 'xcb:ConfigureWindow
+                     :window (or frame-outer-id
+                                 (frame-parameter exwm--floating-frame
+                                                  'exwm-outer-id))
+                     :value-mask (logior xcb:ConfigWindow:Width
+                                         xcb:ConfigWindow:Height
+                                         xcb:ConfigWindow:StackMode)
+                     :width (+ width (* 2 exwm-floating-border-width))
+                     :height (+ height (* 2 exwm-floating-border-width)
+                                (window-mode-line-height)
+                                (window-header-line-height))
+                     :stack-mode xcb:StackMode:Above))) ;top-most
+
+(defun exwm-floating-hide-mode-line ()
+  "Hide mode-line of a floating frame."
+  (interactive)
+  (unless (eq major-mode 'exwm-mode)
+    (user-error "[EXWM] Please use this command with EXWM buffers"))
+  (when (and exwm--floating-frame mode-line-format)
+    (setq exwm--floating-mode-line-format mode-line-format
+          mode-line-format nil)
+    (exwm-floating--fit-frame-to-window)
+    (xcb:flush exwm--connection)
+    (setq window-size-fixed t)))
+
+(defun exwm-floating-show-mode-line ()
+  "Show mode-line of a floating frame."
+  (interactive)
+  (unless (eq major-mode 'exwm-mode)
+    (user-error "[EXWM] Please use this command with EXWM buffers"))
+  (when (and exwm--floating-frame (not mode-line-format))
+    (setq mode-line-format exwm--floating-mode-line-format
+          exwm--floating-mode-line-format nil)
+    (exwm-floating--fit-frame-to-window)
+    (exwm-input-grab-keyboard)       ;mode-line-format may be outdated
+    (xcb:flush exwm--connection)
+    (setq window-size-fixed t)))
 
 (defvar exwm-floating--moveresize-calculate nil
   "Calculate move/resize parameters [frame-id event-mask x y width height].")

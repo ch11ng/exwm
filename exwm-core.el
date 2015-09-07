@@ -78,13 +78,14 @@
   "Event mask set on all managed windows.")
 
 ;; Internal variables
-(defvar-local exwm--id nil)                      ;window ID
-(defvar-local exwm--frame nil)                   ;workspace frame
-(defvar-local exwm--floating-frame nil)          ;floating frame
-(defvar-local exwm--floating-edges nil)          ;four edges
-(defvar-local exwm--fullscreen nil)              ;used in fullscreen
-(defvar-local exwm--floating-frame-geometry nil) ;in fullscreen
-(defvar-local exwm--fixed-size nil)              ;fixed size
+(defvar-local exwm--id nil)                        ;window ID
+(defvar-local exwm--frame nil)                     ;workspace frame
+(defvar-local exwm--floating-frame nil)            ;floating frame
+(defvar-local exwm--floating-edges nil)            ;four edges
+(defvar-local exwm--floating-mode-line-format nil) ;save mode-line-format
+(defvar-local exwm--fullscreen nil)                ;used in fullscreen
+(defvar-local exwm--floating-frame-geometry nil)   ;in fullscreen
+(defvar-local exwm--fixed-size nil)                ;fixed size
 (defvar-local exwm--on-KeyPress         ;KeyPress event handler
   #'exwm-input--on-KeyPress-line-mode)
 ;; Properties
