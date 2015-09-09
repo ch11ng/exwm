@@ -174,7 +174,7 @@ The optional FORCE option is for internal use only."
     (user-error "[EXWM] Workspace index out of range: %d" index))
   (with-current-buffer (exwm--id->buffer id)
     (let ((frame (elt exwm-workspace--list index)))
-      (when (not (equal exwm--frame frame))
+      (unless (eq exwm--frame frame)
         (let ((name (replace-regexp-in-string "^\\s-*" "" (buffer-name))))
           (exwm-workspace-rename-buffer
            (if (= index exwm-workspace-current-index) name (concat " " name))))
@@ -191,7 +191,12 @@ The optional FORCE option is for internal use only."
                                  :x 0 :y 0))
               (xcb:flush exwm--connection))
           ;; Move the window itself
-          (bury-buffer)
+          (if (/= index exwm-workspace-current-index)
+              (bury-buffer)
+            (set-window-buffer (get-buffer-window (current-buffer) t)
+                               (or (get-buffer "*scratch*")
+                                   (prog1 (get-buffer-create "*scratch*")
+                                     (set-buffer-major-mode "*scratch*")))))
           (exwm-layout--hide id)
           (xcb:+request exwm--connection
               (make-instance 'xcb:ReparentWindow
@@ -202,6 +207,28 @@ The optional FORCE option is for internal use only."
           (set-window-buffer (frame-first-window frame)
                              (exwm--id->buffer id)))))
     (exwm-workspace--update-switch-history)))
+
+(defun exwm-workspace-switch-to-window ()
+  "Make the current Emacs window display another X window."
+  (interactive)
+  ;; Show all buffers
+  (dolist (pair exwm--id-buffer-alist)
+    (with-current-buffer (cdr pair)
+      (when (= ?\s (aref (buffer-name) 0))
+        (rename-buffer (substring (buffer-name) 1)))))
+  (let ((buffer (read-buffer "Switch to window: " nil t)))
+    (when buffer
+      (with-current-buffer buffer
+        (when (and (eq major-mode 'exwm-mode)
+                   (not (eq exwm--frame exwm-workspace--current)))
+          (exwm-workspace-move-window exwm-workspace-current-index
+                                      exwm--id)))))
+  ;; Hide buffers on other workspaces
+  (dolist (pair exwm--id-buffer-alist)
+    (with-current-buffer (cdr pair)
+      (unless (or (eq exwm--frame exwm-workspace--current)
+                  (= ?\s (aref (buffer-name) 0)))
+        (rename-buffer (concat " " (buffer-name)))))))
 
 (defun exwm-workspace-rename-buffer (newname)
   "Rename a buffer."
