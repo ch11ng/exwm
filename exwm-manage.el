@@ -128,6 +128,10 @@ corresponding buffer.")
                          :cursor xcb:Cursor:None
                          :button xcb:ButtonIndex:Any
                          :modifiers xcb:ModMask:Any))
+      (xcb:+request exwm--connection    ;update _NET_CLIENT_LIST
+          (make-instance 'xcb:ewmh:set-_NET_CLIENT_LIST
+                         :window exwm--root
+                         :data (vconcat (mapcar #'car exwm--id-buffer-alist))))
       (xcb:flush exwm--connection)
       (exwm--update-title id)
       (exwm--update-transient-for id)
@@ -150,6 +154,11 @@ corresponding buffer.")
   (let ((buffer (exwm--id->buffer id)))
     (exwm--log "Unmanage #x%x (buffer: %s)" id buffer)
     (setq exwm--id-buffer-alist (assq-delete-all id exwm--id-buffer-alist))
+    (xcb:+request exwm--connection      ;update _NET_CLIENT_LIST
+        (make-instance 'xcb:ewmh:set-_NET_CLIENT_LIST
+                       :window exwm--root
+                       :data (vconcat (mapcar #'car exwm--id-buffer-alist))))
+    (xcb:flush exwm--connection)
     (when (buffer-live-p buffer)
       (with-current-buffer buffer
         (exwm-workspace--update-switch-history)

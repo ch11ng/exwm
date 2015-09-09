@@ -32,7 +32,6 @@
 ;; + Simulation keys to mimic Emacs key bindings for text edit (redo, select,
 ;;   cancel, clear, etc). Some of them are not present on common keyboard
 ;;   (keycode = 0). May need to use XKB extension.
-;; + Investigate DnD support (e.g. drag a chromium tab to another window).
 
 ;;; Code:
 

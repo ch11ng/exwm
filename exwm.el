@@ -417,6 +417,8 @@
       (make-instance 'xcb:ewmh:set-_NET_SUPPORTED
                      :window exwm--root
                      :data (vector xcb:Atom:_NET_SUPPORTED
+                                   xcb:Atom:_NET_CLIENT_LIST
+                                   xcb:Atom:_NET_CLIENT_LIST_STACKING
                                    xcb:Atom:_NET_NUMBER_OF_DESKTOPS
                                    xcb:Atom:_NET_DESKTOP_VIEWPORT
                                    xcb:Atom:_NET_CURRENT_DESKTOP

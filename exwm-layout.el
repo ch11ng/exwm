@@ -239,7 +239,20 @@
         (with-current-buffer (window-buffer window)
           (when (and (eq major-mode 'exwm-mode)
                      (or exwm--floating-frame (not (eq frame exwm--frame))))
-            (set-window-buffer window placeholder)))))))
+            (set-window-buffer window placeholder))))
+      ;; Update _NET_CLIENT_LIST_STACKING
+      (xcb:+request exwm--connection
+          (make-instance 'xcb:ewmh:set-_NET_CLIENT_LIST_STACKING
+                         :window exwm--root
+                         :data (vconcat
+                                (delq nil
+                                      (mapcar
+                                       (lambda (buffer)
+                                         (with-current-buffer buffer
+                                           (when (eq major-mode 'exwm-mode)
+                                             exwm--id)))
+                                       (buffer-list))))))
+      (xcb:flush exwm--connection))))
 
 (defun exwm-layout--on-minibuffer-setup ()
   "Refresh layout when minibuffer grows."
