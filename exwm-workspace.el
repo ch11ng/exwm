@@ -204,7 +204,7 @@ The optional FORCE option is for internal use only."
                              :parent (frame-parameter frame 'exwm-window-id)
                              :x 0 :y 0))
           (xcb:flush exwm--connection)
-          (set-window-buffer (frame-first-window frame)
+          (set-window-buffer (frame-selected-window frame)
                              (exwm--id->buffer id)))))
     (exwm-workspace--update-switch-history)))
 
