@@ -263,6 +263,103 @@
                                               exwm--floating-frame)))
                            (exwm-layout--refresh)))))
 
+(defun exwm-layout-enlarge-window (delta &optional horizontal)
+  "Make the selected window DELTA pixels taller.
+
+If no argument is given, make the selected window one pixel taller.  If the
+optional argument HORIZONTAL is non-nil, make selected window DELTA pixels
+wider.  If DELTA is negative, shrink selected window by -DELTA pixels.
+
+Normal hints are checked and regarded if the selected window is displaying an
+`exwm-mode' buffer.  However, this may violate the normal hints set on other X
+windows."
+  (interactive "p")
+  (cond
+   ((zerop delta))                     ;no operation
+   ((window-minibuffer-p))             ;avoid resize minibuffer-window
+   ((not (and (eq major-mode 'exwm-mode) exwm--floating-frame))
+    ;; Resize on tiling layout
+    (unless (= 0 (window-resizable nil delta horizontal nil t)) ;not resizable
+      (let ((window-resize-pixelwise t))
+        (window-resize nil delta horizontal nil t))))
+   ;; Resize on floating layout
+   (exwm--fixed-size)                   ;fixed size
+   (horizontal
+    (let* ((width (frame-pixel-width))
+           (edges (window-inside-pixel-edges))
+           (inner-width (- (elt edges 2) (elt edges 0)))
+           (margin (- width inner-width)))
+      (if (> delta 0)
+          (if (not exwm--normal-hints-max-width)
+              (cl-incf width delta)
+            (if (>= inner-width exwm--normal-hints-max-width)
+                (setq width nil)
+              (setq width (min (+ exwm--normal-hints-max-width margin)
+                               (+ width delta)))))
+        (if (not exwm--normal-hints-min-width)
+            (cl-incf width delta)
+          (if (<= inner-width exwm--normal-hints-min-width)
+              (setq width nil)
+            (setq width (max (+ exwm--normal-hints-min-width margin)
+                             (+ width delta))))))
+      (when width
+        (setq exwm--floating-edges nil) ;invalid from now on
+        (xcb:+request exwm--connection
+            (make-instance 'xcb:ConfigureWindow
+                           :window (frame-parameter exwm--floating-frame
+                                                    'exwm-outer-id)
+                           :value-mask xcb:ConfigWindow:Width
+                           :width width))
+        (xcb:flush exwm--connection))))
+   (t
+    (let* ((height (frame-pixel-height))
+           (edges (window-inside-pixel-edges))
+           (inner-height (- (elt edges 3) (elt edges 1)))
+           (margin (- height inner-height)))
+      (if (> delta 0)
+          (if (not exwm--normal-hints-max-height)
+              (cl-incf height delta)
+            (if (>= inner-height exwm--normal-hints-max-height)
+                (setq height nil)
+              (setq height (min (+ exwm--normal-hints-max-height margin)
+                                (+ height delta)))))
+        (if (not exwm--normal-hints-min-height)
+            (cl-incf height delta)
+          (if (<= inner-height exwm--normal-hints-min-height)
+              (setq height nil)
+            (setq height (max (+ exwm--normal-hints-min-height margin)
+                              (+ height delta))))))
+      (when height
+        (setq exwm--floating-edges nil) ;invalid from now on
+        (xcb:+request exwm--connection
+            (make-instance 'xcb:ConfigureWindow
+                           :window (frame-parameter exwm--floating-frame
+                                                    'exwm-outer-id)
+                           :value-mask xcb:ConfigWindow:Height
+                           :height height))
+        (xcb:flush exwm--connection))))))
+
+(defun exwm-layout-enlarge-window-horizontally (delta)
+  "Make the selected window DELTA pixels wider.
+
+See also `exwm-layout-enlarge-window'."
+  (interactive "p")
+  (exwm-layout-enlarge-window delta t))
+
+(defun exwm-layout-shrink-window (delta)
+  "Make the selected window DELTA pixels lower.
+
+See also `exwm-layout-enlarge-window'."
+  (interactive "p")
+  (exwm-layout-enlarge-window (- delta)))
+
+(defun exwm-layout-shrink-window-horizontally (delta)
+  "Make the selected window DELTA pixels narrower.
+
+See also `exwm-layout-enlarge-window'."
+  (interactive "p")
+  (exwm-layout-enlarge-window (- delta) t))
+
 (defun exwm-layout--init ()
   "Initialize layout module."
   ;; Auto refresh layout

@@ -24,9 +24,6 @@
 ;; This module deals with the conversion between floating and non-floating
 ;; states and implements moving/resizing operations on floating windows.
 
-;; Todo:
-;; + move/resize with keyboard.
-
 ;;; Code:
 
 (require 'xcb-cursor)
@@ -184,7 +181,7 @@
     (xcb:flush exwm--connection)
     ;; Set window/buffer
     (with-current-buffer (exwm--id->buffer id)
-      (setq window-size-fixed t         ;make frame fixed size
+      (setq window-size-fixed exwm--fixed-size
             exwm--frame original-frame
             exwm--floating-frame frame)
       (set-window-buffer window (current-buffer)) ;this changes current buffer
@@ -242,8 +239,8 @@
 
 Default to resize `exwm--floating-frame' unless FRAME-OUTER-ID is non-nil.
 This function will issue an `xcb:GetGeometry' request unless WIDTH and HEIGHT
-are provided. You should call `xcb:flush' and assign `window-size-fixed' a
-non-nil value afterwards."
+are provided. You should call `xcb:flush' and restore the value of
+`window-size-fixed' afterwards."
   (setq window-size-fixed nil)
   (unless (and width height)
     (let ((geometry (xcb:+request-unchecked+reply exwm--connection
@@ -274,7 +271,7 @@ non-nil value afterwards."
           mode-line-format nil)
     (exwm-floating--fit-frame-to-window)
     (xcb:flush exwm--connection)
-    (setq window-size-fixed t)))
+    (setq window-size-fixed exwm--fixed-size)))
 
 (defun exwm-floating-show-mode-line ()
   "Show mode-line of a floating frame."
@@ -287,7 +284,7 @@ non-nil value afterwards."
     (exwm-floating--fit-frame-to-window)
     (exwm-input-grab-keyboard)       ;mode-line-format may be outdated
     (xcb:flush exwm--connection)
-    (setq window-size-fixed t)))
+    (setq window-size-fixed exwm--fixed-size)))
 
 (defvar exwm-floating--moveresize-calculate nil
   "Calculate move/resize parameters [frame-id event-mask x y width height].")
@@ -461,6 +458,27 @@ non-nil value afterwards."
                          :y (-  (elt result 3) frame-y)
                          :width (elt result 4) :height (elt result 5)))
       (xcb:flush exwm--connection))))
+
+(defun exwm-floating-move (&optional delta-x delta-y)
+  "Move a floating window right by DELTA-X pixels and down by DELTA-Y pixels.
+
+Both DELTA-X and DELTA-Y default to 1.  This command should be bound locally."
+  (unless (and (eq major-mode 'exwm-mode) exwm--floating-frame)
+    (user-error "[EXWM] `exwm-floating-move' is only for floating X windows"))
+  (unless delta-x (setq delta-x 1))
+  (unless delta-y (setq delta-y 1))
+  (unless (and (= 0 delta-x) (= 0 delta-y))
+    (let* ((id (frame-parameter exwm--floating-frame 'exwm-outer-id))
+           (geometry (xcb:+request-unchecked+reply exwm--connection
+                         (make-instance 'xcb:GetGeometry :drawable id))))
+      (xcb:+request exwm--connection
+          (make-instance 'xcb:ConfigureWindow
+                         :window id
+                         :value-mask (logior xcb:ConfigWindow:X
+                                             xcb:ConfigWindow:Y)
+                         :x (+ (slot-value geometry 'x) delta-x)
+                         :y (+ (slot-value geometry 'y) delta-y))))
+    (xcb:flush exwm--connection)))
 
 (defun exwm-floating--init ()
   "Initialize floating module."
