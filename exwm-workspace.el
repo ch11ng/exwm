@@ -219,10 +219,11 @@ The optional FORCE option is for internal use only."
   (let ((buffer (read-buffer "Switch to window: " nil t)))
     (when buffer
       (with-current-buffer buffer
-        (when (and (eq major-mode 'exwm-mode)
-                   (not (eq exwm--frame exwm-workspace--current)))
-          (exwm-workspace-move-window exwm-workspace-current-index
-                                      exwm--id)))))
+        (if (and (eq major-mode 'exwm-mode)
+                 (not (eq exwm--frame exwm-workspace--current)))
+            (exwm-workspace-move-window exwm-workspace-current-index
+                                        exwm--id)
+          (switch-to-buffer buffer)))))
   ;; Hide buffers on other workspaces
   (dolist (pair exwm--id-buffer-alist)
     (with-current-buffer (cdr pair)
