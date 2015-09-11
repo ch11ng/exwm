@@ -48,7 +48,7 @@
 
 (defun exwm-randr--refresh ()
   "Refresh workspaces according to the updated RandR info."
-  (let (geometry output-plist default-geometry workareas viewports)
+  (let (output-name geometry output-plist default-geometry workareas viewports)
     ;; Query all outputs
     (with-slots (config-timestamp outputs)
         (xcb:+request-unchecked+reply exwm--connection
@@ -60,11 +60,11 @@
                 (make-instance 'xcb:randr:GetOutputInfo
                                :output output
                                :config-timestamp config-timestamp))
-          (setq name                    ;UTF-8 encoded
+          (setf output-name             ;UTF-8 encoded
                 (decode-coding-string (apply #'unibyte-string name) 'utf-8))
           (if (or (/= connection xcb:randr:Connection:Connected)
                   (= 0 crtc))           ;FIXME
-              (plist-put output-plist name nil)
+              (plist-put output-plist output-name nil)
             (with-slots (x y width height)
                 (xcb:+request-unchecked+reply exwm--connection
                     (make-instance 'xcb:randr:GetCrtcInfo
@@ -73,7 +73,7 @@
               (setq geometry (make-instance 'xcb:RECTANGLE
                                             :x x :y y
                                             :width width :height height)
-                    output-plist (plist-put output-plist name geometry))
+                    output-plist (plist-put output-plist output-name geometry))
               (unless default-geometry ;assume the first output as primary
                 (setq default-geometry geometry)))))))
     (cl-assert (<= 2 (length output-plist)))
