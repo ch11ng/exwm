@@ -67,7 +67,10 @@
               exwm-workspace--current)))
          (original-id (frame-parameter original-frame 'exwm-window-id))
          ;; Create new frame
-         (frame (with-current-buffer "*scratch*"
+         (frame (with-current-buffer
+                    (or (get-buffer "*scratch*")
+                        (prog1 (get-buffer-create "*scratch*")
+                          (set-buffer-major-mode "*scratch*")))
                   (prog2
                       (exwm--lock)
                       (make-frame

@@ -194,10 +194,15 @@
                          :height height))
       (xcb:flush exwm--connection))))
 
+(defvar exwm-layout-show-all-buffers nil
+  "Non-nil to allow switching to buffers on other workspaces.")
+
 (defun exwm-layout--refresh ()
   "Refresh layout."
   (let ((frame (selected-frame))
-        (placeholder (get-buffer "*scratch*"))
+        (placeholder (or (get-buffer "*scratch*")
+                         (prog1 (get-buffer-create "*scratch*")
+                           (set-buffer-major-mode "*scratch*"))))
         windows)
     (if (not (memq frame exwm-workspace--list))
         (if (frame-parameter frame 'exwm-window-id)
@@ -221,19 +226,25 @@
       ;; Refresh the whole workspace
       ;; Workspaces other than the active one can also be refreshed (RandR)
       (exwm--log "Refresh workspace %s" frame)
-      (unless placeholder  ;create the *scratch* buffer if it's killed
-        (setq placeholder (get-buffer-create "*scratch*"))
-        (set-buffer-major-mode placeholder))
       (dolist (pair exwm--id-buffer-alist)
         (with-current-buffer (cdr pair)
-          ;; Exclude windows on other workspaces and floating frames
-          (when (and (eq frame exwm--frame) (not exwm--floating-frame))
+          (when (and (not exwm--floating-frame) ;exclude floating X windows
+                     (or exwm-layout-show-all-buffers
+                         ;; Exclude X windows on other workspaces
+                         (eq frame exwm--frame)))
             (setq windows (get-buffer-window-list (current-buffer) 0))
             (if (not windows)
-                (exwm-layout--hide exwm--id)
-              (exwm-layout--show exwm--id (car windows))
-              (dolist (i (cdr windows))
-                (set-window-buffer i placeholder))))))
+                (when (eq frame exwm--frame) ;for exwm-layout-show-all-buffers
+                  (exwm-layout--hide exwm--id))
+              (if (eq frame exwm--frame)
+                  (exwm-layout--show exwm--id (car windows))
+                (exwm-workspace-move-window
+                 (cl-position frame exwm-workspace--list) exwm--id))
+              (let ((window (car windows)))
+                ;; Make sure this buffer is not displayed elsewhere
+                (dolist (i (get-buffer-window-list (current-buffer) 0 t))
+                  (unless (eq i window)
+                    (set-window-buffer i placeholder))))))))
       ;; Make sure windows floating / on other workspaces are excluded
       (dolist (window (window-list frame 0))
         (with-current-buffer (window-buffer window)

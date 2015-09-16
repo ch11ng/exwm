@@ -538,7 +538,9 @@
 (defun exwm--ido-buffer-window-other-frame (orig-fun buffer)
   "Wrapper for `ido-buffer-window-other-frame' to exclude invisible windows."
   (with-current-buffer buffer
-    (if (eq major-mode 'exwm-mode)
+    (if (and (eq major-mode 'exwm-mode)
+             (or exwm--floating-frame
+                 (not exwm-layout-show-all-buffers)))
         ;; `ido-mode' works well with `exwm-mode' buffers
         (funcall orig-fun buffer)
       ;; Other buffers should be selected within the same workspace
