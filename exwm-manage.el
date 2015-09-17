@@ -145,7 +145,7 @@ corresponding buffer.")
           (exwm-floating--set-floating id)
         (exwm-floating--unset-floating id))
       (exwm-input-grab-keyboard id)
-      (exwm-workspace--update-switch-history)
+      (setq exwm-workspace--switch-history-outdated t)
       (with-current-buffer (exwm--id->buffer id)
         (run-hooks 'exwm-manage-finish-hook)))))
 
@@ -161,7 +161,7 @@ corresponding buffer.")
     (xcb:flush exwm--connection)
     (when (buffer-live-p buffer)
       (with-current-buffer buffer
-        (exwm-workspace--update-switch-history)
+        (setq exwm-workspace--switch-history-outdated t)
         ;;
         (when withdraw-only
           ;; Reparent back to root

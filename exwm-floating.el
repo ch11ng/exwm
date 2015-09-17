@@ -94,7 +94,7 @@
     (let ((idx (cl-position original-frame exwm-workspace--list)))
       (when (/= idx exwm-workspace-current-index)
         (set-frame-parameter original-frame 'exwm--urgency t)
-        (exwm-workspace--update-switch-history)))
+        (setq exwm-workspace--switch-history-outdated t)))
     ;; Fix illegal parameters
     ;; FIXME: check normal hints restrictions
     (let* ((display-width (frame-pixel-width original-frame))

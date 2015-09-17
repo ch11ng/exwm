@@ -230,7 +230,7 @@
                      (not (eq exwm--frame exwm-workspace--current)))
             (unless (frame-parameter exwm--frame 'exwm--urgency)
               (set-frame-parameter exwm--frame 'exwm--urgency t)
-              (exwm-workspace--update-switch-history))))))))
+              (setq exwm-workspace--switch-history-outdated t))))))))
 
 ;;;###autoload
 (defun exwm--update-protocols (id &optional force)
@@ -389,7 +389,7 @@
                 (let ((idx (cl-position exwm--frame exwm-workspace--list)))
                   (unless (= idx exwm-workspace-current-index)
                     (set-frame-parameter exwm--frame 'exwm--urgency t)
-                    (exwm-workspace--update-switch-history))))
+                    (setq exwm-workspace--switch-history-outdated t))))
               ;; xcb:ewmh:_NET_WM_STATE_REMOVE?
               ;; xcb:ewmh:_NET_WM_STATE_TOGGLE?
               )

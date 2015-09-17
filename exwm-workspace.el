@@ -63,33 +63,39 @@
 
 (defvar exwm-workspace--switch-history nil
   "History for `read-from-minibuffer' to interactively switch workspace.")
+;;;###autoload
+(defvar exwm-workspace--switch-history-outdated nil
+  "Non-nil to indicate `exwm-workspace--switch-history' is outdated.")
 
 ;;;###autoload
 (defun exwm-workspace--update-switch-history ()
   "Update the history for switching workspace to reflect the latest status."
-  (let ((sequence (number-sequence 0 (1- exwm-workspace-number)))
-        (not-empty (make-vector exwm-workspace-number nil)))
-    (dolist (i exwm--id-buffer-alist)
-      (with-current-buffer (cdr i)
-        (when exwm--frame
-          (setf (aref not-empty (cl-position exwm--frame exwm-workspace--list))
-                t))))
-    (setq exwm-workspace--switch-history
-          (mapcar
-           (lambda (i)
-             (mapconcat
-              (lambda (j)
-                (format (if (= i j) "[%s]" " %s ")
-                        (propertize
-                         (int-to-string j)
-                         'face
-                         (cond ((frame-parameter (elt exwm-workspace--list j)
-                                                 'exwm--urgency)
-                                '(:foreground "orange"))
-                               ((aref not-empty j) '(:foreground "green"))
-                               (t nil)))))
-              sequence ""))
-           sequence))))
+  (when exwm-workspace--switch-history-outdated
+    (setq exwm-workspace--switch-history-outdated nil)
+    (let ((sequence (number-sequence 0 (1- exwm-workspace-number)))
+          (not-empty (make-vector exwm-workspace-number nil)))
+      (dolist (i exwm--id-buffer-alist)
+        (with-current-buffer (cdr i)
+          (when exwm--frame
+            (setf (aref not-empty
+                        (cl-position exwm--frame exwm-workspace--list))
+                  t))))
+      (setq exwm-workspace--switch-history
+            (mapcar
+             (lambda (i)
+               (mapconcat
+                (lambda (j)
+                  (format (if (= i j) "[%s]" " %s ")
+                          (propertize
+                           (int-to-string j)
+                           'face
+                           (cond ((frame-parameter (elt exwm-workspace--list j)
+                                                   'exwm--urgency)
+                                  '(:foreground "orange"))
+                                 ((aref not-empty j) '(:foreground "green"))
+                                 (t nil)))))
+                sequence ""))
+             sequence)))))
 
 (defvar exwm-workspace--current nil "Current active workspace.")
 (defvar exwm-workspace-current-index 0 "Index of current active workspace.")
@@ -103,6 +109,7 @@ The optional FORCE option is for internal use only."
   (interactive
    (list
     (unless (and (eq major-mode 'exwm-mode) exwm--fullscreen) ;it's invisible
+      (exwm-workspace--update-switch-history)
       (let* ((history-add-new-input nil) ;prevent modifying history
              (idx (read-from-minibuffer
                    "Workspace: " (elt exwm-workspace--switch-history
@@ -144,7 +151,7 @@ The optional FORCE option is for internal use only."
         ;; Update demands attention flag
         (set-frame-parameter frame 'exwm--urgency nil)
         ;; Update switch workspace history
-        (exwm-workspace--update-switch-history)
+        (setq exwm-workspace--switch-history-outdated t)
         (exwm--make-emacs-idle-for 0.1) ;FIXME
         ;; Update _NET_CURRENT_DESKTOP
         (xcb:+request exwm--connection
@@ -165,14 +172,16 @@ The optional FORCE option is for internal use only."
   "Move window ID to workspace INDEX."
   (interactive
    (list
-    (let* ((history-add-new-input nil)  ;prevent modifying history
-           (idx (read-from-minibuffer
-                 "Workspace: " (elt exwm-workspace--switch-history
-                                    exwm-workspace-current-index)
-                 exwm-workspace--switch-map nil
-                 `(exwm-workspace--switch-history
-                   . ,(1+ exwm-workspace-current-index)))))
-      (cl-position idx exwm-workspace--switch-history :test #'equal))))
+    (progn
+      (exwm-workspace--update-switch-history)
+      (let* ((history-add-new-input nil)  ;prevent modifying history
+             (idx (read-from-minibuffer
+                   "Workspace: " (elt exwm-workspace--switch-history
+                                      exwm-workspace-current-index)
+                   exwm-workspace--switch-map nil
+                   `(exwm-workspace--switch-history
+                     . ,(1+ exwm-workspace-current-index)))))
+        (cl-position idx exwm-workspace--switch-history :test #'equal)))))
   (unless id (setq id (exwm--buffer->id (window-buffer))))
   (unless (and (<= 0 index) (< index exwm-workspace-number))
     (user-error "[EXWM] Workspace index out of range: %d" index))
@@ -213,7 +222,7 @@ The optional FORCE option is for internal use only."
           (xcb:flush exwm--connection)
           (set-window-buffer (frame-selected-window frame)
                              (exwm--id->buffer id)))))
-    (exwm-workspace--update-switch-history)))
+    (setq exwm-workspace--switch-history-outdated t)))
 
 (defun exwm-workspace-switch-to-buffer ()
   "Make the current Emacs window display another buffer."
