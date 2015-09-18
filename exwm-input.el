@@ -268,6 +268,21 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
   (with-slots (detail state) key-press
     (let ((keysym (xcb:keysyms:keycode->keysym exwm--connection detail state))
           event)
+      ;; Compensate FocusOut event (prevent cursor style change)
+      (unless (eq major-mode 'exwm-mode)
+        (let ((id (frame-parameter nil 'exwm-window-id)))
+          (xcb:+request exwm--connection
+              (make-instance 'xcb:SendEvent
+                             :propagate 0
+                             :destination id
+                             :event-mask xcb:EventMask:StructureNotify
+                             :event
+                             (xcb:marshal
+                              (make-instance 'xcb:FocusIn
+                                             :detail xcb:NotifyDetail:Inferior
+                                             :event id
+                                             :mode xcb:NotifyMode:Normal)
+                              exwm--connection)))))
       (when (and keysym (setq event (xcb:keysyms:keysym->event keysym state)))
         (when (eq major-mode 'exwm-mode)
           (setq exwm-input--temp-line-mode t
