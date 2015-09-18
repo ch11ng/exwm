@@ -161,10 +161,7 @@
     ;; Rationale: the frame will not be ready for some time, thus we cannot
     ;;            infer the correct window size from its geometry.
     (with-current-buffer (exwm--id->buffer id)
-      (setq exwm--floating-edges
-            (vector exwm-floating-border-width exwm-floating-border-width
-                    (+ width exwm-floating-border-width)
-                    (+ height exwm-floating-border-width))))
+      (setq exwm--floating-edges (vector x y (+ width x) (+ height y))))
     ;; Fit frame to client
     (exwm-floating--fit-frame-to-window outer-id width height)
     ;; Reparent window to this frame
@@ -436,6 +433,28 @@ are provided. You should call `xcb:flush' and restore the value of
   "Stop move/resize."
   (xcb:+request exwm--connection
       (make-instance 'xcb:UngrabPointer :time xcb:Time:CurrentTime))
+  ;; Inform the X window that its absolute position is changed
+  (when exwm-floating--moveresize-calculate
+    (let ((edges (window-inside-absolute-pixel-edges (frame-selected-window)))
+          (id (with-current-buffer (window-buffer (frame-selected-window))
+                exwm--id)))
+      (xcb:+request exwm--connection
+          (make-instance 'xcb:SendEvent
+                         :propagate 0 :destination id
+                         :event-mask xcb:EventMask:StructureNotify
+                         :event (xcb:marshal
+                                 (make-instance 'xcb:ConfigureNotify
+                                                :event id :window id
+                                                :above-sibling xcb:Window:None
+                                                :x (elt edges 0)
+                                                :y (elt edges 1)
+                                                :width (- (elt edges 2)
+                                                          (elt edges 0))
+                                                :height (- (elt edges 3)
+                                                           (elt edges 1))
+                                                :border-width 0
+                                                :override-redirect 0)
+                                 exwm--connection)))))
   (xcb:flush exwm--connection)
   (setq exwm-floating--moveresize-calculate nil))
 
@@ -473,14 +492,34 @@ Both DELTA-X and DELTA-Y default to 1.  This command should be bound locally."
   (unless (and (= 0 delta-x) (= 0 delta-y))
     (let* ((id (frame-parameter exwm--floating-frame 'exwm-outer-id))
            (geometry (xcb:+request-unchecked+reply exwm--connection
-                         (make-instance 'xcb:GetGeometry :drawable id))))
+                         (make-instance 'xcb:GetGeometry :drawable id)))
+           (edges (window-inside-absolute-pixel-edges)))
       (xcb:+request exwm--connection
           (make-instance 'xcb:ConfigureWindow
                          :window id
                          :value-mask (logior xcb:ConfigWindow:X
                                              xcb:ConfigWindow:Y)
                          :x (+ (slot-value geometry 'x) delta-x)
-                         :y (+ (slot-value geometry 'y) delta-y))))
+                         :y (+ (slot-value geometry 'y) delta-y)))
+      ;; Inform the X window that its absolute position is changed
+      (xcb:+request exwm--connection
+          (make-instance 'xcb:SendEvent
+                         :propagate 0 :destination exwm--id
+                         :event-mask xcb:EventMask:StructureNotify
+                         :event (xcb:marshal
+                                 (make-instance 'xcb:ConfigureNotify
+                                                :event exwm--id
+                                                :window exwm--id
+                                                :above-sibling xcb:Window:None
+                                                :x (+ (elt edges 0) delta-x)
+                                                :y (+ (elt edges 1) delta-y)
+                                                :width (- (elt edges 2)
+                                                          (elt edges 0))
+                                                :height (- (elt edges 3)
+                                                           (elt edges 1))
+                                                :border-width 0
+                                                :override-redirect 0)
+                                 exwm--connection))))
     (xcb:flush exwm--connection)))
 
 (defun exwm-floating--init ()

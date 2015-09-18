@@ -40,11 +40,17 @@
   (let* ((buffer (exwm--id->buffer id))
          (edges (or (and buffer
                          (with-current-buffer buffer exwm--floating-edges))
-                    (window-inside-pixel-edges window)))
-         (x (elt edges 0))
-         (y (elt edges 1))
+                    (window-inside-absolute-pixel-edges window)))
          (width (- (elt edges 2) (elt edges 0)))
-         (height (- (elt edges 3) (elt edges 1))))
+         (height (- (elt edges 3) (elt edges 1)))
+         x y)
+    (if exwm--floating-edges
+        ;; The relative position of a floating X window is determinate
+        (setq x exwm-floating-border-width
+              y exwm-floating-border-width)
+      (let ((relative-edges (window-inside-pixel-edges window)))
+        (setq x (elt relative-edges 0)
+              y (elt relative-edges 1))))
     (xcb:+request exwm--connection
         (make-instance 'xcb:ConfigureWindow
                        :window id
@@ -64,7 +70,8 @@
                                (make-instance 'xcb:ConfigureNotify
                                               :event id :window id
                                               :above-sibling xcb:Window:None
-                                              :x x :y y
+                                              :x (elt edges 0)
+                                              :y (elt edges 1)
                                               :width width :height height
                                               :border-width 0
                                               :override-redirect 0)
