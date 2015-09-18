@@ -30,6 +30,7 @@
 (require 'exwm-core)
 (eval-when-compile (require 'exwm-workspace))
 
+;;;###autoload
 (defvar exwm-floating-border-width 1 "Border width of the floating window.")
 (defvar exwm-floating-border-color "blue"
   "Border color of the floating window.")
