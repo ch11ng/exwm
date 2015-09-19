@@ -42,6 +42,23 @@ corresponding buffer.")
         (when reply                     ;nil when destroyed
           (setq exwm--geometry reply))))))
 
+;; The _MOTIF_WM_HINTS atom (see <Xm/MwmUtil.h> for more details)
+;; It's currently only used in 'exwm-manage' module
+(defvar exwm-manage--_MOTIF_WM_HINTS nil "_MOTIF_WM_HINTS atom.")
+
+(defun exwm-manage--update-mwm-hints (id &optional force)
+  "Update _MOTIF_WM_HINTS."
+  (with-current-buffer (exwm--id->buffer id)
+    (unless (and exwm--mwm-hints (not force))
+      (let ((reply (xcb:+request-unchecked+reply exwm--connection
+                       (make-instance 'xcb:icccm:-GetProperty
+                                      :window id
+                                      :property exwm-manage--_MOTIF_WM_HINTS
+                                      :type exwm-manage--_MOTIF_WM_HINTS
+                                      :long-length 5))))
+        (when reply
+          (setq exwm--mwm-hints (append (slot-value reply 'value) nil)))))))
+
 (defun exwm-manage--manage-window (id)
   "Manage window ID."
   (exwm--log "Try to manage #x%x" id)
@@ -63,6 +80,7 @@ corresponding buffer.")
       (exwm--update-window-type id)
       (exwm--update-class id)
       (exwm-manage--update-geometry id)
+      (exwm-manage--update-mwm-hints id)
       ;; No need to manage (please check OverrideRedirect outside)
       (when (or
              (not
@@ -70,11 +88,12 @@ corresponding buffer.")
                   (memq xcb:Atom:_NET_WM_WINDOW_TYPE_UTILITY exwm-window-type)
                   (memq xcb:Atom:_NET_WM_WINDOW_TYPE_DIALOG exwm-window-type)
                   (memq xcb:Atom:_NET_WM_WINDOW_TYPE_NORMAL exwm-window-type)))
-             ;; For Java applications
-             (and (memq xcb:Atom:_NET_WM_WINDOW_TYPE_NORMAL exwm-window-type)
-                  exwm-instance-name
-                  (string-prefix-p "sun-awt-X11-" exwm-instance-name)
-                  (not (string-suffix-p "XFramePeer" exwm-instance-name))))
+             ;; Check _MOTIF_WM_HINTS (mainly for Java applications)
+             ;; See <Xm/MwmUtil.h> for the definitions of these fields
+             (and exwm--mwm-hints
+                  (/= 0 (logand (elt exwm--mwm-hints 0) ;MotifWmHints.flags
+                                2))     ;MWM_HINTS_DECORATIONS
+                  (= 0 (elt exwm--mwm-hints 2)))) ;MotifWmHints.decorations
         (exwm--log "No need to manage #x%x" id)
         ;; Remove all events
         (xcb:+request-checked+request-check exwm--connection
@@ -356,6 +375,15 @@ corresponding buffer.")
 
 (defun exwm-manage--init ()
   "Initialize manage module."
+  ;; Intern _MOTIF_WM_HINTS
+  (let ((atom-name "_MOTIF_WM_HINTS"))
+    (setq exwm-manage--_MOTIF_WM_HINTS
+          (slot-value (xcb:+request-unchecked+reply exwm--connection
+                          (make-instance 'xcb:InternAtom
+                                         :only-if-exists 0
+                                         :name-len (length atom-name)
+                                         :name atom-name))
+                      'atom)))
   (xcb:+event exwm--connection 'xcb:ConfigureRequest
               #'exwm-manage--on-ConfigureRequest)
   (xcb:+event exwm--connection 'xcb:MapRequest #'exwm-manage--on-MapRequest)

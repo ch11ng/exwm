@@ -111,6 +111,8 @@
 ;; WM_HINTS
 (defvar-local exwm--hints-input nil)    ;FIXME
 (defvar-local exwm--hints-urgency nil)
+;; _MOTIF_WM_HINTS
+(defvar-local exwm--mwm-hints nil)
 
 (defvar exwm-mode-map
   (let ((map (make-sparse-keymap)))
