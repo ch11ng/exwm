@@ -63,7 +63,6 @@
 
 (defvar exwm-workspace--switch-history nil
   "History for `read-from-minibuffer' to interactively switch workspace.")
-;;;###autoload
 (defvar exwm-workspace--switch-history-outdated nil
   "Non-nil to indicate `exwm-workspace--switch-history' is outdated.")
 

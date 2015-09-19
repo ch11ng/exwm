@@ -28,6 +28,8 @@
 (require 'exwm-core)
 (eval-when-compile (require 'exwm-workspace))
 
+(defvar exwm-floating-border-width)
+
 ;;;###autoload
 (defun exwm-layout--show (id &optional window)
   "Show window ID exactly fit in the Emacs window WINDOW."
