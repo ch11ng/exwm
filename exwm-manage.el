@@ -79,6 +79,8 @@ corresponding buffer.")
       (setq exwm--id id)
       (exwm--update-window-type id)
       (exwm--update-class id)
+      (exwm--update-transient-for id)
+      (exwm--update-normal-hints id)
       (exwm-manage--update-geometry id)
       (exwm-manage--update-mwm-hints id)
       ;; No need to manage (please check OverrideRedirect outside)
@@ -93,7 +95,13 @@ corresponding buffer.")
              (and exwm--mwm-hints
                   (/= 0 (logand (elt exwm--mwm-hints 0) ;MotifWmHints.flags
                                 2))     ;MWM_HINTS_DECORATIONS
-                  (= 0 (elt exwm--mwm-hints 2)))) ;MotifWmHints.decorations
+                  (= 0 (elt exwm--mwm-hints 2)) ;MotifWmHints.decorations
+                  ;; Floating windows only
+                  (or exwm-transient-for exwm--fixed-size
+                      (memq xcb:Atom:_NET_WM_WINDOW_TYPE_UTILITY
+                            exwm-window-type)
+                      (memq xcb:Atom:_NET_WM_WINDOW_TYPE_DIALOG
+                            exwm-window-type))))
         (exwm--log "No need to manage #x%x" id)
         ;; Remove all events
         (xcb:+request-checked+request-check exwm--connection
@@ -153,8 +161,6 @@ corresponding buffer.")
                          :data (vconcat (mapcar #'car exwm--id-buffer-alist))))
       (xcb:flush exwm--connection)
       (exwm--update-title id)
-      (exwm--update-transient-for id)
-      (exwm--update-normal-hints id)
       (exwm--update-hints id)
       (exwm--update-protocols id)
       (exwm--update-state id)
