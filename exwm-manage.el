@@ -145,16 +145,16 @@ corresponding buffer.")
           (make-instance 'xcb:ConfigureWindow
                          :window id :value-mask xcb:ConfigWindow:BorderWidth
                          :border-width 0))
-      (xcb:+request exwm--connection ;grab buttons for set focus/move/resize
-          (make-instance 'xcb:GrabButton
-                         :owner-events 0 :grab-window id
-                         :event-mask xcb:EventMask:ButtonPress
-                         :pointer-mode xcb:GrabMode:Sync
-                         :keyboard-mode xcb:GrabMode:Async
-                         :confine-to xcb:Window:None
-                         :cursor xcb:Cursor:None
-                         :button xcb:ButtonIndex:Any
-                         :modifiers xcb:ModMask:Any))
+      (dolist (button       ;grab buttons to set focus / move / resize
+               (list xcb:ButtonIndex:1 xcb:ButtonIndex:2 xcb:ButtonIndex:3))
+        (xcb:+request-checked+request-check exwm--connection
+            (make-instance 'xcb:GrabButton
+                           :owner-events 0 :grab-window id
+                           :event-mask xcb:EventMask:ButtonPress
+                           :pointer-mode xcb:GrabMode:Sync
+                           :keyboard-mode xcb:GrabMode:Async
+                           :confine-to xcb:Window:None :cursor xcb:Cursor:None
+                           :button button :modifiers xcb:ModMask:Any)))
       (xcb:+request exwm--connection    ;update _NET_CLIENT_LIST
           (make-instance 'xcb:ewmh:set-_NET_CLIENT_LIST
                          :window exwm--root

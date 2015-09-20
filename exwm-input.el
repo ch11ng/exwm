@@ -114,7 +114,14 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
   (when exwm-input--focus-window
     (with-current-buffer (window-buffer exwm-input--focus-window)
       (if (eq major-mode 'exwm-mode)
-          (progn
+          (if (not (eq exwm--frame exwm-workspace--current))
+              ;; Do not focus X windows on other workspace
+              (progn
+                (set-frame-parameter exwm--frame 'exwm--urgency t)
+                (setq exwm-workspace--switch-history-outdated t)
+                (force-mode-line-update)
+                ;; The application may have changed its input focus
+                (exwm-workspace-switch exwm-workspace-current-index t))
             (when exwm--floating-frame
               (redirect-frame-focus exwm--floating-frame nil)
               (select-frame-set-input-focus exwm--floating-frame t))
@@ -180,7 +187,9 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
              (exwm-floating--start-moveresize event))
             (t
              ;; Click to focus
-             (select-window (get-buffer-window (exwm--id->buffer event) t))
+             (let ((window (get-buffer-window (exwm--id->buffer event) t)))
+               (unless (eq window (selected-window))
+                 (select-window window)))
              ;; The event should be replayed
              (setq mode xcb:Allow:ReplayPointer))))
     (xcb:+request exwm--connection
@@ -360,21 +369,22 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
          (keycode (xcb:keysyms:keysym->keycode exwm--connection (car keysym)))
          (id (exwm--buffer->id (window-buffer (selected-window)))))
     (when keycode
-      (xcb:+request exwm--connection
-          (make-instance 'xcb:SendEvent
-                         :propagate 0 :destination id
-                         :event-mask xcb:EventMask:NoEvent
-                         :event (xcb:marshal
-                                 (make-instance 'xcb:KeyPress
-                                                :detail keycode
-                                                :time xcb:Time:CurrentTime
-                                                :root exwm--root :event id
-                                                :child 0
-                                                :root-x 0 :root-y 0
-                                                :event-x 0 :event-y 0
-                                                :state (cadr keysym)
-                                                :same-screen 1)
-                                 exwm--connection))))
+      (dolist (class '(xcb:KeyPress xcb:KeyRelease))
+        (xcb:+request exwm--connection
+            (make-instance 'xcb:SendEvent
+                           :propagate 0 :destination id
+                           :event-mask xcb:EventMask:NoEvent
+                           :event (xcb:marshal
+                                   (make-instance class
+                                                  :detail keycode
+                                                  :time xcb:Time:CurrentTime
+                                                  :root exwm--root :event id
+                                                  :child 0
+                                                  :root-x 0 :root-y 0
+                                                  :event-x 0 :event-y 0
+                                                  :state (cadr keysym)
+                                                  :same-screen 1)
+                                   exwm--connection)))))
     (xcb:flush exwm--connection)))
 
 ;;;###autoload
