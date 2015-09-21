@@ -159,6 +159,36 @@ The optional FORCE option is for internal use only."
                            :window exwm--root :data index))
         (xcb:flush exwm--connection)))))
 
+(defvar exwm-workspace-switch-wrap t
+  "Whether `exwm-workspace-next' and `exwm-workspace-prev' should wrap.")
+
+;;;###autoload
+(defun exwm-workspace-next ()
+  "Switch to next exwm-workspace."
+  (interactive)
+  (let* ((only-workspace? (equal exwm-workspace-number 1))
+         (at-edge? (= exwm-workspace-current-index
+                       (1- exwm-workspace-number))))
+    (cond
+     (only-workspace? nil)
+     (at-edge?
+      (when exwm-workspace-switch-wrap
+        (exwm-workspace-switch 0)))
+     (t (exwm-workspace-switch  (1+ exwm-workspace-current-index))))))
+
+;;;###autoload
+(defun exwm-workspace-prev ()
+  "Switch to next exwm-workspace."
+  (interactive)
+  (let* ((only-workspace? (equal exwm-workspace-number 1))
+         (at-edge? (= exwm-workspace-current-index 0)))
+    (cond
+     (only-workspace? nil)
+     (at-edge?
+      (when exwm-workspace-switch-wrap
+        (exwm-workspace-switch (1- exwm-workspace-number))))
+     (t (exwm-workspace-switch  (1- exwm-workspace-current-index))))))
+
 (defun exwm-workspace--on-focus-in ()
   "Fix unexpected frame switch."
   (let ((index (cl-position (selected-frame) exwm-workspace--list)))
