@@ -1,1 +1,3 @@
 *.elc
+*-pkg.el
+*-autoloads.el

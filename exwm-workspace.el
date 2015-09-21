@@ -101,6 +101,7 @@
 (defvar exwm-workspace-show-all-buffers nil
   "Non-nil to show buffers on other workspaces.")
 
+;;;###autoload
 (defun exwm-workspace-switch (index &optional force)
   "Switch to workspace INDEX. Query for INDEX if it's not specified.
 
