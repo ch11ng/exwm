@@ -263,6 +263,18 @@ The optional FORCE option is for internal use only."
       (setq newname (format "%s<%d>" basename (cl-incf counter))))
     (rename-buffer (concat (and hidden " ") newname))))
 
+(defun exwm-workspace--x-create-frame (orig-fun params)
+  "Set override-redirect on the frame created by `x-create-frame'."
+  (let ((frame (funcall orig-fun params)))
+    (xcb:+request exwm--connection
+        (make-instance 'xcb:ChangeWindowAttributes
+                       :window (string-to-number
+                                (frame-parameter frame 'outer-window-id))
+                       :value-mask xcb:CW:OverrideRedirect
+                       :override-redirect 1))
+    (xcb:flush exwm--connection)
+    frame))
+
 (defun exwm-workspace--init ()
   "Initialize workspace module."
   (cl-assert (and (< 0 exwm-workspace-number) (>= 10 exwm-workspace-number)))
@@ -306,6 +318,8 @@ The optional FORCE option is for internal use only."
                          :window window-id :value-mask xcb:CW:EventMask
                          :event-mask xcb:EventMask:SubstructureRedirect))))
   (xcb:flush exwm--connection)
+  ;; We have to advice `x-create-frame' or every call to it would hang EXWM
+  (advice-add 'x-create-frame :around #'exwm-workspace--x-create-frame)
   ;; We have to delay making the frame visible until the
   ;; override-redirect flag has been set.
   (select-frame-set-input-focus (car exwm-workspace--list))

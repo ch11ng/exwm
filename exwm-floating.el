@@ -141,11 +141,6 @@
             (setq x (/ (- display-width width) 2)
                   y (/ (- display-height height) 2))))))
     (exwm--log "Floating geometry (corrected): %dx%d%+d%+d" width height x y)
-    ;; Set OverrideRedirect on this frame
-    (xcb:+request exwm--connection
-        (make-instance 'xcb:ChangeWindowAttributes
-                       :window outer-id :value-mask xcb:CW:OverrideRedirect
-                       :override-redirect 1))
     ;; Set event mask
     (xcb:+request exwm--connection
         (make-instance 'xcb:ChangeWindowAttributes

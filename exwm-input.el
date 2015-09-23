@@ -209,7 +209,7 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
 (defvar exwm-input--global-prefix-keys nil
   "List of prefix keys of global key bindings.")
 (defvar exwm-input-prefix-keys
-  '(?\C-x ?\C-u ?\C-h ?\M-x ?\M-` ?\M-! ?\M-& ?\M-:)
+  '(?\C-c ?\C-x ?\C-u ?\C-h ?\M-x ?\M-` ?\M-& ?\M-:)
   "List of prefix keys EXWM should forward to Emacs when in line-mode.")
 (defvar exwm-input--simulation-keys nil "Simulation keys in line-mode.")
 (defvar exwm-input--simulation-prefix-keys nil
@@ -259,7 +259,6 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
                  (setq event (xcb:keysyms:keysym->event keysym state))
                  (or exwm-input--during-key-sequence
                      (setq minibuffer-window (active-minibuffer-window))
-                     (eq event ?\C-c)   ;mode-specific key
                      (memq event exwm-input--global-prefix-keys)
                      (memq event exwm-input-prefix-keys)
                      (memq event exwm-input--simulation-prefix-keys)))
