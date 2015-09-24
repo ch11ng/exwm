@@ -135,8 +135,8 @@
               (setq edges nil)))
           (if edges
               ;; Put at the center of leading window
-              (setq x (/ (- (+ (elt edges 2) (elt edges 0)) width) 2)
-                    y (/ (- (+ (elt edges 3) (elt edges 1)) height) 2))
+              (setq x (/ (- (elt edges 2) (elt edges 0) width) 2)
+                    y (/ (- (elt edges 3) (elt edges 1) height) 2))
             ;; Put at the center of screen
             (setq x (/ (- display-width width) 2)
                   y (/ (- display-height height) 2))))))
