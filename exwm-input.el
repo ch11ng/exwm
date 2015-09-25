@@ -187,8 +187,22 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
              (exwm-floating--start-moveresize event))
             (t
              ;; Click to focus
-             (let ((window (get-buffer-window (exwm--id->buffer event) t)))
+             (let ((window (get-buffer-window (exwm--id->buffer event) t))
+                   frame)
                (unless (eq window (selected-window))
+                 (setq frame (window-frame window))
+                 (unless (eq frame exwm-workspace--current)
+                   (if (memq frame exwm-workspace--list)
+                       ;; The X window is on another workspace
+                       (exwm-workspace-switch
+                        (cl-position frame exwm-workspace--list))
+                     (with-current-buffer (window-buffer window)
+                       (when (and (eq major-mode 'exwm-mode)
+                                  (not (eq exwm--frame
+                                           exwm-workspace--current)))
+                         ;; The floating X window is on another workspace
+                         (exwm-workspace-switch
+                          (cl-position exwm--frame exwm-workspace--list))))))
                  (select-window window)))
              ;; The event should be replayed
              (setq mode xcb:Allow:ReplayPointer))))
