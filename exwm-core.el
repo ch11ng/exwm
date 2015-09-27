@@ -69,12 +69,14 @@
       (make-instance 'xcb:ChangeWindowAttributes
                      :window exwm--root
                      :value-mask xcb:CW:EventMask
-                     :event-mask (logior xcb:EventMask:StructureNotify
-                                         xcb:EventMask:SubstructureRedirect)))
+                     :event-mask (eval-when-compile
+                                   (logior xcb:EventMask:SubstructureRedirect
+                                           xcb:EventMask:StructureNotify))))
   (xcb:flush exwm--connection))
 
 (defconst exwm--client-event-mask
-  (logior xcb:EventMask:StructureNotify xcb:EventMask:PropertyChange)
+  (eval-when-compile
+    (logior xcb:EventMask:StructureNotify xcb:EventMask:PropertyChange))
   "Event mask set on all managed windows.")
 
 ;; Internal variables

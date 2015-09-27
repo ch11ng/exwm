@@ -124,8 +124,9 @@ corresponding buffer.")
             (xcb:+request exwm--connection
                 (make-instance 'xcb:ConfigureWindow
                                :window id
-                               :value-mask (logior xcb:ConfigWindow:X
-                                                   xcb:ConfigWindow:Y)
+                               :value-mask (eval-when-compile
+                                             (logior xcb:ConfigWindow:X
+                                                     xcb:ConfigWindow:Y))
                                :x (/ (- (frame-pixel-width
                                          exwm-workspace--current)
                                         width)

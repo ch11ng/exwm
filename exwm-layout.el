@@ -56,11 +56,12 @@
     (xcb:+request exwm--connection
         (make-instance 'xcb:ConfigureWindow
                        :window id
-                       :value-mask (logior xcb:ConfigWindow:X
-                                           xcb:ConfigWindow:Y
-                                           xcb:ConfigWindow:Width
-                                           xcb:ConfigWindow:Height
-                                           xcb:ConfigWindow:StackMode)
+                       :value-mask (eval-when-compile
+                                     (logior xcb:ConfigWindow:X
+                                             xcb:ConfigWindow:Y
+                                             xcb:ConfigWindow:Width
+                                             xcb:ConfigWindow:Height
+                                             xcb:ConfigWindow:StackMode))
                        :x x :y y :width width :height height
                        ;; In order to put non-floating window at bottom
                        :stack-mode xcb:StackMode:Below))
@@ -122,10 +123,11 @@
         (xcb:+request exwm--connection
             (make-instance 'xcb:ConfigureWindow
                            :window outer-id
-                           :value-mask (logior xcb:ConfigWindow:X
-                                               xcb:ConfigWindow:Y
-                                               xcb:ConfigWindow:Width
-                                               xcb:ConfigWindow:Height)
+                           :value-mask (eval-when-compile
+                                         (logior xcb:ConfigWindow:X
+                                                 xcb:ConfigWindow:Y
+                                                 xcb:ConfigWindow:Width
+                                                 xcb:ConfigWindow:Height))
                            :x 0 :y 0
                            :width (frame-pixel-width exwm-workspace--current)
                            :height (frame-pixel-height
@@ -134,10 +136,11 @@
     (xcb:+request exwm--connection
         (make-instance 'xcb:ConfigureWindow
                        :window exwm--id
-                       :value-mask (logior xcb:ConfigWindow:X
-                                           xcb:ConfigWindow:Y
-                                           xcb:ConfigWindow:Width
-                                           xcb:ConfigWindow:Height)
+                       :value-mask (eval-when-compile
+                                     (logior xcb:ConfigWindow:X
+                                             xcb:ConfigWindow:Y
+                                             xcb:ConfigWindow:Width
+                                             xcb:ConfigWindow:Height))
                        :x 0 :y 0
                        :width (frame-pixel-width exwm-workspace--current)
                        :height (frame-pixel-height exwm-workspace--current)))
@@ -161,10 +164,11 @@
           (make-instance 'xcb:ConfigureWindow
                          :window (frame-parameter exwm--floating-frame
                                                   'exwm-outer-id)
-                         :value-mask (logior xcb:ConfigWindow:X
-                                             xcb:ConfigWindow:Y
-                                             xcb:ConfigWindow:Width
-                                             xcb:ConfigWindow:Height)
+                         :value-mask (eval-when-compile
+                                       (logior xcb:ConfigWindow:X
+                                               xcb:ConfigWindow:Y
+                                               xcb:ConfigWindow:Width
+                                               xcb:ConfigWindow:Height))
                          :x (elt exwm--floating-frame-geometry 0)
                          :y (elt exwm--floating-frame-geometry 1)
                          :width (elt exwm--floating-frame-geometry 2)
@@ -194,10 +198,11 @@
       (xcb:+request exwm--connection
           (make-instance 'xcb:ConfigureWindow
                          :window id
-                         :value-mask (logior xcb:ConfigWindow:X
-                                             xcb:ConfigWindow:Y
-                                             xcb:ConfigWindow:Width
-                                             xcb:ConfigWindow:Height)
+                         :value-mask (eval-when-compile
+                                       (logior xcb:ConfigWindow:X
+                                               xcb:ConfigWindow:Y
+                                               xcb:ConfigWindow:Width
+                                               xcb:ConfigWindow:Height))
                          :x x :y y
                          :width width
                          :height height))

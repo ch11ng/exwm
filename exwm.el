@@ -5,7 +5,7 @@
 ;; Author: Chris Feng <chris.w.feng@gmail.com>
 ;; Maintainer: Chris Feng <chris.w.feng@gmail.com>
 ;; Version: 0
-;; Package-Requires: ((xelb "0.1"))
+;; Package-Requires: ((xelb "0.3"))
 ;; Keywords: unix
 ;; URL: https://github.com/ch11ng/exwm
 
@@ -74,6 +74,7 @@
 
 ;;; Code:
 
+(require 'server)
 (require 'exwm-core)
 (require 'exwm-workspace)
 (require 'exwm-layout)
@@ -526,14 +527,78 @@
         (exwm-manage--scan)
         (run-hooks 'exwm-init-hook)))))
 
+(defvar exwm-blocking-subrs '(x-file-dialog x-popup-dialog x-select-font)
+  "Subrs (primitives) that would normally block EXWM.")
+
 (defun exwm-enable (&optional undo)
   "Enable/Disable EXWM."
-  (if (eq undo 'undo)
-      (progn (remove-hook 'window-setup-hook #'exwm-init)
-             (remove-hook 'after-make-frame-functions #'exwm-init))
-    (setq frame-resize-pixelwise t)     ;mandatory; before init
-    (add-hook 'window-setup-hook #'exwm-init t)            ;for Emacs
-    (add-hook 'after-make-frame-functions #'exwm-init t))) ;for Emacs Client
+  (pcase undo
+    (`undo                              ;prevent reinitialization
+     (remove-hook 'window-setup-hook #'exwm-init)
+     (remove-hook 'after-make-frame-functions #'exwm-init))
+    (`undo-all                          ;attempt to revert everything
+     (remove-hook 'window-setup-hook #'exwm-init)
+     (remove-hook 'after-make-frame-functions #'exwm-init)
+     (remove-hook 'kill-emacs-hook #'exwm--server-stop)
+     (dolist (i exwm-blocking-subrs)
+       (advice-remove i #'exwm--server-eval-at)))
+    (_                                  ;enable EXWM
+     (setq frame-resize-pixelwise t)    ;mandatory; before init
+     (add-hook 'window-setup-hook #'exwm-init t)          ;for Emacs
+     (add-hook 'after-make-frame-functions #'exwm-init t) ;for Emacs Client
+     (add-hook 'kill-emacs-hook #'exwm--server-stop)
+     (dolist (i exwm-blocking-subrs)
+       (advice-add i :around #'exwm--server-eval-at)))))
+
+(defconst exwm--server-name "server-exwm"
+  "Name of the subordinate Emacs server.")
+(defvar exwm--server-process nil "Process of the subordinate Emacs server.")
+
+(defun exwm--server-stop ()
+  "Stop the subordinate Emacs server."
+  (server-force-delete exwm--server-name)
+  (when exwm--server-process
+    (delete-process exwm--server-process)
+    (setq exwm--server-process nil)))
+
+(defun exwm--server-eval-at (&rest args)
+  "Wrapper of `server-eval-at' used to advice subrs."
+  ;; Start the subordinate Emacs server if it's not alive
+  (unless (server-running-p exwm--server-name)
+    (when exwm--server-process (delete-process exwm--server-process))
+    (setq exwm--server-process
+          (start-process exwm--server-name
+                         nil
+                         (car command-line-args) ;The executable file
+                         "-d" x-display-name
+                         "-Q"
+                         (concat "--daemon=" exwm--server-name)
+                         "--eval"
+                         ;; Create an invisible frame
+                         "(make-frame '((window-system . x) (visibility)))"))
+    (while (not (server-running-p exwm--server-name))
+      (sit-for 0.001)))
+  (server-eval-at
+   exwm--server-name
+   `(progn (select-frame (car (frame-list)))
+           (let ((result ,(nconc (list (make-symbol (subr-name (car args))))
+                                 (cdr args))))
+             (pcase (type-of result)
+               ;; Return the name of a buffer
+               (`buffer (buffer-name result))
+               ;; We blindly convert all font objects to their XLFD names. This
+               ;; might cause problems of course, but it still has a chance to
+               ;; work (whereas directly passing font objects would merely
+               ;; raise errors).
+               ((or `font-entity `font-object `font-spec)
+                (font-xlfd-name result))
+               ;; Passing following types makes little sense
+               ((or `compiled-function `finalizer `frame `hash-table `marker
+                    `overlay `process `window `window-configuration))
+               ;; Passing the name of a subr
+               (`subr (make-symbol (subr-name result)))
+               ;; For other types, return the value as-is.
+               (t result))))))
 
 (defun exwm--ido-buffer-window-other-frame (orig-fun buffer)
   "Wrapper for `ido-buffer-window-other-frame' to exclude invisible windows."

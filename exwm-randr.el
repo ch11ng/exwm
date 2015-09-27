@@ -90,10 +90,11 @@
           (xcb:+request exwm--connection
               (make-instance 'xcb:ConfigureWindow
                              :window (frame-parameter frame 'exwm-outer-id)
-                             :value-mask (logior xcb:ConfigWindow:X
-                                                 xcb:ConfigWindow:Y
-                                                 xcb:ConfigWindow:Width
-                                                 xcb:ConfigWindow:Height)
+                             :value-mask (eval-when-compile
+                                           (logior xcb:ConfigWindow:X
+                                                   xcb:ConfigWindow:Y
+                                                   xcb:ConfigWindow:Width
+                                                   xcb:ConfigWindow:Height))
                              :x x :y y :width width :height height))
           (setq workareas (nconc workareas (list x y width height))
                 viewports (nconc viewports (list x y))))))
@@ -133,11 +134,12 @@
             (make-instance 'xcb:randr:SelectInput
                            :window exwm--root
                            :enable xcb:randr:NotifyMask:ScreenChange
-                           ;; :enable (logior
-                           ;;          xcb:randr:NotifyMask:ScreenChange
-                           ;;          xcb:randr:NotifyMask:OutputChange
-                           ;;          xcb:randr:NotifyMask:OutputProperty
-                           ;;          xcb:randr:NotifyMask:CrtcChange)
+                           ;; :enable (eval-when-compile
+                           ;;           (logior
+                           ;;            xcb:randr:NotifyMask:ScreenChange
+                           ;;            xcb:randr:NotifyMask:OutputChange
+                           ;;            xcb:randr:NotifyMask:OutputProperty
+                           ;;            xcb:randr:NotifyMask:CrtcChange))
                            ))
         (xcb:flush exwm--connection)))))
 

@@ -247,9 +247,10 @@ are provided. You should call `xcb:flush' and restore the value of
                      :window (or frame-outer-id
                                  (frame-parameter exwm--floating-frame
                                                   'exwm-outer-id))
-                     :value-mask (logior xcb:ConfigWindow:Width
-                                         xcb:ConfigWindow:Height
-                                         xcb:ConfigWindow:StackMode)
+                     :value-mask (eval-when-compile
+                                   (logior xcb:ConfigWindow:Width
+                                           xcb:ConfigWindow:Height
+                                           xcb:ConfigWindow:StackMode))
                      :width (+ width (* 2 exwm-floating-border-width))
                      :height (+ height (* 2 exwm-floating-border-width)
                                 (window-mode-line-height)
@@ -336,18 +337,20 @@ are provided. You should call `xcb:flush' and restore the value of
                        exwm-floating--moveresize-calculate
                        `(lambda (x y)
                           (vector ,frame-id
-                                  ,(logior xcb:ConfigWindow:X
-                                           xcb:ConfigWindow:Y)
+                                  ,(eval-when-compile
+                                     (logior xcb:ConfigWindow:X
+                                             xcb:ConfigWindow:Y))
                                   (- x ,win-x) (- y ,win-y) 0 0))))
                 ((= type xcb:ewmh:_NET_WM_MOVERESIZE_SIZE_TOPLEFT)
                  (setq cursor exwm-floating--cursor-top-left
                        exwm-floating--moveresize-calculate
                        `(lambda (x y)
                           (vector ,frame-id
-                                  ,(logior xcb:ConfigWindow:X
-                                           xcb:ConfigWindow:Y
-                                           xcb:ConfigWindow:Width
-                                           xcb:ConfigWindow:Height)
+                                  ,(eval-when-compile
+                                     (logior xcb:ConfigWindow:X
+                                             xcb:ConfigWindow:Y
+                                             xcb:ConfigWindow:Width
+                                             xcb:ConfigWindow:Height))
                                   (- x ,win-x) (- y ,win-y)
                                   (- ,(+ root-x width) x)
                                   (- ,(+ root-y height) y)))))
@@ -356,17 +359,19 @@ are provided. You should call `xcb:flush' and restore the value of
                        exwm-floating--moveresize-calculate
                        `(lambda (x y)
                           (vector ,frame-id
-                                  ,(logior xcb:ConfigWindow:Y
-                                           xcb:ConfigWindow:Height)
+                                  ,(eval-when-compile
+                                     (logior xcb:ConfigWindow:Y
+                                             xcb:ConfigWindow:Height))
                                   0 (- y ,win-y) 0 (- ,(+ root-y height) y)))))
                 ((= type xcb:ewmh:_NET_WM_MOVERESIZE_SIZE_TOPRIGHT)
                  (setq cursor exwm-floating--cursor-top-right
                        exwm-floating--moveresize-calculate
                        `(lambda (x y)
                           (vector ,frame-id
-                                  ,(logior xcb:ConfigWindow:Y
-                                           xcb:ConfigWindow:Width
-                                           xcb:ConfigWindow:Height)
+                                  ,(eval-when-compile
+                                     (logior xcb:ConfigWindow:Y
+                                             xcb:ConfigWindow:Width
+                                             xcb:ConfigWindow:Height))
                                   0 (- y ,win-y) (- x ,(- root-x width))
                                   (- ,(+ root-y height) y)))))
                 ((= type xcb:ewmh:_NET_WM_MOVERESIZE_SIZE_RIGHT)
@@ -380,8 +385,9 @@ are provided. You should call `xcb:flush' and restore the value of
                        exwm-floating--moveresize-calculate
                        `(lambda (x y)
                           (vector ,frame-id
-                                  ,(logior xcb:ConfigWindow:Width
-                                           xcb:ConfigWindow:Height)
+                                  ,(eval-when-compile
+                                     (logior xcb:ConfigWindow:Width
+                                             xcb:ConfigWindow:Height))
                                   0 0 (- x ,(- root-x width))
                                   (- y ,(- root-y height))))))
                 ((= type xcb:ewmh:_NET_WM_MOVERESIZE_SIZE_BOTTOM)
@@ -396,9 +402,10 @@ are provided. You should call `xcb:flush' and restore the value of
                        exwm-floating--moveresize-calculate
                        `(lambda (x y)
                           (vector ,frame-id
-                                  ,(logior xcb:ConfigWindow:X
-                                           xcb:ConfigWindow:Width
-                                           xcb:ConfigWindow:Height)
+                                  ,(eval-when-compile
+                                     (logior xcb:ConfigWindow:X
+                                             xcb:ConfigWindow:Width
+                                             xcb:ConfigWindow:Height))
                                   (- x ,win-x)
                                   0
                                   (- ,(+ root-x width) x)
@@ -408,15 +415,17 @@ are provided. You should call `xcb:flush' and restore the value of
                        exwm-floating--moveresize-calculate
                        `(lambda (x y)
                           (vector ,frame-id
-                                  ,(logior xcb:ConfigWindow:X
-                                           xcb:ConfigWindow:Width)
+                                  ,(eval-when-compile
+                                     (logior xcb:ConfigWindow:X
+                                             xcb:ConfigWindow:Width))
                                   (- x ,win-x) 0 (- ,(+ root-x width) x) 0)))))
           ;; Select events and change cursor (should always succeed)
           (xcb:+request-unchecked+reply exwm--connection
               (make-instance 'xcb:GrabPointer
                              :owner-events 0 :grab-window frame-id
-                             :event-mask (logior xcb:EventMask:ButtonRelease
-                                                 xcb:EventMask:ButtonMotion)
+                             :event-mask (eval-when-compile
+                                           (logior xcb:EventMask:ButtonRelease
+                                                   xcb:EventMask:ButtonMotion))
                              :pointer-mode xcb:GrabMode:Async
                              :keyboard-mode xcb:GrabMode:Async
                              :confine-to xcb:Window:None
@@ -472,7 +481,7 @@ are provided. You should call `xcb:flush' and restore the value of
           (make-instance 'xcb:ConfigureWindow
                          :window (elt result 0) :value-mask (elt result 1)
                          :x (- (elt result 2) frame-x)
-                         :y (-  (elt result 3) frame-y)
+                         :y (- (elt result 3) frame-y)
                          :width (elt result 4) :height (elt result 5)))
       (xcb:flush exwm--connection))))
 
@@ -492,8 +501,9 @@ Both DELTA-X and DELTA-Y default to 1.  This command should be bound locally."
       (xcb:+request exwm--connection
           (make-instance 'xcb:ConfigureWindow
                          :window id
-                         :value-mask (logior xcb:ConfigWindow:X
-                                             xcb:ConfigWindow:Y)
+                         :value-mask (eval-when-compile
+                                       (logior xcb:ConfigWindow:X
+                                               xcb:ConfigWindow:Y))
                          :x (+ (slot-value geometry 'x) delta-x)
                          :y (+ (slot-value geometry 'y) delta-y)))
       ;; Inform the X window that its absolute position is changed
