@@ -85,8 +85,15 @@
          (x (slot-value exwm--geometry 'x))
          (y (slot-value exwm--geometry 'y))
          (width (slot-value exwm--geometry 'width))
-         (height (slot-value exwm--geometry 'height)))
-    (exwm--log "Floating geometry (original): %dx%d%+d%+d" width height x y)
+         (height (slot-value exwm--geometry 'height))
+         (frame-geometry (frame-parameter original-frame 'exwm-geometry)))
+    (exwm--log "Floating geometry (original, absolute): %dx%d%+d%+d"
+               width height x y)
+    (when frame-geometry
+      (setq x (- x (slot-value frame-geometry 'x))
+            y (- y (slot-value frame-geometry 'y))))
+    (exwm--log "Floating geometry (original, relative): %dx%d%+d%+d"
+               width height x y)
     ;; Save window IDs
     (set-frame-parameter frame 'exwm-window-id frame-id)
     (set-frame-parameter frame 'exwm-outer-id outer-id)
