@@ -90,12 +90,15 @@ corresponding buffer.")
                   (memq xcb:Atom:_NET_WM_WINDOW_TYPE_UTILITY exwm-window-type)
                   (memq xcb:Atom:_NET_WM_WINDOW_TYPE_DIALOG exwm-window-type)
                   (memq xcb:Atom:_NET_WM_WINDOW_TYPE_NORMAL exwm-window-type)))
-             ;; Check _MOTIF_WM_HINTS (mainly for Java applications)
+             ;; Check _MOTIF_WM_HINTS for Java applications
              ;; See <Xm/MwmUtil.h> for the definitions of these fields
              (and exwm--mwm-hints
+                  exwm-instance-name
                   (/= 0 (logand (elt exwm--mwm-hints 0) ;MotifWmHints.flags
-                                2))     ;MWM_HINTS_DECORATIONS
+                                2))             ;MWM_HINTS_DECORATIONS
                   (= 0 (elt exwm--mwm-hints 2)) ;MotifWmHints.decorations
+                  ;; Java applications only
+                  (string-prefix-p "sun-awt-X11-" exwm-instance-name)
                   ;; Floating windows only
                   (or exwm-transient-for exwm--fixed-size
                       (memq xcb:Atom:_NET_WM_WINDOW_TYPE_UTILITY
