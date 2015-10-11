@@ -111,7 +111,9 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
 
 (defun exwm-input--update-focus ()
   "Update input focus."
-  (when exwm-input--focus-window
+  (when (and exwm-input--focus-window
+             ;; The Emacs window may have been deleted
+             (window-buffer exwm-input--focus-window))
     (with-current-buffer (window-buffer exwm-input--focus-window)
       (if (eq major-mode 'exwm-mode)
           (if (not (eq exwm--frame exwm-workspace--current))
@@ -203,7 +205,12 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
                          ;; The floating X window is on another workspace
                          (exwm-workspace-switch
                           (cl-position exwm--frame exwm-workspace--list))))))
-                 (select-window window)))
+                 ;; It has been reported that the `window' may have be deleted
+                 (if (window-live-p window)
+                     (select-window window)
+                   (setq window
+                         (get-buffer-window (exwm--id->buffer event) t))
+                   (when window (select-window window)))))
              ;; The event should be replayed
              (setq mode xcb:Allow:ReplayPointer))))
     (xcb:+request exwm--connection
