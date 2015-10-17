@@ -270,6 +270,13 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
   (global-set-key key command)
   (cl-pushnew key exwm-input--global-keys))
 
+;; These commands usually call something like `read-char' without using the
+;; minibuffer, so they will not get inputs after invoked.  It'd be better if we
+;; can determine whether there's a command waiting for input so that this
+;; variable can be removed.
+(defvar exwm-input-command-whitelist nil
+  "A list of commands that when active all keys should be forwarded to Emacs.")
+
 ;;;###autoload
 (defun exwm-input--on-KeyPress-line-mode (key-press)
   "Parse X KeyPress event to Emacs key event and then feed the command loop."
@@ -280,6 +287,7 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
                  (setq event (xcb:keysyms:keysym->event keysym state))
                  (or exwm-input--during-key-sequence
                      (setq minibuffer-window (active-minibuffer-window))
+                     (memq real-this-command exwm-input-command-whitelist)
                      (memq event exwm-input--global-prefix-keys)
                      (memq event exwm-input-prefix-keys)
                      (memq event exwm-input--simulation-prefix-keys)))
