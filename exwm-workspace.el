@@ -138,6 +138,8 @@ The optional FORCE option is for internal use only."
               (setq x (/ w 2)
                     y (/ h 2)))
             (set-mouse-pixel-position frame x y)))
+        ;; Close the (possible) active minibuffer
+        (when (active-minibuffer-window) (abort-recursive-edit))
         (setq default-minibuffer-frame frame)
         ;; Hide windows in other workspaces by preprending a space
         (unless exwm-workspace-show-all-buffers
