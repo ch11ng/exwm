@@ -100,6 +100,10 @@
 (defvar exwm-workspace-current-index 0 "Index of current active workspace.")
 (defvar exwm-workspace-show-all-buffers nil
   "Non-nil to show buffers on other workspaces.")
+(defvar exwm-workspace--switch-count 0
+  "`exwm-workspace-switch' execution counts.
+
+Consumed by `exwm-workspace--on-focus-in.'")
 
 ;;;###autoload
 (defun exwm-workspace-switch (index &optional force)
@@ -125,6 +129,7 @@ The optional FORCE option is for internal use only."
       (let ((frame (elt exwm-workspace--list index)))
         (setq exwm-workspace--current frame
               exwm-workspace-current-index index)
+        (unless force (cl-incf exwm-workspace--switch-count))
         (select-frame-set-input-focus frame)
         ;; Move mouse when necessary
         (let ((position (mouse-pixel-position))
@@ -154,7 +159,6 @@ The optional FORCE option is for internal use only."
         (set-frame-parameter frame 'exwm--urgency nil)
         ;; Update switch workspace history
         (setq exwm-workspace--switch-history-outdated t)
-        (exwm--make-emacs-idle-for 0.1) ;FIXME
         ;; Update _NET_CURRENT_DESKTOP
         (xcb:+request exwm--connection
             (make-instance 'xcb:ewmh:set-_NET_CURRENT_DESKTOP
@@ -165,9 +169,13 @@ The optional FORCE option is for internal use only."
   "Fix unexpected frame switch."
   (let ((index (cl-position (selected-frame) exwm-workspace--list)))
     (exwm--log "Focus on workspace %s" index)
+    ;; Close the (possible) active minibuffer
+    (when (active-minibuffer-window) (abort-recursive-edit))
     (when (and index (/= index exwm-workspace-current-index))
       (exwm--log "Workspace was switched unexpectedly")
-      (exwm-workspace-switch index))))
+      (if (< 0 exwm-workspace--switch-count)
+          (cl-decf exwm-workspace--switch-count)
+        (exwm-workspace-switch index)))))
 
 ;;;###autoload
 (defun exwm-workspace-move-window (index &optional id)

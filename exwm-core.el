@@ -38,10 +38,6 @@
   (when exwm-debug-on
     `(message (concat "[EXWM] " ,format-string) ,@args)))
 
-(defun exwm--make-emacs-idle-for (seconds)
-  "Put Emacs in idle state for SECONDS seconds."
-  (with-timeout (seconds) (read-event)))
-
 (defvar exwm--connection nil "X connection.")
 (defvar exwm--root nil "Root window.")
 (defvar exwm--id-buffer-alist nil "Alist of (<X window ID> . <Emacs buffer>).")
