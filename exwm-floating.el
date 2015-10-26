@@ -69,8 +69,10 @@
          ;; Create new frame
          (frame (with-current-buffer
                     (or (get-buffer "*scratch*")
-                        (prog1 (get-buffer-create "*scratch*")
-                          (set-buffer-major-mode "*scratch*")))
+                        (progn
+                          (set-buffer-major-mode
+                           (get-buffer-create "*scratch*"))
+                          (get-buffer "*scratch*")))
                   (prog2
                       (exwm--lock)
                       (make-frame

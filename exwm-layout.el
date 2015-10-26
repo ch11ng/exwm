@@ -215,18 +215,19 @@
   "Refresh layout."
   (let ((frame (selected-frame))
         (placeholder (or (get-buffer "*scratch*")
-                         (prog1 (get-buffer-create "*scratch*")
-                           (set-buffer-major-mode "*scratch*"))))
+                         (progn
+                           (set-buffer-major-mode
+                            (get-buffer-create "*scratch*"))
+                           (get-buffer "*scratch*"))))
         windows)
     (if (not (memq frame exwm-workspace--list))
         (if (frame-parameter frame 'exwm-window-id)
             ;; Refresh a floating frame
-            (progn
-              (when (eq major-mode 'exwm-mode)
-                (let ((window (frame-first-window frame)))
-                  (with-current-buffer (window-buffer window)
-                    (exwm--log "Refresh floating window #x%x" exwm--id)
-                    (exwm-layout--show exwm--id window)))))
+            (when (eq major-mode 'exwm-mode)
+              (let ((window (frame-first-window frame)))
+                (with-current-buffer (window-buffer window)
+                  (exwm--log "Refresh floating window #x%x" exwm--id)
+                  (exwm-layout--show exwm--id window))))
           ;; Other frames (e.g. terminal/graphical frame of emacsclient)
           ;; We shall bury all `exwm-mode' buffers in this case
           (unless placeholder ;create the *scratch* buffer if it's killed

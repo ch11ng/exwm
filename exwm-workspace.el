@@ -100,10 +100,6 @@
 (defvar exwm-workspace-current-index 0 "Index of current active workspace.")
 (defvar exwm-workspace-show-all-buffers nil
   "Non-nil to show buffers on other workspaces.")
-(defvar exwm-workspace--switch-count 0
-  "`exwm-workspace-switch' execution counts.
-
-Consumed by `exwm-workspace--on-focus-in.'")
 
 ;;;###autoload
 (defun exwm-workspace-switch (index &optional force)
@@ -129,7 +125,6 @@ The optional FORCE option is for internal use only."
       (let ((frame (elt exwm-workspace--list index)))
         (setq exwm-workspace--current frame
               exwm-workspace-current-index index)
-        (unless force (cl-incf exwm-workspace--switch-count))
         (select-frame-set-input-focus frame)
         ;; Move mouse when necessary
         (let ((position (mouse-pixel-position))
@@ -167,14 +162,14 @@ The optional FORCE option is for internal use only."
 
 (defun exwm-workspace--on-focus-in ()
   "Fix unexpected frame switch."
-  (let ((index (cl-position (selected-frame) exwm-workspace--list)))
-    (exwm--log "Focus on workspace %s" index)
-    ;; Close the (possible) active minibuffer
-    (when (active-minibuffer-window) (abort-recursive-edit))
-    (when (and index (/= index exwm-workspace-current-index))
-      (exwm--log "Workspace was switched unexpectedly")
-      (if (< 0 exwm-workspace--switch-count)
-          (cl-decf exwm-workspace--switch-count)
+  ;; `focus-in-hook' is run by `handle-switch-frame'
+  (unless (eq this-command 'handle-switch-frame)
+    (let ((index (cl-position (selected-frame) exwm-workspace--list)))
+      (exwm--log "Focus on workspace %s" index)
+      (when (and index (/= index exwm-workspace-current-index))
+        (exwm--log "Workspace was switched unexpectedly")
+        ;; Close the (possible) active minibuffer
+        (when (active-minibuffer-window) (abort-recursive-edit))
         (exwm-workspace-switch index)))))
 
 ;;;###autoload
@@ -221,8 +216,10 @@ The optional FORCE option is for internal use only."
               (bury-buffer)
             (set-window-buffer (get-buffer-window (current-buffer) t)
                                (or (get-buffer "*scratch*")
-                                   (prog1 (get-buffer-create "*scratch*")
-                                     (set-buffer-major-mode "*scratch*")))))
+                                   (progn
+                                     (set-buffer-major-mode
+                                      (get-buffer-create "*scratch*"))
+                                     (get-buffer "*scratch*")))))
           (exwm-layout--hide id)
           (xcb:+request exwm--connection
               (make-instance 'xcb:ReparentWindow
@@ -335,8 +332,12 @@ The optional FORCE option is for internal use only."
   (select-frame-set-input-focus (car exwm-workspace--list))
   (dolist (i exwm-workspace--list)
     (set-frame-parameter i 'visibility t)
-    (lower-frame i)
-    (set-frame-parameter i 'fullscreen 'fullboth))
+    (lower-frame i))
+  ;; Delay making the workspaces fullscreen until Emacs becomes idle
+  (run-with-idle-timer 0 nil
+                       (lambda ()
+                         (dolist (i exwm-workspace--list)
+                           (set-frame-parameter i 'fullscreen 'fullboth))))
   (raise-frame (car exwm-workspace--list))
   ;; Handle unexpected frame switch
   (add-hook 'focus-in-hook #'exwm-workspace--on-focus-in)

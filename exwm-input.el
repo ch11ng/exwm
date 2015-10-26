@@ -111,9 +111,7 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
 
 (defun exwm-input--update-focus ()
   "Update input focus."
-  (when (and exwm-input--focus-window
-             ;; The Emacs window may have been deleted
-             (window-buffer exwm-input--focus-window))
+  (when (window-live-p exwm-input--focus-window)
     (with-current-buffer (window-buffer exwm-input--focus-window)
       (if (eq major-mode 'exwm-mode)
           (if (not (eq exwm--frame exwm-workspace--current))
