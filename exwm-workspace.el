@@ -139,7 +139,8 @@ The optional FORCE option is for internal use only."
                     y (/ h 2)))
             (set-mouse-pixel-position frame x y)))
         ;; Close the (possible) active minibuffer
-        (when (active-minibuffer-window) (abort-recursive-edit))
+        (when (active-minibuffer-window)
+          (run-with-idle-timer 0 nil (lambda () (abort-recursive-edit))))
         (setq default-minibuffer-frame frame)
         ;; Hide windows in other workspaces by preprending a space
         (unless exwm-workspace-show-all-buffers
@@ -168,8 +169,6 @@ The optional FORCE option is for internal use only."
       (exwm--log "Focus on workspace %s" index)
       (when (and index (/= index exwm-workspace-current-index))
         (exwm--log "Workspace was switched unexpectedly")
-        ;; Close the (possible) active minibuffer
-        (when (active-minibuffer-window) (abort-recursive-edit))
         (exwm-workspace-switch index)))))
 
 ;;;###autoload
