@@ -261,7 +261,8 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
                                                exwm--connection (car keysym))
                                          :pointer-mode xcb:GrabMode:Async
                                          :keyboard-mode xcb:GrabMode:Async)))
-              (user-error "[EXWM] Failed to grab key: %s" i))))))))
+              (user-error "[EXWM] Failed to grab key: %s"
+                          (single-key-description i)))))))))
 
 (defun exwm-input-set-key (key command)
   "Set a global key binding."
@@ -392,9 +393,13 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
 (defun exwm-input--fake-key (event)
   "Fake a key event equivalent to Emacs event EVENT."
   (let* ((keysym (xcb:keysyms:event->keysym event))
-         (keycode (xcb:keysyms:keysym->keycode exwm--connection (car keysym)))
-         (id (exwm--buffer->id (window-buffer (selected-window)))))
+         keycode id)
+    (unless keysym
+      (user-error "[EXWM] Invalid key: %s" (single-key-description event)))
+    (setq keycode (xcb:keysyms:keysym->keycode exwm--connection
+                                               (car keysym)))
     (when keycode
+      (setq id (exwm--buffer->id (window-buffer (selected-window))))
       (dolist (class '(xcb:KeyPress xcb:KeyRelease))
         (xcb:+request exwm--connection
             (make-instance 'xcb:SendEvent
@@ -472,6 +477,12 @@ SIMULATION-KEYS is a list of alist (key-sequence1 . key-sequence2)."
   ;; Convert move/resize buttons
   (let ((move-key (xcb:keysyms:event->keysym exwm-input-move-event))
         (resize-key (xcb:keysyms:event->keysym exwm-input-resize-event)))
+    (unless move-key
+      (user-error "[EXWM] Invalid key: %s"
+                  (single-key-description exwm-input-move-event)))
+    (unless resize-key
+      (user-error "[EXWM] Invalid key: %s"
+                  (single-key-description exwm-input-resize-event)))
     (setq exwm-input--move-keysym (car move-key)
           exwm-input--move-mask (cadr move-key)
           exwm-input--resize-keysym (car resize-key)
