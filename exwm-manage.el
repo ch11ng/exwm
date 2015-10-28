@@ -139,9 +139,9 @@ corresponding buffer.")
                                         height)
                                      2)))))
         (xcb:flush exwm--connection)
-        (setq kill-buffer-query-functions nil)
         (setq exwm--id-buffer-alist (assq-delete-all id exwm--id-buffer-alist))
-        (kill-buffer (current-buffer))
+        (let ((kill-buffer-query-functions nil))
+          (kill-buffer (current-buffer)))
         (throw 'return 'ignored))
       ;; Manage the window
       (exwm--log "Manage #x%x" id)
@@ -190,6 +190,9 @@ corresponding buffer.")
     (xcb:flush exwm--connection)
     (when (buffer-live-p buffer)
       (with-current-buffer buffer
+        (when exwm--floating-frame
+          (make-frame-invisible exwm--floating-frame)
+          (redisplay))
         (setq exwm-workspace--switch-history-outdated t)
         ;;
         (when withdraw-only
@@ -224,8 +227,8 @@ corresponding buffer.")
               (make-instance 'xcb:DeleteProperty
                              :window id :property xcb:Atom:WM_STATE))
           (xcb:flush exwm--connection))
-        (setq kill-buffer-query-functions nil)
-        (let ((floating exwm--floating-frame))
+        (let ((kill-buffer-query-functions nil)
+              (floating exwm--floating-frame))
           (kill-buffer)
           (when floating
             (select-window

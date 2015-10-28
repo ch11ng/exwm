@@ -31,7 +31,7 @@
 (eval-when-compile (require 'exwm-workspace))
 
 (defvar exwm-floating-border-width 1 "Border width of the floating window.")
-(defvar exwm-floating-border-color "blue"
+(defvar exwm-floating-border-color "navy"
   "Border color of the floating window.")
 
 (defvar exwm-floating-setup-hook nil
@@ -79,6 +79,8 @@
                        `((minibuffer . nil) ;use the one on workspace
                          (background-color . ,exwm-floating-border-color)
                          (internal-border-width . ,exwm-floating-border-width)
+                         (left . 10000)
+                         (top . 10000)
                          (unsplittable . t))) ;and fix the size later
                     (exwm--unlock))))
          (frame-id (string-to-number (frame-parameter frame 'window-id)))
@@ -155,12 +157,6 @@
         (make-instance 'xcb:ChangeWindowAttributes
                        :window frame-id :value-mask xcb:CW:EventMask
                        :event-mask xcb:EventMask:SubstructureRedirect))
-    ;; Reparent this frame to the original one
-    (xcb:+request exwm--connection
-        (make-instance 'xcb:ReparentWindow
-                       :window outer-id :parent original-id
-                       :x (- x exwm-floating-border-width)
-                       :y (- y exwm-floating-border-width)))
     ;; Save the geometry
     ;; Rationale: the frame will not be ready for some time, thus we cannot
     ;;            infer the correct window size from its geometry.
@@ -182,6 +178,12 @@
         (make-instance 'xcb:ChangeWindowAttributes
                        :window id :value-mask xcb:CW:EventMask
                        :event-mask exwm--client-event-mask))
+    ;; Reparent this frame to the original one
+    (xcb:+request exwm--connection
+        (make-instance 'xcb:ReparentWindow
+                       :window outer-id :parent original-id
+                       :x (- x exwm-floating-border-width)
+                       :y (- y exwm-floating-border-width)))
     (xcb:flush exwm--connection)
     ;; Set window/buffer
     (with-current-buffer (exwm--id->buffer id)
