@@ -43,22 +43,10 @@
 ;; 2. In '~/.emacs', add following lines (please modify accordingly):
 ;;
 ;;    (require 'exwm)
-;;    ;; We always need a way to go back from char-mode to line-mode
-;;    (exwm-input-set-key (kbd "s-r") 'exwm-reset)
-;;    ;; Bind a key to switch workspace interactively
-;;    (exwm-input-set-key (kbd "s-w") 'exwm-workspace-switch)
-;;    ;; Use class name to name an EXWM buffer
-;;    (add-hook 'exwm-update-class-hook
-;;              (lambda () (exwm-workspace-rename-buffer exwm-class-name t)))
-;;    ;; Enable EXWM
-;;    (exwm-enable)
+;;    (require 'exwm-config)
+;;    (exwm-config-default)
 ;;
-;; 3. Make a file '~/.xinitrc' with the following lines:
-;;
-;;    # You may need to comment out the next line to disable access control
-;;    #xhost +
-;;    exec emacs
-;;
+;; 3. Link or copy the file 'xinitrc' to '~/.xinitrc'.
 ;; 4. Launch EXWM in a console (e.g. tty1) with
 ;;
 ;;    xinit -- vt01
@@ -600,31 +588,12 @@
                ;; For other types, return the value as-is.
                (t result))))))
 
-(defun exwm--ido-buffer-window-other-frame (orig-fun buffer)
-  "Wrapper for `ido-buffer-window-other-frame' to exclude invisible windows."
-  (with-current-buffer buffer
-    (if (and (eq major-mode 'exwm-mode)
-             (or exwm--floating-frame
-                 (not exwm-layout-show-all-buffers)))
-        ;; `ido-mode' works well with `exwm-mode' buffers
-        (funcall orig-fun buffer)
-      ;; Other buffers should be selected within the same workspace
-      (get-buffer-window buffer exwm-workspace--current))))
-
-(defun exwm--fix-ido-buffer-window-other-frame ()
-  "Fix `ido-buffer-window-other-frame'."
-  (advice-add 'ido-buffer-window-other-frame :around
-              #'exwm--ido-buffer-window-other-frame))
-
-(defun exwm-enable-ido-workaround ()
-  "Enable workarounds for 'ido-mode'."
-  (add-hook 'exwm-init-hook #'exwm--fix-ido-buffer-window-other-frame))
+(define-obsolete-function-alias 'exwm-enable-ido-workaround 'exwm-config-ido
+  "25.1" "Enable workarounds for Ido.")
 
 (defun exwm-disable-ido-workaround ()
-  "Disable workarounds for 'ido-mode'."
-  (remove-hook 'exwm-init-hook #'exwm--fix-ido-buffer-window-other-frame)
-  (advice-remove 'ido-buffer-window-other-frame
-                 #'exwm--ido-buffer-window-other-frame))
+  "This function does nothing actually."
+  (declare (obsolete nil "25.1")))
 
 
 
