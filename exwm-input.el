@@ -99,7 +99,7 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
         (setq exwm-input--focus-window window)
         (when exwm-input--timer (cancel-timer exwm-input--timer))
         (setq exwm-input--timer
-              (run-with-timer 0.01 nil #'exwm-input--update-focus)))
+              (run-with-idle-timer 0.01 nil #'exwm-input--update-focus)))
       (setq exwm-input--redirected nil))))
 
 (defun exwm-input--on-focus-in ()
