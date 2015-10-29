@@ -63,10 +63,6 @@ corresponding buffer.")
   "Manage window ID."
   (exwm--log "Try to manage #x%x" id)
   (catch 'return
-    ;; Ensure it's not managed
-    (when (assoc id exwm--id-buffer-alist)
-      (exwm--log "#x%x is already managed" id)
-      (throw 'return 'managed))
     ;; Ensure it's alive
     (when (xcb:+request-checked+request-check exwm--connection
               (make-instance 'xcb:ChangeWindowAttributes
@@ -363,12 +359,14 @@ corresponding buffer.")
   (let ((obj (make-instance 'xcb:MapRequest)))
     (xcb:unmarshal obj data)
     (with-slots (parent window) obj
-      (if (/= exwm--root parent)
-          (progn (xcb:+request exwm--connection
-                     (make-instance 'xcb:MapWindow :window window))
-                 (xcb:flush exwm--connection))
-        (exwm--log "MapRequest from #x%x" window)
-        (exwm-manage--manage-window window)))))
+      (if (assoc window exwm--id-buffer-alist)
+          (exwm--log "#x%x is already managed" id)
+        (if (/= exwm--root parent)
+            (progn (xcb:+request exwm--connection
+                       (make-instance 'xcb:MapWindow :window window))
+                   (xcb:flush exwm--connection))
+          (exwm--log "MapRequest from #x%x" window)
+          (exwm-manage--manage-window window))))))
 
 (defun exwm-manage--on-UnmapNotify (data synthetic)
   "Handle UnmapNotify event."
