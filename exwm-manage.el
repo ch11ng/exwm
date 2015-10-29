@@ -249,6 +249,8 @@ corresponding buffer.")
 (defun exwm-manage--close-window (id &optional buffer)
   "Close window ID in a proper way."
   (catch 'return
+    (unless (exwm--id->buffer id)
+      (throw 'return t))
     (unless buffer (setq buffer (exwm--id->buffer id)))
     ;; Destroy the client window if it does not support WM_DELETE_WINDOW
     (unless (and (buffer-live-p buffer)
@@ -268,31 +270,33 @@ corresponding buffer.")
                                exwm--connection)))
     (xcb:flush exwm--connection)
     ;; Try to determine if the client stop responding
-    ;; FIXME: check
     (with-current-buffer buffer
-      (when (memq xcb:Atom:_NET_WM_PING exwm--protocols)
-        (setq exwm-manage--ping-lock t)
-        (xcb:+request exwm--connection
-            (make-instance 'xcb:SendEvent
-                           :propagate 0 :destination id
-                           :event-mask xcb:EventMask:NoEvent
-                           :event (xcb:marshal
-                                   (make-instance 'xcb:ewmh:_NET_WM_PING
-                                                  :window id :timestamp 0
-                                                  :client-window id)
-                                   exwm--connection)))
-        (xcb:flush exwm--connection)
-        (with-timeout (exwm-manage-ping-timeout
-                       (if (yes-or-no-p (format "\
-`%s' is not responding. Would you like to kill it? " (buffer-name buffer)))
-                           (progn (exwm-manage--kill-client id)
-                                  (throw 'return nil))
-                         (throw 'return nil)))
-          (while (and exwm-manage--ping-lock
-                      (exwm--id->buffer id)) ;may have be destroyed
-            (accept-process-output nil 0.1)))
-        (throw 'return nil)))
-    (throw 'return nil)))
+      (unless (memq xcb:Atom:_NET_WM_PING exwm--protocols)
+        ;; Ensure it's dead
+        (run-with-timer exwm-manage-ping-timeout nil
+                        `(lambda () (exwm-manage--kill-client ,id)))
+        (throw 'return nil))
+      (setq exwm-manage--ping-lock t)
+      (xcb:+request exwm--connection
+          (make-instance 'xcb:SendEvent
+                         :propagate 0 :destination id
+                         :event-mask xcb:EventMask:NoEvent
+                         :event (xcb:marshal
+                                 (make-instance 'xcb:ewmh:_NET_WM_PING
+                                                :window id :timestamp 0
+                                                :client-window id)
+                                 exwm--connection)))
+      (xcb:flush exwm--connection)
+      (with-timeout (exwm-manage-ping-timeout
+                     (if (yes-or-no-p (format "`%s' is not responding. \
+Would you like to kill it? "
+                                              (buffer-name buffer)))
+                         (progn (exwm-manage--kill-client id)
+                                (throw 'return nil))
+                       (throw 'return nil)))
+        (while (and exwm-manage--ping-lock
+                    (exwm--id->buffer id)) ;may have been destroyed
+          (accept-process-output nil 0.1))))))
 
 (defun exwm-manage--kill-client (&optional id)
   "Kill an X client."
@@ -300,12 +304,17 @@ corresponding buffer.")
   (unless id (setq id (exwm--buffer->id (current-buffer))))
   (let* ((response (xcb:+request-unchecked+reply exwm--connection
                        (make-instance 'xcb:ewmh:get-_NET_WM_PID :window id)))
-         (pid (and response (slot-value response 'value))))
-    (if pid
-        (signal-process pid 'SIGKILL)
-      (xcb:+request exwm--connection
-          (make-instance 'xcb:KillClient :resource id))
-      (xcb:flush exwm--connection))))
+         (pid (and response (slot-value response 'value)))
+         (request (make-instance 'xcb:KillClient :resource id)))
+    (if (not pid)
+        (xcb:+request exwm--connection request)
+      ;; What if the PID is fake/wrong?
+      (signal-process pid 'SIGKILL)
+      ;; Ensure it's dead
+      (run-with-timer exwm-manage-ping-timeout nil
+                      `(lambda ()
+                         (xcb:+request exwm--connection ,request))))
+    (xcb:flush exwm--connection)))
 
 (defun exwm-manage--on-ConfigureRequest (data _synthetic)
   "Handle ConfigureRequest event."

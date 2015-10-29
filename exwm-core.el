@@ -139,8 +139,7 @@
   ;; Kill buffer -> close window
   (add-hook 'kill-buffer-query-functions
             (lambda ()
-              (exwm-manage--close-window exwm--id (current-buffer))
-              nil)
+              (exwm-manage--close-window exwm--id (current-buffer)))
             nil t)
   (setq buffer-read-only t
         left-margin-width nil
