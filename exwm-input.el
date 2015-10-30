@@ -238,7 +238,7 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
   "Update `exwm-input--global-prefix-keys'."
   (when exwm--connection
     (let ((original exwm-input--global-prefix-keys)
-          keysym)
+          keysym keycode)
       (setq exwm-input--global-prefix-keys nil)
       (dolist (i exwm-input--global-keys)
         (cl-pushnew (elt i 0) exwm-input--global-prefix-keys))
@@ -250,15 +250,16 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
                                :modifiers xcb:ModMask:Any))
             (exwm--log "Failed to ungrab keys")
           (dolist (i exwm-input--global-prefix-keys)
-            (setq keysym (xcb:keysyms:event->keysym i))
+            (setq keysym (xcb:keysyms:event->keysym exwm--connection i))
             (when (or (not keysym)
+                      (not (setq keycode (xcb:keysyms:keysym->keycode
+                                          exwm--connection (car keysym))))
                       (xcb:+request-checked+request-check exwm--connection
                           (make-instance 'xcb:GrabKey
                                          :owner-events 0
                                          :grab-window exwm--root
                                          :modifiers (cadr keysym)
-                                         :key (xcb:keysyms:keysym->keycode
-                                               exwm--connection (car keysym))
+                                         :key keycode
                                          :pointer-mode xcb:GrabMode:Async
                                          :keyboard-mode xcb:GrabMode:Async)))
               (user-error "[EXWM] Failed to grab key: %s"
@@ -283,7 +284,8 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
     (let ((keysym (xcb:keysyms:keycode->keysym exwm--connection detail state))
           event minibuffer-window mode)
       (when (and keysym
-                 (setq event (xcb:keysyms:keysym->event keysym state))
+                 (setq event (xcb:keysyms:keysym->event exwm--connection
+                                                        keysym state))
                  (or exwm-input--during-key-sequence
                      (setq minibuffer-window (active-minibuffer-window))
                      (memq real-this-command exwm-input-command-whitelist)
@@ -319,7 +321,9 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
                                              :event id
                                              :mode xcb:NotifyMode:Normal)
                               exwm--connection)))))
-      (when (and keysym (setq event (xcb:keysyms:keysym->event keysym state)))
+      (when (and keysym
+                 (setq event (xcb:keysyms:keysym->event exwm--connection
+                                                        keysym state)))
         (when (eq major-mode 'exwm-mode)
           (setq exwm-input--temp-line-mode t
                 exwm-input--during-key-sequence t)
@@ -392,7 +396,7 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
 
 (defun exwm-input--fake-key (event)
   "Fake a key event equivalent to Emacs event EVENT."
-  (let* ((keysym (xcb:keysyms:event->keysym event))
+  (let* ((keysym (xcb:keysyms:event->keysym exwm--connection event))
          keycode id)
     (unless keysym
       (user-error "[EXWM] Invalid key: %s" (single-key-description event)))
@@ -475,8 +479,10 @@ SIMULATION-KEYS is a list of alist (key-sequence1 . key-sequence2)."
   ;; Refresh keyboard mapping
   (xcb:keysyms:init exwm--connection)
   ;; Convert move/resize buttons
-  (let ((move-key (xcb:keysyms:event->keysym exwm-input-move-event))
-        (resize-key (xcb:keysyms:event->keysym exwm-input-resize-event)))
+  (let ((move-key (xcb:keysyms:event->keysym exwm--connection
+                                             exwm-input-move-event))
+        (resize-key (xcb:keysyms:event->keysym exwm--connection
+                                               exwm-input-resize-event)))
     (unless move-key
       (user-error "[EXWM] Invalid key: %s"
                   (single-key-description exwm-input-move-event)))
