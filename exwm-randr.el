@@ -25,15 +25,21 @@
 ;; tools such as xrandr(1) to properly configure RandR first. This dependency
 ;; may be removed in the future, but more work is needed before that.
 
-;; To use this module, first load/enable it and properly configure the variable
-;; `exwm-randr-workspace-output-plist':
+;; To use this module, load, enable it and configure
+;; `exwm-randr-workspace-output-plist' and `exwm-randr-screen-change-hook'
+;; as follows:
+;;
 ;;   (require 'exwm-randr)
 ;;   (setq exwm-randr-workspace-output-plist '(0 "VGA1"))
+;;   (add-hook 'exwm-randr-screen-change-hook
+;;             (lambda ()
+;;               (start-process-shell-command
+;;                "xrandr" nil "xrandr --output VGA1 --left-of LVDS1 --auto")))
 ;;   (exwm-randr-enable)
-;; Then configure RandR with 'xrandr':
-;;   $ xrandr --output VGA1 --left-of LVDS1 --auto
+;;
 ;; With above lines, workspace 0 should be assigned to the output named "VGA1",
-;; staying at the left of other workspaces on the output "LVDS1".
+;; staying at the left of other workspaces on the output "LVDS1".  Please refer
+;; to xrandr(1) for the configuration of RandR.
 
 ;; References:
 ;; + RandR (http://www.x.org/archive/X11R7.7/doc/randrproto/randrproto.txt)
@@ -109,6 +115,9 @@
                        :data (vconcat viewports)))
     (xcb:flush exwm--connection)))
 
+(defvar exwm-randr-screen-change-hook nil
+  "Normal hook run when screen changes.")
+
 (defun exwm-randr--init ()
   "Initialize RandR extension and EXWM RandR module."
   (if (= 0 (slot-value (xcb:get-extension-data exwm--connection 'xcb:randr)
@@ -125,6 +134,7 @@
         (xcb:+event exwm--connection 'xcb:randr:ScreenChangeNotify
                     (lambda (_data _synthetic)
                       (exwm--log "(RandR) ScreenChangeNotify")
+                      (run-hooks 'exwm-randr-screen-change-hook)
                       (exwm-randr--refresh)))
         ;; (xcb:+event exwm--connection 'xcb:randr:Notify
         ;;             (lambda (_data _synthetic)
