@@ -500,6 +500,9 @@
           (progn (xcb:disconnect exwm--connection)
                  (setq exwm--connection nil)
                  (exwm--log "Other window manager detected"))
+        ;; Disable some features not working well with EXWM
+        (setq use-dialog-box nil
+              display-hourglass nil)
         ;; Initialize ICCCM/EWMH support
         ;; (xcb:icccm:init exwm--connection)
         (xcb:ewmh:init exwm--connection)
