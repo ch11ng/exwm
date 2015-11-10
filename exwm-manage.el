@@ -369,7 +369,7 @@ Would you like to kill it? "
     (xcb:unmarshal obj data)
     (with-slots (parent window) obj
       (if (assoc window exwm--id-buffer-alist)
-          (exwm--log "#x%x is already managed" id)
+          (exwm--log "#x%x is already managed" window)
         (if (/= exwm--root parent)
             (progn (xcb:+request exwm--connection
                        (make-instance 'xcb:MapWindow :window window))
