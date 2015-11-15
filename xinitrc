@@ -1,5 +1,5 @@
 # Disable access control
-xhost +
+xhost +SI:localuser:$USER
 
 # Themes, etc
 gnome-settings-daemon &
