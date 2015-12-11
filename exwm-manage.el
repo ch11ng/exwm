@@ -111,13 +111,17 @@ corresponding buffer.")
         (xcb:+request exwm--connection
             (make-instance 'xcb:MapWindow :window id))
         (with-slots (x y width height) exwm--geometry
-          ;; Reparent to virtual root (essential)
-          (xcb:+request exwm--connection
-              (make-instance 'xcb:ReparentWindow
-                             :window id
-                             :parent (frame-parameter exwm-workspace--current
-                                                      'exwm-window-id)
-                             :x x :y y))
+          ;; Reparent to virtual root
+          (unless (or (memq xcb:Atom:_NET_WM_WINDOW_TYPE_DESKTOP
+                            exwm-window-type)
+                      (memq xcb:Atom:_NET_WM_WINDOW_TYPE_DOCK
+                            exwm-window-type))
+            (xcb:+request exwm--connection
+                (make-instance 'xcb:ReparentWindow
+                               :window id
+                               :parent (frame-parameter exwm-workspace--current
+                                                        'exwm-window-id)
+                               :x x :y y)))
           ;; Center window of type _NET_WM_WINDOW_TYPE_SPLASH
           (when (memq xcb:Atom:_NET_WM_WINDOW_TYPE_SPLASH exwm-window-type)
             (xcb:+request exwm--connection
