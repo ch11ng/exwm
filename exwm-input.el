@@ -152,23 +152,6 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
       (setq exwm-input--temp-line-mode nil)
       (exwm-input--release-keyboard))))
 
-(defun exwm-input--on-MappingNotify (data _synthetic)
-  "Handle MappingNotify event."
-  (let ((obj (make-instance 'xcb:MappingNotify)))
-    (xcb:unmarshal obj data)
-    (with-slots (request first-keycode count) obj
-      (cond
-       ((= request xcb:Mapping:Modifier)
-        ;; Modifier keys changed
-        (exwm--log "Update modifier mapping")
-        (xcb:keysyms:update-modifier-mapping exwm--connection))
-       ((= request xcb:Mapping:Keyboard)
-        ;; Only update changed keys
-        (exwm--log "Update keyboard mapping: %d ~ %d"
-                   first-keycode (+ first-keycode count))
-        (xcb:keysyms:update-keyboard-mapping exwm--connection
-                                             first-keycode count))))))
-
 (defun exwm-input--on-ButtonPress (data _synthetic)
   "Handle ButtonPress event."
   (let ((obj (make-instance 'xcb:ButtonPress))
@@ -494,8 +477,6 @@ SIMULATION-KEYS is a list of alist (key-sequence1 . key-sequence2)."
           exwm-input--resize-keysym (car resize-key)
           exwm-input--resize-mask (cadr resize-key)))
   ;; Attach event listeners
-  (xcb:+event exwm--connection 'xcb:MappingNotify
-              #'exwm-input--on-MappingNotify)
   (xcb:+event exwm--connection 'xcb:KeyPress #'exwm-input--on-KeyPress)
   (xcb:+event exwm--connection 'xcb:ButtonPress #'exwm-input--on-ButtonPress)
   (xcb:+event exwm--connection 'xcb:ButtonRelease
