@@ -38,6 +38,9 @@
   (when exwm-debug-on
     `(message (concat "[EXWM] " ,format-string) ,@args)))
 
+(defmacro exwm--debug (&rest forms)
+  (when exwm-debug-on `(progn ,@forms)))
+
 (defvar exwm--connection nil "X connection.")
 (defvar exwm--root nil "Root window.")
 (defvar exwm--id-buffer-alist nil "Alist of (<X window ID> . <Emacs buffer>).")
@@ -77,12 +80,12 @@
 
 ;; Internal variables
 (defvar-local exwm--id nil)                        ;window ID
+(defvar-local exwm--container nil)                 ;container
 (defvar-local exwm--frame nil)                     ;workspace frame
 (defvar-local exwm--floating-frame nil)            ;floating frame
-(defvar-local exwm--floating-edges nil)            ;four edges
 (defvar-local exwm--floating-mode-line-format nil) ;save mode-line-format
 (defvar-local exwm--fullscreen nil)                ;used in fullscreen
-(defvar-local exwm--floating-frame-geometry nil)   ;in fullscreen
+(defvar-local exwm--floating-frame-position nil)   ;used in fullscreen
 (defvar-local exwm--fixed-size nil)                ;fixed size
 (defvar-local exwm--on-KeyPress         ;KeyPress event handler
   #'exwm-input--on-KeyPress-line-mode)

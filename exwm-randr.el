@@ -48,6 +48,7 @@
 
 (require 'xcb-randr)
 (require 'exwm-core)
+(require 'exwm-layout)
 (eval-when-compile (require 'exwm-workspace))
 
 (defvar exwm-randr-workspace-output-plist nil)
@@ -93,15 +94,10 @@
         (set-frame-parameter frame 'exwm-randr-output output)
         (set-frame-parameter frame 'exwm-geometry geometry)
         (with-slots (x y width height) geometry
-          (xcb:+request exwm--connection
-              (make-instance 'xcb:ConfigureWindow
-                             :window (frame-parameter frame 'exwm-outer-id)
-                             :value-mask (eval-when-compile
-                                           (logior xcb:ConfigWindow:X
-                                                   xcb:ConfigWindow:Y
-                                                   xcb:ConfigWindow:Width
-                                                   xcb:ConfigWindow:Height))
-                             :x x :y y :width width :height height))
+          (exwm-layout--resize-container (frame-parameter frame 'exwm-outer-id)
+                                         (frame-parameter frame
+                                                          'exwm-workspace)
+                                         x y width height)
           (setq workareas (nconc workareas (list x y width height))
                 viewports (nconc viewports (list x y))))))
     ;; Update _NET_WORKAREA
