@@ -110,20 +110,34 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
             (exwm--log "Set focus on #x%x" exwm--id)
             (exwm-input--set-focus exwm--id)
             ;; Adjust stacking orders
-            (xcb:+request exwm--connection
-                (make-instance 'xcb:ConfigureWindow
-                               :window exwm--container
-                               :value-mask xcb:ConfigWindow:StackMode
-                               :stack-mode (if exwm--floating-frame
-                                               xcb:StackMode:Above
-                                             xcb:StackMode:Below)))
+            (if exwm--floating-frame
+                ;; Put this floating X window at top.
+                (xcb:+request exwm--connection
+                    (make-instance 'xcb:ConfigureWindow
+                                   :window exwm--container
+                                   :value-mask xcb:ConfigWindow:StackMode
+                                   :stack-mode xcb:StackMode:TopIf))
+              ;; This should be the last X window but one in the siblings.
+              (with-slots (children)
+                  (xcb:+request-unchecked+reply exwm--connection
+                      (make-instance 'xcb:QueryTree
+                                     :window
+                                     (frame-parameter exwm--frame
+                                                      'exwm-workspace)))
+                (unless (eq (cadr children) exwm--container)
+                  (xcb:+request exwm--connection
+                      (make-instance 'xcb:ConfigureWindow
+                                     :window exwm--container
+                                     :value-mask xcb:ConfigWindow:StackMode
+                                     :stack-mode xcb:StackMode:Below)))))
+            ;; Make sure Emacs frames are at bottom.
             (xcb:+request exwm--connection
                 (make-instance 'xcb:ConfigureWindow
                                :window (frame-parameter
                                         (or exwm--floating-frame exwm--frame)
                                         'exwm-outer-id)
                                :value-mask xcb:ConfigWindow:StackMode
-                               :stack-mode xcb:StackMode:Below))
+                               :stack-mode xcb:StackMode:BottomIf))
             (xcb:flush exwm--connection))
         (when (eq (selected-window) exwm-input--focus-window)
           (exwm--log "Focus on %s" exwm-input--focus-window)
