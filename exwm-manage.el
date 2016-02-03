@@ -120,7 +120,7 @@ corresponding buffer.")
                 (make-instance 'xcb:ReparentWindow
                                :window id
                                :parent (frame-parameter exwm-workspace--current
-                                                        'exwm-window-id)
+                                                        'exwm-workspace)
                                :x x :y y)))
           ;; Center window of type _NET_WM_WINDOW_TYPE_SPLASH
           (when (memq xcb:Atom:_NET_WM_WINDOW_TYPE_SPLASH exwm-window-type)
@@ -145,10 +145,34 @@ corresponding buffer.")
         (throw 'return 'ignored))
       ;; Manage the window
       (exwm--log "Manage #x%x" id)
+      ;; Create a new container as the parent of this X window
+      (setq exwm--container (xcb:generate-id exwm--connection))
+      (xcb:+request exwm--connection
+          (make-instance 'xcb:CreateWindow
+                         :depth 0 :wid exwm--container
+                         :parent (frame-parameter exwm-workspace--current
+                                                  'exwm-workspace)
+                         :x 0 :y 0 :width 1 :height 1 :border-width 0
+                         :class xcb:WindowClass:CopyFromParent
+                         :visual 0      ;CopyFromParent
+                         :value-mask (logior xcb:CW:OverrideRedirect
+                                             xcb:CW:EventMask)
+                         :override-redirect 1
+                         :event-mask xcb:EventMask:SubstructureRedirect))
+      (exwm--debug
+       (xcb:+request exwm--connection
+           (make-instance 'xcb:ewmh:set-_NET_WM_NAME
+                          :window exwm--container
+                          :data (format "EXWM container for 0x%x" id))))
+      (xcb:+request exwm--connection
+          (make-instance 'xcb:ReparentWindow
+                         :window id :parent exwm--container :x 0 :y 0))
       (xcb:+request exwm--connection    ;remove border
           (make-instance 'xcb:ConfigureWindow
                          :window id :value-mask xcb:ConfigWindow:BorderWidth
                          :border-width 0))
+      ;; (xcb:+request exwm--connection    ;map the window
+      ;;     (make-instance 'xcb:MapWindow :window id))
       (dolist (button       ;grab buttons to set focus / move / resize
                (list xcb:ButtonIndex:1 xcb:ButtonIndex:2 xcb:ButtonIndex:3))
         (xcb:+request-checked+request-check exwm--connection
@@ -190,9 +214,8 @@ corresponding buffer.")
     (xcb:flush exwm--connection)
     (when (buffer-live-p buffer)
       (with-current-buffer buffer
-        (when exwm--floating-frame
-          (make-frame-invisible exwm--floating-frame)
-          (redisplay))
+        (xcb:+request exwm--connection
+            (make-instance 'xcb:UnmapWindow :window exwm--container))
         (setq exwm-workspace--switch-history-outdated t)
         ;;
         (when withdraw-only
@@ -207,9 +230,7 @@ corresponding buffer.")
               (setq geometry-parent
                     (xcb:+request-unchecked+reply exwm--connection
                         (make-instance 'xcb:GetGeometry
-                                       :drawable
-                                       (frame-parameter exwm--floating-frame
-                                                        'exwm-outer-id)))
+                                       :drawable exwm--container))
                     geometry (xcb:+request-unchecked+reply exwm--connection
                                  (make-instance 'xcb:GetGeometry
                                                 :drawable id)))
@@ -227,6 +248,13 @@ corresponding buffer.")
               (make-instance 'xcb:DeleteProperty
                              :window id :property xcb:Atom:WM_STATE))
           (xcb:flush exwm--connection))
+        ;; Destroy the container (it seems it has to be delayed).
+        (run-with-idle-timer 0 nil
+                             `(lambda ()
+                                (xcb:+request exwm--connection
+                                    ,(make-instance 'xcb:DestroyWindow
+                                                    :window exwm--container))
+                                (xcb:flush exwm--connection)))
         (let ((kill-buffer-query-functions nil)
               (floating exwm--floating-frame))
           (kill-buffer)
@@ -252,55 +280,62 @@ corresponding buffer.")
 ;;;###autoload
 (defun exwm-manage--close-window (id &optional buffer)
   "Close window ID in a proper way."
-  (catch 'return
-    (unless (exwm--id->buffer id)
-      (throw 'return t))
-    (unless buffer (setq buffer (exwm--id->buffer id)))
-    ;; Destroy the client window if it does not support WM_DELETE_WINDOW
-    (unless (and (buffer-live-p buffer)
-                 (with-current-buffer buffer
-                   (memq xcb:Atom:WM_DELETE_WINDOW exwm--protocols)))
-      (xcb:+request exwm--connection
-          (make-instance 'xcb:DestroyWindow :window id))
-      (xcb:flush exwm--connection)
-      (throw 'return nil))
-    ;; Try to close the window with WM_DELETE_WINDOW client message
-    (xcb:+request exwm--connection
-        (make-instance 'xcb:icccm:SendEvent
-                       :destination id
-                       :event (xcb:marshal
-                               (make-instance 'xcb:icccm:WM_DELETE_WINDOW
-                                              :window id)
-                               exwm--connection)))
-    (xcb:flush exwm--connection)
-    ;; Try to determine if the client stop responding
-    (with-current-buffer buffer
-      (unless (memq xcb:Atom:_NET_WM_PING exwm--protocols)
-        ;; Ensure it's dead
-        (run-with-timer exwm-manage-ping-timeout nil
-                        `(lambda () (exwm-manage--kill-client ,id)))
+  (let (container)
+    (catch 'return
+      (unless (exwm--id->buffer id)
+        (throw 'return t))
+      (unless buffer (setq buffer (exwm--id->buffer id)))
+      (when (buffer-live-p buffer)
+        (setq container exwm--container))
+      ;; Destroy the client window if it does not support WM_DELETE_WINDOW
+      (unless (and (buffer-live-p buffer)
+                   (with-current-buffer buffer
+                     (memq xcb:Atom:WM_DELETE_WINDOW exwm--protocols)))
+        (xcb:+request exwm--connection
+            (make-instance 'xcb:DestroyWindow :window id))
+        (xcb:flush exwm--connection)
         (throw 'return nil))
-      (setq exwm-manage--ping-lock t)
+      ;; Try to close the window with WM_DELETE_WINDOW client message
       (xcb:+request exwm--connection
-          (make-instance 'xcb:SendEvent
-                         :propagate 0 :destination id
-                         :event-mask xcb:EventMask:NoEvent
+          (make-instance 'xcb:icccm:SendEvent
+                         :destination id
                          :event (xcb:marshal
-                                 (make-instance 'xcb:ewmh:_NET_WM_PING
-                                                :window id :timestamp 0
-                                                :client-window id)
+                                 (make-instance 'xcb:icccm:WM_DELETE_WINDOW
+                                                :window id)
                                  exwm--connection)))
       (xcb:flush exwm--connection)
-      (with-timeout (exwm-manage-ping-timeout
-                     (if (yes-or-no-p (format "`%s' is not responding. \
+      ;; Try to determine if the client stop responding
+      (with-current-buffer buffer
+        (unless (memq xcb:Atom:_NET_WM_PING exwm--protocols)
+          ;; Ensure it's dead
+          (run-with-timer exwm-manage-ping-timeout nil
+                          `(lambda () (exwm-manage--kill-client ,id)))
+          (throw 'return nil))
+        (setq exwm-manage--ping-lock t)
+        (xcb:+request exwm--connection
+            (make-instance 'xcb:SendEvent
+                           :propagate 0 :destination id
+                           :event-mask xcb:EventMask:NoEvent
+                           :event (xcb:marshal
+                                   (make-instance 'xcb:ewmh:_NET_WM_PING
+                                                  :window id :timestamp 0
+                                                  :client-window id)
+                                   exwm--connection)))
+        (xcb:flush exwm--connection)
+        (with-timeout (exwm-manage-ping-timeout
+                       (if (yes-or-no-p (format "`%s' is not responding. \
 Would you like to kill it? "
-                                              (buffer-name buffer)))
-                         (progn (exwm-manage--kill-client id)
-                                (throw 'return nil))
-                       (throw 'return nil)))
-        (while (and exwm-manage--ping-lock
-                    (exwm--id->buffer id)) ;may have been destroyed
-          (accept-process-output nil 0.1))))))
+                                                (buffer-name buffer)))
+                           (progn (exwm-manage--kill-client id)
+                                  (throw 'return nil))
+                         (throw 'return nil)))
+          (while (and exwm-manage--ping-lock
+                      (exwm--id->buffer id)) ;may have been destroyed
+            (accept-process-output nil 0.1)))))
+    ;; Finally destroy the container
+    (xcb:+request exwm--connection
+        (make-instance 'xcb:DestroyWindow :window container))
+    (xcb:flush exwm--connection)))
 
 (defun exwm-manage--kill-client (&optional id)
   "Kill an X client."
@@ -338,9 +373,8 @@ Would you like to kill it? "
                       (list 0 0
                             (frame-pixel-width exwm-workspace--current)
                             (frame-pixel-height exwm-workspace--current))
-                    (or exwm--floating-edges
-                        (window-inside-absolute-pixel-edges
-                         (get-buffer-window buffer t)))))
+                    (window-inside-absolute-pixel-edges
+                     (get-buffer-window buffer t))))
             (exwm--log "Reply with ConfigureNotify (edges): %s" edges)
             (xcb:+request exwm--connection
                 (make-instance 'xcb:SendEvent

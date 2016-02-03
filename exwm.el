@@ -501,8 +501,7 @@
                  (setq exwm--connection nil)
                  (exwm--log "Other window manager detected"))
         ;; Disable some features not working well with EXWM
-        (setq use-dialog-box nil
-              display-hourglass nil)
+        (setq use-dialog-box nil)
         ;; Initialize ICCCM/EWMH support
         ;; (xcb:icccm:init exwm--connection)
         (xcb:ewmh:init exwm--connection)
@@ -511,9 +510,9 @@
         (exwm-layout--init)
         (exwm-floating--init)
         (exwm-manage--init)
+        (exwm-workspace--init)
         (exwm-input--init)
         (exwm--unlock)
-        (exwm-workspace--init)
         ;; Manage existing windows
         (exwm-manage--scan)
         (run-hooks 'exwm-init-hook)))))

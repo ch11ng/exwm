@@ -79,8 +79,6 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
       (xcb:flush exwm--connection))))
 
 (defvar exwm-input--focus-window nil "The (Emacs) window to be focused.")
-(defvar exwm-input--redirected nil
-  "Indicate next update on buffer list is actually a result of redirection.")
 (defvar exwm-input--timer nil "Currently running timer.")
 
 (defun exwm-input--on-buffer-list-update ()
@@ -89,25 +87,12 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
         (window (selected-window))
         (buffer (current-buffer)))
     (when (and (not (minibufferp buffer))
-               (frame-parameter frame 'exwm-window-id) ;e.g. emacsclient frame
+               (frame-parameter frame 'exwm-outer-id) ;e.g. emacsclient frame
                (eq buffer (window-buffer))) ;e.g. `with-temp-buffer'
-      (unless (and exwm-input--redirected
-                   exwm-input--focus-window
-                   (with-current-buffer (window-buffer
-                                         exwm-input--focus-window)
-                     exwm--floating-frame))
-        (setq exwm-input--focus-window window)
-        (when exwm-input--timer (cancel-timer exwm-input--timer))
-        (setq exwm-input--timer
-              (run-with-idle-timer 0.01 nil #'exwm-input--update-focus)))
-      (setq exwm-input--redirected nil))))
-
-(defun exwm-input--on-focus-in ()
-  "Run in focus-in-hook to remove redirected focus on frame."
-  (let ((frame (selected-frame)))
-    (when (and (frame-parameter frame 'exwm-window-id)
-               (not (memq frame exwm-workspace--list)))
-      (setq exwm-input--redirected t))))
+      (when exwm-input--timer (cancel-timer exwm-input--timer))
+      (setq exwm-input--focus-window window
+            exwm-input--timer
+            (run-with-idle-timer 0.01 nil #'exwm-input--update-focus)))))
 
 (defun exwm-input--update-focus ()
   "Update input focus."
@@ -122,21 +107,55 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
                 (force-mode-line-update)
                 ;; The application may have changed its input focus
                 (exwm-workspace-switch exwm-workspace-current-index t))
-            (when exwm--floating-frame
-              (redirect-frame-focus exwm--floating-frame nil)
-              (select-frame-set-input-focus exwm--floating-frame t))
             (exwm--log "Set focus on #x%x" exwm--id)
-            (exwm-input--set-focus exwm--id))
+            (exwm-input--set-focus exwm--id)
+            ;; Adjust stacking orders
+            (if exwm--floating-frame
+                ;; Put this floating X window at top.
+                (xcb:+request exwm--connection
+                    (make-instance 'xcb:ConfigureWindow
+                                   :window exwm--container
+                                   :value-mask xcb:ConfigWindow:StackMode
+                                   :stack-mode xcb:StackMode:TopIf))
+              ;; This should be the last X window but one in the siblings.
+              (with-slots (children)
+                  (xcb:+request-unchecked+reply exwm--connection
+                      (make-instance 'xcb:QueryTree
+                                     :window
+                                     (frame-parameter exwm--frame
+                                                      'exwm-workspace)))
+                (unless (eq (cadr children) exwm--container)
+                  (xcb:+request exwm--connection
+                      (make-instance 'xcb:ConfigureWindow
+                                     :window exwm--container
+                                     :value-mask xcb:ConfigWindow:StackMode
+                                     :stack-mode xcb:StackMode:Below)))))
+            ;; Make sure Emacs frames are at bottom.
+            (xcb:+request exwm--connection
+                (make-instance 'xcb:ConfigureWindow
+                               :window (frame-parameter
+                                        (or exwm--floating-frame exwm--frame)
+                                        'exwm-outer-id)
+                               :value-mask xcb:ConfigWindow:StackMode
+                               :stack-mode xcb:StackMode:BottomIf))
+            (xcb:flush exwm--connection))
         (when (eq (selected-window) exwm-input--focus-window)
           (exwm--log "Focus on %s" exwm-input--focus-window)
           (select-frame-set-input-focus (window-frame exwm-input--focus-window)
                                         t)
-          (dolist (pair exwm--id-buffer-alist)
-            (with-current-buffer (cdr pair)
-              (when (and exwm--floating-frame
-                         (eq exwm--frame exwm-workspace--current))
-                (redirect-frame-focus exwm--floating-frame exwm--frame))))))
+          (xcb:+request exwm--connection
+              (make-instance 'xcb:ConfigureWindow
+                             :window (frame-parameter
+                                      (window-frame exwm-input--focus-window)
+                                      'exwm-outer-id)
+                             :value-mask xcb:ConfigWindow:StackMode
+                             :stack-mode xcb:StackMode:Below))
+          (xcb:flush exwm--connection)))
       (setq exwm-input--focus-window nil))))
+
+(defun exwm-input--on-minibuffer-setup ()
+  "Run in minibuffer-setup-hook to set input focus to the frame."
+  (x-focus-frame (selected-frame)))
 
 (defvar exwm-input--during-key-sequence nil
   "Non-nil indicates Emacs is waiting for more keys to form a key sequence.")
@@ -221,32 +240,38 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
   "Update `exwm-input--global-prefix-keys'."
   (when exwm--connection
     (let ((original exwm-input--global-prefix-keys)
-          keysym keycode)
+          keysym keycode ungrab-key grab-key workspace)
       (setq exwm-input--global-prefix-keys nil)
       (dolist (i exwm-input--global-keys)
         (cl-pushnew (elt i 0) exwm-input--global-prefix-keys))
       (unless (equal original exwm-input--global-prefix-keys)
-        ;; Grab global keys on root window
-        (if (xcb:+request-checked+request-check exwm--connection
-                (make-instance 'xcb:UngrabKey
-                               :key xcb:Grab:Any :grab-window exwm--root
-                               :modifiers xcb:ModMask:Any))
-            (exwm--log "Failed to ungrab keys")
-          (dolist (i exwm-input--global-prefix-keys)
-            (setq keysym (xcb:keysyms:event->keysym exwm--connection i))
-            (when (or (not keysym)
-                      (not (setq keycode (xcb:keysyms:keysym->keycode
-                                          exwm--connection (car keysym))))
-                      (xcb:+request-checked+request-check exwm--connection
-                          (make-instance 'xcb:GrabKey
-                                         :owner-events 0
-                                         :grab-window exwm--root
-                                         :modifiers (cadr keysym)
-                                         :key keycode
-                                         :pointer-mode xcb:GrabMode:Async
-                                         :keyboard-mode xcb:GrabMode:Async)))
-              (user-error "[EXWM] Failed to grab key: %s"
-                          (single-key-description i)))))))))
+        (setq ungrab-key (make-instance 'xcb:UngrabKey
+                                        :key xcb:Grab:Any :grab-window nil
+                                        :modifiers xcb:ModMask:Any)
+              grab-key (make-instance 'xcb:GrabKey
+                                      :owner-events 0
+                                      :grab-window nil
+                                      :modifiers nil
+                                      :key nil
+                                      :pointer-mode xcb:GrabMode:Async
+                                      :keyboard-mode xcb:GrabMode:Async))
+        (dolist (w exwm-workspace--list)
+          (setq workspace (frame-parameter w 'exwm-workspace))
+          (setf (slot-value ungrab-key 'grab-window) workspace)
+          (if (xcb:+request-checked+request-check exwm--connection ungrab-key)
+              (exwm--log "Failed to ungrab keys")
+            (dolist (k exwm-input--global-prefix-keys)
+              (setq keysym (xcb:keysyms:event->keysym exwm--connection k)
+                    keycode (xcb:keysyms:keysym->keycode exwm--connection
+                                                         (car keysym)))
+              (setf (slot-value grab-key 'grab-window) workspace
+                    (slot-value grab-key 'modifiers) (cadr keysym)
+                    (slot-value grab-key 'key) keycode)
+              (when (or (not keycode)
+                        (xcb:+request-checked+request-check exwm--connection
+                            grab-key))
+                (user-error "[EXWM] Failed to grab key: %s"
+                            (single-key-description k))))))))))
 
 (defun exwm-input-set-key (key command)
   "Set a global key binding."
@@ -289,21 +314,6 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
   (with-slots (detail state) key-press
     (let ((keysym (xcb:keysyms:keycode->keysym exwm--connection detail state))
           event)
-      ;; Compensate FocusOut event (prevent cursor style change)
-      (unless (eq major-mode 'exwm-mode)
-        (let ((id (frame-parameter nil 'exwm-window-id)))
-          (xcb:+request exwm--connection
-              (make-instance 'xcb:SendEvent
-                             :propagate 0
-                             :destination id
-                             :event-mask xcb:EventMask:StructureNotify
-                             :event
-                             (xcb:marshal
-                              (make-instance 'xcb:FocusIn
-                                             :detail xcb:NotifyDetail:Inferior
-                                             :event id
-                                             :mode xcb:NotifyMode:Normal)
-                              exwm--connection)))))
       (when (and keysym
                  (setq event (xcb:keysyms:keysym->event exwm--connection
                                                         keysym state)))
@@ -324,7 +334,10 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
   (when id
     (when (xcb:+request-checked+request-check exwm--connection
               (make-instance 'xcb:GrabKey
-                             :owner-events 0 :grab-window id
+                             :owner-events 0
+                             :grab-window
+                             (with-current-buffer (exwm--id->buffer id)
+                               exwm--container)
                              :modifiers xcb:ModMask:Any
                              :key xcb:Grab:Any
                              :pointer-mode xcb:GrabMode:Async
@@ -338,7 +351,10 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
   (when id
     (when (xcb:+request-checked+request-check exwm--connection
               (make-instance 'xcb:UngrabKey
-                             :key xcb:Grab:Any :grab-window id
+                             :key xcb:Grab:Any
+                             :grab-window
+                             (with-current-buffer (exwm--id->buffer id)
+                               exwm--container)
                              :modifiers xcb:ModMask:Any))
       (exwm--log "Failed to release keyboard for #x%x" id))
     (setq exwm--on-KeyPress #'exwm-input--on-KeyPress-char-mode)))
@@ -487,7 +503,7 @@ SIMULATION-KEYS is a list of alist (key-sequence1 . key-sequence2)."
   (add-hook 'pre-command-hook #'exwm-input--finish-key-sequence)
   ;; Update focus when buffer list updates
   (add-hook 'buffer-list-update-hook #'exwm-input--on-buffer-list-update)
-  (add-hook 'focus-in-hook #'exwm-input--on-focus-in)
+  (add-hook 'minibuffer-setup-hook #'exwm-input--on-minibuffer-setup)
   ;; Update prefix keys for global keys
   (exwm-input--update-global-prefix-keys))
 

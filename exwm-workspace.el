@@ -122,22 +122,16 @@ The optional FORCE option is for internal use only."
     (unless (and (<= 0 index) (< index exwm-workspace-number))
       (user-error "[EXWM] Workspace index out of range: %d" index))
     (when (or force (/= exwm-workspace-current-index index))
-      (let ((frame (elt exwm-workspace--list index)))
+      (let* ((frame (elt exwm-workspace--list index))
+             (workspace (frame-parameter frame 'exwm-workspace)))
+        (xcb:+request exwm--connection
+            (make-instance 'xcb:ConfigureWindow
+                           :window workspace
+                           :value-mask xcb:ConfigWindow:StackMode
+                           :stack-mode xcb:StackMode:Above))
         (setq exwm-workspace--current frame
               exwm-workspace-current-index index)
-        (select-frame-set-input-focus frame)
-        ;; Move mouse when necessary
-        (let ((position (mouse-pixel-position))
-              x y w h)
-          (unless (eq frame (car position))
-            (setq x (cadr position)
-                  y (cddr position)
-                  w (frame-pixel-width frame)
-                  h (frame-pixel-height frame))
-            (when (or (> x w) (> y h))
-              (setq x (/ w 2)
-                    y (/ h 2)))
-            (set-mouse-pixel-position frame x y)))
+        (select-window (frame-selected-window frame))
         ;; Close the (possible) active minibuffer
         (when (active-minibuffer-window)
           (run-with-idle-timer 0 nil (lambda () (abort-recursive-edit))))
@@ -160,16 +154,6 @@ The optional FORCE option is for internal use only."
             (make-instance 'xcb:ewmh:set-_NET_CURRENT_DESKTOP
                            :window exwm--root :data index))
         (xcb:flush exwm--connection)))))
-
-(defun exwm-workspace--on-focus-in ()
-  "Fix unexpected frame switch."
-  ;; `focus-in-hook' is run by `handle-switch-frame'
-  (unless (eq this-command 'handle-switch-frame)
-    (let ((index (cl-position (selected-frame) exwm-workspace--list)))
-      (exwm--log "Focus on workspace %s" index)
-      (when (and index (/= index exwm-workspace-current-index))
-        (exwm--log "Workspace was switched unexpectedly")
-        (exwm-workspace-switch index)))))
 
 ;;;###autoload
 (defun exwm-workspace-move-window (index &optional id)
@@ -204,10 +188,9 @@ The optional FORCE option is for internal use only."
             (progn
               (xcb:+request exwm--connection
                   (make-instance 'xcb:ReparentWindow
-                                 :window (frame-parameter exwm--floating-frame
-                                                          'exwm-outer-id)
-                                 :parent (frame-parameter frame
-                                                          'exwm-window-id)
+                                 :window exwm--container
+                                 :parent
+                                 (frame-parameter frame 'exwm-workspace)
                                  :x 0 :y 0))
               (xcb:flush exwm--connection))
           ;; Move the window itself
@@ -222,8 +205,10 @@ The optional FORCE option is for internal use only."
           (exwm-layout--hide id)
           (xcb:+request exwm--connection
               (make-instance 'xcb:ReparentWindow
-                             :window id
-                             :parent (frame-parameter frame 'exwm-window-id)
+                             ;; (current-buffer) is changed.
+                             :window (with-current-buffer (exwm--id->buffer id)
+                                       exwm--container)
+                             :parent (frame-parameter frame 'exwm-workspace)
                              :x 0 :y 0))
           (xcb:flush exwm--connection)
           (set-window-buffer (frame-selected-window frame)
@@ -303,50 +288,58 @@ The optional FORCE option is for internal use only."
     (set-frame-parameter (car exwm-workspace--list) 'client nil))
   ;; Create remaining frames
   (dotimes (_ (1- exwm-workspace-number))
-    (nconc exwm-workspace--list
-           (list (make-frame '((window-system . x)
-                               (visibility . nil))))))
+    (nconc exwm-workspace--list (list (make-frame '((window-system . x))))))
   ;; Configure workspaces
   (dolist (i exwm-workspace--list)
-    (let ((window-id (string-to-number (frame-parameter i 'window-id)))
-          (outer-id (string-to-number (frame-parameter i 'outer-window-id))))
+    (let ((outer-id (string-to-number (frame-parameter i 'outer-window-id)))
+          (workspace (xcb:generate-id exwm--connection)))
       ;; Save window IDs
-      (set-frame-parameter i 'exwm-window-id window-id)
       (set-frame-parameter i 'exwm-outer-id outer-id)
+      (set-frame-parameter i 'exwm-workspace workspace)
       ;; Set OverrideRedirect on all frames
       (xcb:+request exwm--connection
           (make-instance 'xcb:ChangeWindowAttributes
                          :window outer-id :value-mask xcb:CW:OverrideRedirect
                          :override-redirect 1))
-      ;; Select events on all virtual roots
       (xcb:+request exwm--connection
-          (make-instance 'xcb:ChangeWindowAttributes
-                         :window window-id :value-mask xcb:CW:EventMask
-                         :event-mask xcb:EventMask:SubstructureRedirect))))
+          (make-instance 'xcb:CreateWindow
+                         :depth 0 :wid workspace :parent exwm--root
+                         :x 0 :y 0
+                         :width (x-display-pixel-width)
+                         :height (x-display-pixel-height)
+                         :border-width 0 :class xcb:WindowClass:CopyFromParent
+                         :visual 0      ;CopyFromParent
+                         :value-mask (logior xcb:CW:OverrideRedirect
+                                             xcb:CW:EventMask)
+                         :override-redirect 1
+                         :event-mask xcb:EventMask:SubstructureRedirect))
+      (exwm--debug
+       (xcb:+request exwm--connection
+           (make-instance 'xcb:ewmh:set-_NET_WM_NAME
+                          :window workspace
+                          :data
+                          (format "EXWM workspace %d"
+                                  (cl-position i exwm-workspace--list)))))
+      (xcb:+request exwm--connection
+          (make-instance 'xcb:ReparentWindow
+                         :window outer-id :parent workspace :x 0 :y 0))
+      (xcb:+request exwm--connection
+          (make-instance 'xcb:MapWindow :window workspace))))
   (xcb:flush exwm--connection)
   ;; We have to advice `x-create-frame' or every call to it would hang EXWM
   (advice-add 'x-create-frame :around #'exwm-workspace--x-create-frame)
-  ;; We have to delay making the frame visible until the
-  ;; override-redirect flag has been set.
-  (select-frame-set-input-focus (car exwm-workspace--list))
-  (dolist (i exwm-workspace--list)
-    (set-frame-parameter i 'visibility t)
-    (lower-frame i))
   ;; Delay making the workspaces fullscreen until Emacs becomes idle
   (run-with-idle-timer 0 nil
                        (lambda ()
                          (dolist (i exwm-workspace--list)
                            (set-frame-parameter i 'fullscreen 'fullboth))))
-  (raise-frame (car exwm-workspace--list))
-  ;; Handle unexpected frame switch
-  (add-hook 'focus-in-hook #'exwm-workspace--on-focus-in)
   ;; Set _NET_VIRTUAL_ROOTS
   (xcb:+request exwm--connection
       (make-instance 'xcb:ewmh:set-_NET_VIRTUAL_ROOTS
                      :window exwm--root
                      :data (vconcat (mapcar
                                      (lambda (i)
-                                       (frame-parameter i 'exwm-window-id))
+                                       (frame-parameter i 'exwm-workspace))
                                      exwm-workspace--list))))
   ;; Switch to the first workspace
   (exwm-workspace-switch 0 t))
