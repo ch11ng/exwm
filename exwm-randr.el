@@ -55,7 +55,8 @@
 
 (defun exwm-randr--refresh ()
   "Refresh workspaces according to the updated RandR info."
-  (let (output-name geometry output-plist default-geometry workareas viewports)
+  (let (output-name geometry output-plist default-geometry workareas
+                    workarea-offset viewports)
     ;; Query all outputs
     (with-slots (config-timestamp outputs)
         (xcb:+request-unchecked+reply exwm--connection
@@ -84,6 +85,10 @@
               (unless default-geometry ;assume the first output as primary
                 (setq default-geometry geometry)))))))
     (cl-assert (<= 2 (length output-plist)))
+    (exwm--log "(randr) outputs: %s" output-plist)
+    (setq workarea-offset (if exwm-workspace-minibuffer-position
+                              0
+                            (window-pixel-height (minibuffer-window))))
     (dotimes (i exwm-workspace-number)
       (let* ((output (plist-get exwm-randr-workspace-output-plist i))
              (geometry (lax-plist-get output-plist output))
@@ -98,7 +103,9 @@
                                          (frame-parameter frame
                                                           'exwm-workspace)
                                          x y width height)
-          (setq workareas (nconc workareas (list x y width height))
+          (setq workareas
+                (nconc workareas (list x y width (- height
+                                                    workarea-offset)))
                 viewports (nconc viewports (list x y))))))
     ;; Update _NET_WORKAREA
     (xcb:+request exwm--connection
@@ -109,7 +116,9 @@
         (make-instance 'xcb:ewmh:set-_NET_DESKTOP_VIEWPORT
                        :window exwm--root
                        :data (vconcat viewports)))
-    (xcb:flush exwm--connection)))
+    (xcb:flush exwm--connection))
+  ;; Force update workspace settings.
+  (exwm-workspace-switch exwm-workspace-current-index t))
 
 (defvar exwm-randr-screen-change-hook nil
   "Normal hook run when screen changes.")
@@ -126,6 +135,8 @@
       (if (or (/= major-version 1) (< minor-version 2))
           (error "[EXWM] The server only support RandR version up to %d.%d"
                  major-version minor-version)
+        ;; External monitor(s) may already be connected.
+        (run-hooks 'exwm-randr-screen-change-hook)
         (exwm-randr--refresh)
         (xcb:+event exwm--connection 'xcb:randr:ScreenChangeNotify
                     (lambda (_data _synthetic)

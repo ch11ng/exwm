@@ -341,7 +341,9 @@
                                  :window id
                                  :data (vector
                                         xcb:Atom:_NET_WM_STATE_FULLSCREEN)))
-	      (xcb:flush exwm--connection))))
+	      (xcb:flush exwm--connection)))
+          ;; Force update workspace settings.
+          (exwm-workspace-switch exwm-workspace-current-index t))
         (when buffer                    ;ensure it's managed
           (with-current-buffer buffer
             ;; _NET_WM_STATE_MODAL
