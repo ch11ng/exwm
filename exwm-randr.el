@@ -103,8 +103,9 @@
                                          (frame-parameter frame
                                                           'exwm-workspace)
                                          x y width height)
-          (when (eq frame exwm-workspace--current)
-            (exwm-workspace--resize-minibuffer width height))
+          (when (and (eq frame exwm-workspace--current)
+                     (exwm-workspace--minibuffer-own-frame-p))
+            (exwm-workspace--resize-minibuffer-frame width height))
           (setq workareas
                 (nconc workareas (list x y width (- height
                                                     workarea-offset)))

@@ -111,11 +111,16 @@ Value nil means to use the default position which is fixed at bottom, while
 (defvar exwm-workspace--display-echo-area-timer nil
   "Timer for auto-hiding echo area.")
 
-(defun exwm-workspace--resize-minibuffer (&optional width height)
+(defun exwm-workspace--minibuffer-own-frame-p ()
+  "Reports whether the minibuffer is displayed in its own frame."
+  (memq exwm-workspace-minibuffer-position '(top bottom)))
+
+(defun exwm-workspace--resize-minibuffer-frame (&optional width height)
   "Resize minibuffer (and its container) to fit the size of workspace.
 
 If WIDTH and HEIGHT of the workspace is not specified, they're get from the
 workspace frame."
+  (cl-assert (exwm-workspace--minibuffer-own-frame-p))
   (let ((y (if (eq exwm-workspace-minibuffer-position 'top)
                0
              (- (or height (frame-pixel-height exwm-workspace--current))
@@ -168,7 +173,7 @@ The optional FORCE option is for internal use only."
         ;; Close the (possible) active minibuffer
         (when (active-minibuffer-window)
           (run-with-idle-timer 0 nil (lambda () (abort-recursive-edit))))
-        (if (not (memq exwm-workspace-minibuffer-position '(top bottom)))
+        (if (not (exwm-workspace--minibuffer-own-frame-p))
             (setq default-minibuffer-frame frame)
           ;; Resize/reposition the minibuffer frame
           (xcb:+request exwm--connection
@@ -178,7 +183,7 @@ The optional FORCE option is for internal use only."
                                               'exwm-container)
                              :parent (frame-parameter frame 'exwm-workspace)
                              :x 0 :y 0))
-          (exwm-workspace--resize-minibuffer))
+          (exwm-workspace--resize-minibuffer-frame))
         ;; Hide windows in other workspaces by preprending a space
         (unless exwm-workspace-show-all-buffers
           (dolist (i exwm--id-buffer-alist)
@@ -459,7 +464,7 @@ This functions is modified from `display-buffer-reuse-window' and
             (0 (y-or-n-p prompt))
             (x (yes-or-no-p (format "[EXWM] %d window%s currently alive. %s"
                                     x (if (= x 1) "" "s") prompt))))))
-  (if (not (memq exwm-workspace-minibuffer-position '(top bottom)))
+  (if (not (exwm-workspace--minibuffer-own-frame-p))
       ;; Initialize workspaces with minibuffers.
       (progn
         (setq exwm-workspace--list (frame-list))

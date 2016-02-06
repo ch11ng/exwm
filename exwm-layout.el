@@ -203,8 +203,9 @@
         (id (frame-parameter frame 'exwm-outer-id))
         (workspace (frame-parameter frame 'exwm-workspace)))
     (with-slots (x y width height) geometry
-      (when (eq frame exwm-workspace--current)
-        (exwm-workspace--resize-minibuffer width height))
+      (when (and (eq frame exwm-workspace--current)
+                 (exwm-workspace--minibuffer-own-frame-p))
+        (exwm-workspace--resize-minibuffer-frame width height))
       (exwm-layout--resize-container id workspace x y width height)
       (xcb:flush exwm--connection))))
 
@@ -395,7 +396,7 @@ See also `exwm-layout-enlarge-window'."
   "Initialize layout module."
   ;; Auto refresh layout
   (add-hook 'window-configuration-change-hook #'exwm-layout--refresh)
-  (unless (memq exwm-workspace-minibuffer-position '(top bottom))
+  (unless (exwm-workspace--minibuffer-own-frame-p)
     ;; Refresh when minibuffer grows
     (add-hook 'minibuffer-setup-hook #'exwm-layout--on-minibuffer-setup t)
     (run-with-idle-timer 0 t #'exwm-layout--on-echo-area-change t)

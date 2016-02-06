@@ -111,7 +111,7 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
             (exwm-input--set-focus exwm--id)
             ;; Adjust stacking orders
             (when exwm--floating-frame
-              (if (memq exwm-workspace-minibuffer-position '(top bottom))
+              (if (exwm-workspace--minibuffer-own-frame-p)
                   ;; Put this floating X window just below the minibuffer.
                   (xcb:+request exwm--connection
                       (make-instance 'xcb:ConfigureWindow
