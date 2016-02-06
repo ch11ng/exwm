@@ -203,6 +203,8 @@
         (id (frame-parameter frame 'exwm-outer-id))
         (workspace (frame-parameter frame 'exwm-workspace)))
     (with-slots (x y width height) geometry
+      (when (eq frame exwm-workspace--current)
+        (exwm-workspace--resize-minibuffer width height))
       (exwm-layout--resize-container id workspace x y width height)
       (xcb:flush exwm--connection))))
 

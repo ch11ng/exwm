@@ -103,6 +103,8 @@
                                          (frame-parameter frame
                                                           'exwm-workspace)
                                          x y width height)
+          (when (eq frame exwm-workspace--current)
+            (exwm-workspace--resize-minibuffer width height))
           (setq workareas
                 (nconc workareas (list x y width (- height
                                                     workarea-offset)))
@@ -116,9 +118,7 @@
         (make-instance 'xcb:ewmh:set-_NET_DESKTOP_VIEWPORT
                        :window exwm--root
                        :data (vconcat viewports)))
-    (xcb:flush exwm--connection))
-  ;; Force update workspace settings.
-  (exwm-workspace-switch exwm-workspace-current-index t))
+    (xcb:flush exwm--connection)))
 
 (defvar exwm-randr-screen-change-hook nil
   "Normal hook run when screen changes.")

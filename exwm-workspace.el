@@ -111,6 +111,29 @@ Value nil means to use the default position which is fixed at bottom, while
 (defvar exwm-workspace--display-echo-area-timer nil
   "Timer for auto-hiding echo area.")
 
+(defun exwm-workspace--resize-minibuffer (&optional width height)
+  "Resize minibuffer (and its container) to fit the size of workspace.
+
+If WIDTH and HEIGHT of the workspace is not specified, they're get from the
+workspace frame."
+  (let ((y (if (eq exwm-workspace-minibuffer-position 'top)
+               0
+             (- (or height (frame-pixel-height exwm-workspace--current))
+                (frame-pixel-height exwm-workspace--minibuffer))))
+        (width (or width (frame-pixel-width exwm-workspace--current)))
+        (container (frame-parameter exwm-workspace--minibuffer
+                                    'exwm-container)))
+    (xcb:+request exwm--connection
+        (make-instance 'xcb:ConfigureWindow
+                       :window container
+                       :value-mask (logior xcb:ConfigWindow:Y
+                                           xcb:ConfigWindow:Width
+                                           xcb:ConfigWindow:StackMode)
+                       :y y
+                       :width width
+                       :stack-mode xcb:StackMode:Above))
+    (set-frame-width exwm-workspace--minibuffer width nil t)))
+
 ;;;###autoload
 (defun exwm-workspace-switch (index &optional force)
   "Switch to workspace INDEX. Query for INDEX if it's not specified.
@@ -148,27 +171,14 @@ The optional FORCE option is for internal use only."
         (if (not (memq exwm-workspace-minibuffer-position '(top bottom)))
             (setq default-minibuffer-frame frame)
           ;; Resize/reposition the minibuffer frame
-          (let ((x 0)
-                (y (if (eq exwm-workspace-minibuffer-position 'top)
-                       0
-                     (- (frame-pixel-height frame)
-                        (frame-pixel-height exwm-workspace--minibuffer))))
-                (width (x-display-pixel-width))
-                (container (frame-parameter exwm-workspace--minibuffer
-                                            'exwm-container)))
-            (xcb:+request exwm--connection
-                (make-instance 'xcb:ReparentWindow
-                               :window container
-                               :parent (frame-parameter frame 'exwm-workspace)
-                               :x x :y y))
-            (xcb:+request exwm--connection
-                (make-instance 'xcb:ConfigureWindow
-                               :window container
-                               :value-mask (logior xcb:ConfigWindow:Width
-                                                   xcb:ConfigWindow:StackMode)
-                               :width width
-                               :stack-mode xcb:StackMode:Above))
-            (set-frame-width exwm-workspace--minibuffer width nil t)))
+          (xcb:+request exwm--connection
+              (make-instance 'xcb:ReparentWindow
+                             :window
+                             (frame-parameter exwm-workspace--minibuffer
+                                              'exwm-container)
+                             :parent (frame-parameter frame 'exwm-workspace)
+                             :x 0 :y 0))
+          (exwm-workspace--resize-minibuffer))
         ;; Hide windows in other workspaces by preprending a space
         (unless exwm-workspace-show-all-buffers
           (dolist (i exwm--id-buffer-alist)
