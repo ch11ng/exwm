@@ -279,10 +279,20 @@
   "Refresh layout when minibuffer grows."
   (run-with-idle-timer 0.01 nil         ;FIXME
                        (lambda ()
-                         (when (and (< 1 (window-height (minibuffer-window)))
-                                    (not (and (eq major-mode 'exwm-mode)
-                                              exwm--floating-frame)))
-                           (exwm-layout--refresh)))))
+                         (when (< 1 (window-height (minibuffer-window)))
+                           (exwm-layout--refresh))))
+  ;; Set input focus on the Emacs frame
+  (x-focus-frame (window-frame (minibuffer-selected-window))))
+
+(defun exwm-layout--on-echo-area-change (&optional dirty)
+  "Run when message arrives or in `echo-area-clear-hook' to refresh layout."
+  (when (and (current-message)
+             (or (cl-position ?\n (current-message))
+                 (> (length (current-message))
+                    (frame-width exwm-workspace--current))))
+    (if dirty
+        (exwm-layout--refresh)
+      (run-with-idle-timer 0.01 nil #'exwm-layout--refresh)))) ;FIXME
 
 (defun exwm-layout-enlarge-window (delta &optional horizontal)
   "Make the selected window DELTA pixels taller.
@@ -383,8 +393,11 @@ See also `exwm-layout-enlarge-window'."
   "Initialize layout module."
   ;; Auto refresh layout
   (add-hook 'window-configuration-change-hook #'exwm-layout--refresh)
-  ;; Refresh when minibuffer grows
-  (add-hook 'minibuffer-setup-hook #'exwm-layout--on-minibuffer-setup t))
+  (unless (memq exwm-workspace-minibuffer-position '(top bottom))
+    ;; Refresh when minibuffer grows
+    (add-hook 'minibuffer-setup-hook #'exwm-layout--on-minibuffer-setup t)
+    (run-with-idle-timer 0 t #'exwm-layout--on-echo-area-change t)
+    (add-hook 'echo-area-clear-hook #'exwm-layout--on-echo-area-change)))
 
 
 

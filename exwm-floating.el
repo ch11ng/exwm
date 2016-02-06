@@ -106,8 +106,10 @@
     ;; FIXME: check normal hints restrictions
     (let* ((display-width (frame-pixel-width original-frame))
            (display-height (- (frame-pixel-height original-frame)
-                              (window-pixel-height (minibuffer-window
-                                                    original-frame))
+                              (if exwm-workspace-minibuffer-position
+                                  0
+                                (window-pixel-height (minibuffer-window
+                                                      original-frame)))
                               (* 2 (window-mode-line-height))
                               (window-header-line-height window)
                               (* 2 exwm-floating-border-width)))
@@ -180,12 +182,22 @@
   (interactive)
   (let ((buffer (exwm--id->buffer id)))
     (with-current-buffer buffer
+      ;; Reparent the container to the workspace
       (xcb:+request exwm--connection
           (make-instance 'xcb:ReparentWindow
                          :window exwm--container
                          :parent (frame-parameter exwm-workspace--current
                                                   'exwm-workspace)
-                         :x 0 :y 0)))   ;temporary position
+                         :x 0 :y 0))    ;temporary position
+      ;; Put the container just above the Emacs frame
+      (xcb:+request exwm--connection
+          (make-instance 'xcb:ConfigureWindow
+                         :window exwm--container
+                         :value-mask (logior xcb:ConfigWindow:Sibling
+                                             xcb:ConfigWindow:StackMode)
+                         :sibling (frame-parameter exwm-workspace--current
+                                                   'exwm-outer-id)
+                         :stack-mode xcb:StackMode:Above)))
     (xcb:flush exwm--connection)
     (with-current-buffer buffer
       (when exwm--floating-frame        ;from floating to non-floating

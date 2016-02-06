@@ -466,9 +466,13 @@
       (make-instance 'xcb:ewmh:set-_NET_DESKTOP_VIEWPORT
                      :window exwm--root
                      :data (make-vector (* 2 exwm-workspace-number) 0)))
-  ;; Set _NET_WORKAREA (with minibuffer and bottom mode-line excluded)
+  ;; Set _NET_WORKAREA (with minibuffer excluded)
   (let* ((workareas
-          (vector 0 0 (x-display-pixel-width) (x-display-pixel-height)))
+          (vector 0 0 (x-display-pixel-width)
+                  (- (x-display-pixel-height)
+                     (if exwm-workspace-minibuffer-position
+                         0
+                       (window-pixel-height (minibuffer-window))))))
          (workareas (mapconcat (lambda (_) workareas)
                                (make-list exwm-workspace-number 0) [])))
     (xcb:+request exwm--connection

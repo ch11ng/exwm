@@ -360,8 +360,7 @@ Would you like to kill it? "
   (let ((obj (make-instance 'xcb:ConfigureRequest))
         buffer edges)
     (xcb:unmarshal obj data)
-    (with-slots (stack-mode window sibling x y width height border-width
-                            value-mask)
+    (with-slots (window x y width height border-width value-mask)
         obj
       (exwm--log "ConfigureRequest from #x%x (#x%x) @%dx%d%+d%+d, border: %d"
                  window value-mask width height x y border-width)
@@ -391,14 +390,16 @@ Would you like to kill it? "
                                         :border-width 0 :override-redirect 0)
                                        exwm--connection))))
         (exwm--log "ConfigureWindow (preserve geometry)")
-        ;; Configure unmanaged windows
+        ;; Configure the unmanaged window without changing the stacking order.
         (xcb:+request exwm--connection
             (make-instance 'xcb:ConfigureWindow
                            :window window
-                           :value-mask value-mask
+                           :value-mask
+                           (logand value-mask
+                                   (lognot xcb:ConfigWindow:Sibling)
+                                   (lognot xcb:ConfigWindow:StackMode))
                            :x x :y y :width width :height height
-                           :border-width border-width
-                           :sibling sibling :stack-mode stack-mode)))))
+                           :border-width border-width)))))
   (xcb:flush exwm--connection))
 
 (defun exwm-manage--on-MapRequest (data _synthetic)

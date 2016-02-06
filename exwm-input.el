@@ -110,26 +110,25 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
             (exwm--log "Set focus on #x%x" exwm--id)
             (exwm-input--set-focus exwm--id)
             ;; Adjust stacking orders
-            (if exwm--floating-frame
+            (when exwm--floating-frame
+              (if (memq exwm-workspace-minibuffer-position '(top bottom))
+                  ;; Put this floating X window just below the minibuffer.
+                  (xcb:+request exwm--connection
+                      (make-instance 'xcb:ConfigureWindow
+                                     :window exwm--container
+                                     :value-mask
+                                     (logior xcb:ConfigWindow:Sibling
+                                             xcb:ConfigWindow:StackMode)
+                                     :sibling (frame-parameter
+                                               exwm-workspace--minibuffer
+                                               'exwm-container)
+                                     :stack-mode xcb:StackMode:Below))
                 ;; Put this floating X window at top.
                 (xcb:+request exwm--connection
                     (make-instance 'xcb:ConfigureWindow
                                    :window exwm--container
                                    :value-mask xcb:ConfigWindow:StackMode
-                                   :stack-mode xcb:StackMode:TopIf))
-              ;; This should be the last X window but one in the siblings.
-              (with-slots (children)
-                  (xcb:+request-unchecked+reply exwm--connection
-                      (make-instance 'xcb:QueryTree
-                                     :window
-                                     (frame-parameter exwm--frame
-                                                      'exwm-workspace)))
-                (unless (eq (cadr children) exwm--container)
-                  (xcb:+request exwm--connection
-                      (make-instance 'xcb:ConfigureWindow
-                                     :window exwm--container
-                                     :value-mask xcb:ConfigWindow:StackMode
-                                     :stack-mode xcb:StackMode:Below)))))
+                                   :stack-mode xcb:StackMode:Above))))
             ;; Make sure Emacs frames are at bottom.
             (xcb:+request exwm--connection
                 (make-instance 'xcb:ConfigureWindow
@@ -142,20 +141,8 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
         (when (eq (selected-window) exwm-input--focus-window)
           (exwm--log "Focus on %s" exwm-input--focus-window)
           (select-frame-set-input-focus (window-frame exwm-input--focus-window)
-                                        t)
-          (xcb:+request exwm--connection
-              (make-instance 'xcb:ConfigureWindow
-                             :window (frame-parameter
-                                      (window-frame exwm-input--focus-window)
-                                      'exwm-outer-id)
-                             :value-mask xcb:ConfigWindow:StackMode
-                             :stack-mode xcb:StackMode:Below))
-          (xcb:flush exwm--connection)))
+                                        t)))
       (setq exwm-input--focus-window nil))))
-
-(defun exwm-input--on-minibuffer-setup ()
-  "Run in minibuffer-setup-hook to set input focus to the frame."
-  (x-focus-frame (selected-frame)))
 
 (defvar exwm-input--during-key-sequence nil
   "Non-nil indicates Emacs is waiting for more keys to form a key sequence.")
@@ -278,12 +265,13 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
   (global-set-key key command)
   (cl-pushnew key exwm-input--global-keys))
 
-;; These commands usually call something like `read-char' without using the
-;; minibuffer, so they will not get inputs after invoked.  It'd be better if we
-;; can determine whether there's a command waiting for input so that this
-;; variable can be removed.
 (defvar exwm-input-command-whitelist nil
   "A list of commands that when active all keys should be forwarded to Emacs.")
+(make-obsolete-variable 'exwm-input-command-whitelist
+                        "This variable can be safely removed." "25.1")
+
+(defvar exwm-input--during-command nil
+  "Indicate whether between `pre-command-hook' and `post-command-hook'.")
 
 ;;;###autoload
 (defun exwm-input--on-KeyPress-line-mode (key-press)
@@ -295,8 +283,8 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
                  (setq event (xcb:keysyms:keysym->event exwm--connection
                                                         keysym state))
                  (or exwm-input--during-key-sequence
+                     exwm-input--during-command
                      (setq minibuffer-window (active-minibuffer-window))
-                     (memq real-this-command exwm-input-command-whitelist)
                      (memq event exwm-input--global-prefix-keys)
                      (memq event exwm-input-prefix-keys)
                      (memq event exwm-input--simulation-prefix-keys)))
@@ -501,9 +489,12 @@ SIMULATION-KEYS is a list of alist (key-sequence1 . key-sequence2)."
               #'exwm-floating--do-moveresize)
   ;; `pre-command-hook' marks the end of a key sequence (existing or not)
   (add-hook 'pre-command-hook #'exwm-input--finish-key-sequence)
+  ;; Control `exwm-input--during-command'
+  (add-hook 'pre-command-hook (lambda () (setq exwm-input--during-command t)))
+  (add-hook 'post-command-hook
+            (lambda () (setq exwm-input--during-command nil)))
   ;; Update focus when buffer list updates
   (add-hook 'buffer-list-update-hook #'exwm-input--on-buffer-list-update)
-  (add-hook 'minibuffer-setup-hook #'exwm-input--on-minibuffer-setup)
   ;; Update prefix keys for global keys
   (exwm-input--update-global-prefix-keys))
 
