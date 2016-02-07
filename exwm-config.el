@@ -55,7 +55,9 @@
      ([?\C-a] . home)
      ([?\C-e] . end)
      ([?\M-v] . prior)
-     ([?\C-v] . next)))
+     ([?\C-v] . next)
+     ([?\C-d] . delete)
+     ([?\C-k] . (S-end delete))))
   ;; Enable EXWM
   (exwm-enable)
   ;; Configure Ido

@@ -392,6 +392,39 @@ See also `exwm-layout-enlarge-window'."
   (interactive "p")
   (exwm-layout-enlarge-window (- delta) t))
 
+(defun exwm-layout-hide-mode-line ()
+  "Hide mode-line."
+  (interactive)
+  (when (and (eq major-mode 'exwm-mode) mode-line-format)
+    (setq exwm--mode-line-format mode-line-format
+          mode-line-format nil)
+    (if (not exwm--floating-frame)
+        (exwm-layout--show exwm--id)
+      (exwm-floating--fit-frame-to-window)
+      (xcb:flush exwm--connection)
+      (setq window-size-fixed exwm--fixed-size))))
+
+(defun exwm-layout-show-mode-line ()
+  "Show mode-line."
+  (interactive)
+  (when (and (eq major-mode 'exwm-mode) (not mode-line-format))
+    (setq mode-line-format exwm--mode-line-format
+          exwm--mode-line-format nil)
+    (if (not exwm--floating-frame)
+        (exwm-layout--show exwm--id)
+      (exwm-floating--fit-frame-to-window)
+      (exwm-input-grab-keyboard)
+      (xcb:flush exwm--connection)
+      (setq window-size-fixed exwm--fixed-size))))
+
+(defun exwm-layout-toggle-mode-line ()
+  "Toggle the display of mode-line."
+  (interactive)
+  (when (eq major-mode 'exwm-mode)
+    (if mode-line-format
+        (exwm-layout-hide-mode-line)
+      (exwm-layout-show-mode-line))))
+
 (defun exwm-layout--init ()
   "Initialize layout module."
   ;; Auto refresh layout

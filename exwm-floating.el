@@ -248,30 +248,10 @@ are provided. You should call `xcb:flush' and restore the value of
                                 (window-mode-line-height)
                                 (window-header-line-height)))))
 
-(defun exwm-floating-hide-mode-line ()
-  "Hide mode-line of a floating frame."
-  (interactive)
-  (unless (eq major-mode 'exwm-mode)
-    (user-error "[EXWM] Please use this command with EXWM buffers"))
-  (when (and exwm--floating-frame mode-line-format)
-    (setq exwm--floating-mode-line-format mode-line-format
-          mode-line-format nil)
-    (exwm-floating--fit-frame-to-window)
-    (xcb:flush exwm--connection)
-    (setq window-size-fixed exwm--fixed-size)))
-
-(defun exwm-floating-show-mode-line ()
-  "Show mode-line of a floating frame."
-  (interactive)
-  (unless (eq major-mode 'exwm-mode)
-    (user-error "[EXWM] Please use this command with EXWM buffers"))
-  (when (and exwm--floating-frame (not mode-line-format))
-    (setq mode-line-format exwm--floating-mode-line-format
-          exwm--floating-mode-line-format nil)
-    (exwm-floating--fit-frame-to-window)
-    (exwm-input-grab-keyboard)       ;mode-line-format may be outdated
-    (xcb:flush exwm--connection)
-    (setq window-size-fixed exwm--fixed-size)))
+(define-obsolete-function-alias 'exwm-floating-hide-mode-line
+  'exwm-layout-hide-mode-line "25.1" "Hide mode-line of a floating frame.")
+(define-obsolete-function-alias 'exwm-floating-show-mode-line
+  'exwm-layout-show-mode-line "25.1" "Show mode-line of a floating frame.")
 
 (defvar exwm-floating--moveresize-calculate nil
   "Calculate move/resize parameters [buffer event-mask x y width height].")

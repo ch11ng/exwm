@@ -79,14 +79,14 @@
   "Event mask set on all managed windows.")
 
 ;; Internal variables
-(defvar-local exwm--id nil)                        ;window ID
-(defvar-local exwm--container nil)                 ;container
-(defvar-local exwm--frame nil)                     ;workspace frame
-(defvar-local exwm--floating-frame nil)            ;floating frame
-(defvar-local exwm--floating-mode-line-format nil) ;save mode-line-format
-(defvar-local exwm--fullscreen nil)                ;used in fullscreen
-(defvar-local exwm--floating-frame-position nil)   ;used in fullscreen
-(defvar-local exwm--fixed-size nil)                ;fixed size
+(defvar-local exwm--id nil)               ;window ID
+(defvar-local exwm--container nil)        ;container
+(defvar-local exwm--frame nil)            ;workspace frame
+(defvar-local exwm--floating-frame nil)   ;floating frame
+(defvar-local exwm--mode-line-format nil) ;save mode-line-format
+(defvar-local exwm--fullscreen nil)       ;used in fullscreen
+(defvar-local exwm--floating-frame-position nil) ;used in fullscreen
+(defvar-local exwm--fixed-size nil)              ;fixed size
 (defvar-local exwm--on-KeyPress         ;KeyPress event handler
   #'exwm-input--on-KeyPress-line-mode)
 ;; Properties
@@ -122,6 +122,7 @@
     (define-key map "\C-cm" #'exwm-floating-toggle-floating)
     (define-key map "\C-cq" #'exwm-input-send-next-key)
     (define-key map "\C-cv" #'exwm-workspace-move-window)
+    (define-key map "\C-cM" #'exwm-layout-toggle-mode-line)
     map)
   "Keymap for `exwm-mode'.")
 
