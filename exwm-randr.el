@@ -84,42 +84,43 @@
                     output-plist (plist-put output-plist output-name geometry))
               (unless default-geometry ;assume the first output as primary
                 (setq default-geometry geometry)))))))
-    (cl-assert (<= 2 (length output-plist)))
     (exwm--log "(randr) outputs: %s" output-plist)
-    (setq workarea-offset (if exwm-workspace-minibuffer-position
-                              0
-                            (window-pixel-height (minibuffer-window))))
-    (dotimes (i exwm-workspace-number)
-      (let* ((output (plist-get exwm-randr-workspace-output-plist i))
-             (geometry (lax-plist-get output-plist output))
-             (frame (elt exwm-workspace--list i)))
-        (unless geometry
-          (setq geometry default-geometry
-                output nil))
-        (set-frame-parameter frame 'exwm-randr-output output)
-        (set-frame-parameter frame 'exwm-geometry geometry)
-        (with-slots (x y width height) geometry
-          (exwm-layout--resize-container (frame-parameter frame 'exwm-outer-id)
-                                         (frame-parameter frame
-                                                          'exwm-workspace)
-                                         x y width height)
-          (when (and (eq frame exwm-workspace--current)
-                     (exwm-workspace--minibuffer-own-frame-p))
-            (exwm-workspace--resize-minibuffer-frame width height))
-          (setq workareas
-                (nconc workareas (list x y width (- height
-                                                    workarea-offset)))
-                viewports (nconc viewports (list x y))))))
-    ;; Update _NET_WORKAREA
-    (xcb:+request exwm--connection
-        (make-instance 'xcb:ewmh:set-_NET_WORKAREA
-                       :window exwm--root :data (vconcat workareas)))
-    ;; Update _NET_DESKTOP_VIEWPORT
-    (xcb:+request exwm--connection
-        (make-instance 'xcb:ewmh:set-_NET_DESKTOP_VIEWPORT
-                       :window exwm--root
-                       :data (vconcat viewports)))
-    (xcb:flush exwm--connection)))
+    (when output-plist
+      (setq workarea-offset (if exwm-workspace-minibuffer-position
+                                0
+                              (window-pixel-height (minibuffer-window))))
+      (dotimes (i exwm-workspace-number)
+        (let* ((output (plist-get exwm-randr-workspace-output-plist i))
+               (geometry (lax-plist-get output-plist output))
+               (frame (elt exwm-workspace--list i)))
+          (unless geometry
+            (setq geometry default-geometry
+                  output nil))
+          (set-frame-parameter frame 'exwm-randr-output output)
+          (set-frame-parameter frame 'exwm-geometry geometry)
+          (with-slots (x y width height) geometry
+            (exwm-layout--resize-container (frame-parameter frame
+                                                            'exwm-outer-id)
+                                           (frame-parameter frame
+                                                            'exwm-workspace)
+                                           x y width height)
+            (when (and (eq frame exwm-workspace--current)
+                       (exwm-workspace--minibuffer-own-frame-p))
+              (exwm-workspace--resize-minibuffer-frame width height))
+            (setq workareas
+                  (nconc workareas (list x y width (- height
+                                                      workarea-offset)))
+                  viewports (nconc viewports (list x y))))))
+      ;; Update _NET_WORKAREA
+      (xcb:+request exwm--connection
+          (make-instance 'xcb:ewmh:set-_NET_WORKAREA
+                         :window exwm--root :data (vconcat workareas)))
+      ;; Update _NET_DESKTOP_VIEWPORT
+      (xcb:+request exwm--connection
+          (make-instance 'xcb:ewmh:set-_NET_DESKTOP_VIEWPORT
+                         :window exwm--root
+                         :data (vconcat viewports)))
+      (xcb:flush exwm--connection))))
 
 (defvar exwm-randr-screen-change-hook nil
   "Normal hook run when screen changes.")
