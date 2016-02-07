@@ -454,16 +454,24 @@ This functions is modified from `display-buffer-reuse-window' and
     (cancel-timer exwm-workspace--display-echo-area-timer)
     (setq exwm-workspace--display-echo-area-timer nil)))
 
+(defun exwm-workspace--confirm-kill-emacs (prompt)
+  "Confirm before exiting Emacs."
+  (when (pcase (length exwm--id-buffer-alist)
+          (0 (y-or-n-p prompt))
+          (x (yes-or-no-p (format "[EXWM] %d window%s currently alive. %s"
+                                  x (if (= x 1) "" "s") prompt))))
+    (dolist (i exwm--id-buffer-alist)
+      (exwm-manage--unmanage-window (car i) t)
+      (xcb:+request exwm--connection
+          (make-instance 'xcb:MapWindow :window (car i))))
+    (xcb:flush exwm--connection)
+    t))
+
 (defun exwm-workspace--init ()
   "Initialize workspace module."
   (cl-assert (and (< 0 exwm-workspace-number) (>= 10 exwm-workspace-number)))
   ;; Prevent unexpected exit
-  (setq confirm-kill-emacs
-        (lambda (prompt)
-          (pcase (length exwm--id-buffer-alist)
-            (0 (y-or-n-p prompt))
-            (x (yes-or-no-p (format "[EXWM] %d window%s currently alive. %s"
-                                    x (if (= x 1) "" "s") prompt))))))
+  (setq confirm-kill-emacs #'exwm-workspace--confirm-kill-emacs)
   (if (not (exwm-workspace--minibuffer-own-frame-p))
       ;; Initialize workspaces with minibuffers.
       (progn

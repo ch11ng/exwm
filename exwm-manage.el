@@ -421,8 +421,10 @@ Would you like to kill it? "
   (unless synthetic
     (let ((obj (make-instance 'xcb:UnmapNotify)))
       (xcb:unmarshal obj data)
-      (exwm--log "UnmapNotify from #x%x" (slot-value obj 'window))
-      (exwm-manage--unmanage-window (slot-value obj 'window) t))))
+      (with-slots (window from-configure) obj
+        (unless from-configure          ;the parent is being resized
+          (exwm--log "UnmapNotify from #x%x" window)
+          (exwm-manage--unmanage-window window t))))))
 
 (defun exwm-manage--on-DestroyNotify (data synthetic)
   "Handle DestroyNotify event."
