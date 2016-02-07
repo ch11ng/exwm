@@ -417,6 +417,7 @@ See also `exwm-layout-enlarge-window'."
       (xcb:flush exwm--connection)
       (setq window-size-fixed exwm--fixed-size))))
 
+;;;###autoload
 (defun exwm-layout-toggle-mode-line ()
   "Toggle the display of mode-line."
   (interactive)

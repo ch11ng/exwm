@@ -221,6 +221,7 @@
         (exwm-floating--unset-floating exwm--id)
       (exwm-floating--set-floating exwm--id))))
 
+;;;###autoload
 (defun exwm-floating--fit-frame-to-window (&optional frame-outer-id
                                                      width height)
   "Resize a floating frame to make it fit the size of the window.

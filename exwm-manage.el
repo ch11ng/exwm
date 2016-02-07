@@ -202,6 +202,7 @@ corresponding buffer.")
       (with-current-buffer (exwm--id->buffer id)
         (run-hooks 'exwm-manage-finish-hook)))))
 
+;;;###autoload
 (defun exwm-manage--unmanage-window (id &optional withdraw-only)
   "Unmanage window ID."
   (let ((buffer (exwm--id->buffer id)))

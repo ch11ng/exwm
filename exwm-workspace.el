@@ -111,10 +111,12 @@ Value nil means to use the default position which is fixed at bottom, while
 (defvar exwm-workspace--display-echo-area-timer nil
   "Timer for auto-hiding echo area.")
 
+;;;###autoload
 (defun exwm-workspace--minibuffer-own-frame-p ()
   "Reports whether the minibuffer is displayed in its own frame."
   (memq exwm-workspace-minibuffer-position '(top bottom)))
 
+;;;###autoload
 (defun exwm-workspace--resize-minibuffer-frame (&optional width height)
   "Resize minibuffer (and its container) to fit the size of workspace.
 
