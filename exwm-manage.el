@@ -171,8 +171,6 @@ corresponding buffer.")
           (make-instance 'xcb:ConfigureWindow
                          :window id :value-mask xcb:ConfigWindow:BorderWidth
                          :border-width 0))
-      ;; (xcb:+request exwm--connection    ;map the window
-      ;;     (make-instance 'xcb:MapWindow :window id))
       (dolist (button       ;grab buttons to set focus / move / resize
                (list xcb:ButtonIndex:1 xcb:ButtonIndex:2 xcb:ButtonIndex:3))
         (xcb:+request-checked+request-check exwm--connection
@@ -272,6 +270,9 @@ corresponding buffer.")
           (xcb:+request-unchecked+reply exwm--connection
               (make-instance 'xcb:GetWindowAttributes :window i))
         (when (and (= 0 override-redirect) (= xcb:MapState:Viewable map-state))
+          (xcb:+request exwm--connection
+              (make-instance 'xcb:UnmapWindow :window i))
+          (xcb:flush exwm--connection)
           (exwm-manage--manage-window i))))))
 
 (defvar exwm-manage--ping-lock nil
@@ -417,15 +418,13 @@ Would you like to kill it? "
           (exwm--log "MapRequest from #x%x" window)
           (exwm-manage--manage-window window))))))
 
-(defun exwm-manage--on-UnmapNotify (data synthetic)
+(defun exwm-manage--on-UnmapNotify (data _synthetic)
   "Handle UnmapNotify event."
-  (unless synthetic
-    (let ((obj (make-instance 'xcb:UnmapNotify)))
-      (xcb:unmarshal obj data)
-      (with-slots (window from-configure) obj
-        (unless from-configure          ;the parent is being resized
-          (exwm--log "UnmapNotify from #x%x" window)
-          (exwm-manage--unmanage-window window t))))))
+  (let ((obj (make-instance 'xcb:UnmapNotify)))
+    (xcb:unmarshal obj data)
+    (with-slots (window) obj
+      (exwm--log "UnmapNotify from #x%x" window)
+      (exwm-manage--unmanage-window window t))))
 
 (defun exwm-manage--on-DestroyNotify (data synthetic)
   "Handle DestroyNotify event."

@@ -462,11 +462,29 @@ This functions is modified from `display-buffer-reuse-window' and
           (0 (y-or-n-p prompt))
           (x (yes-or-no-p (format "[EXWM] %d window%s currently alive. %s"
                                   x (if (= x 1) "" "s") prompt))))
+    ;; Remove SubstructureRedirect event.
+    (xcb:+request exwm--connection
+        (make-instance 'xcb:ChangeWindowAttributes
+                       :window exwm--root :value-mask xcb:CW:EventMask
+                       :event-mask 0))
+    ;; Remove the _NET_SUPPORTING_WM_CHECK X window.
+    (with-slots (value)
+        (xcb:+request-unchecked+reply exwm--connection
+            (make-instance 'xcb:ewmh:get-_NET_SUPPORTING_WM_CHECK
+                           :window exwm--root))
+      (xcb:+request exwm--connection
+          (make-instance 'xcb:DeleteProperty
+                         :window exwm--root
+                         :property xcb:Atom:_NET_SUPPORTING_WM_CHECK))
+      (xcb:+request exwm--connection
+          (make-instance 'xcb:DestroyWindow :window value)))
+    ;; Unmanage all X windows.
     (dolist (i exwm--id-buffer-alist)
       (exwm-manage--unmanage-window (car i) t)
       (xcb:+request exwm--connection
           (make-instance 'xcb:MapWindow :window (car i))))
     (xcb:flush exwm--connection)
+    (xcb:disconnect exwm--connection)
     t))
 
 (defun exwm-workspace--init ()
