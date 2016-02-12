@@ -517,6 +517,7 @@
         (exwm-workspace--init)
         (exwm-input--init)
         (exwm--unlock)
+        (exwm-workspace--post-init)
         ;; Manage existing windows
         (exwm-manage--scan)
         (run-hooks 'exwm-init-hook)))))

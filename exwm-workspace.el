@@ -599,11 +599,6 @@ This functions is modified from `display-buffer-reuse-window' and
   (xcb:flush exwm--connection)
   ;; We have to advice `x-create-frame' or every call to it would hang EXWM
   (advice-add 'x-create-frame :around #'exwm-workspace--x-create-frame)
-  ;; Delay making the workspaces fullscreen until Emacs becomes idle
-  (run-with-idle-timer 0 nil
-                       (lambda ()
-                         (dolist (i exwm-workspace--list)
-                           (set-frame-parameter i 'fullscreen 'fullboth))))
   ;; Set _NET_VIRTUAL_ROOTS
   (xcb:+request exwm--connection
       (make-instance 'xcb:ewmh:set-_NET_VIRTUAL_ROOTS
@@ -614,6 +609,14 @@ This functions is modified from `display-buffer-reuse-window' and
                                      exwm-workspace--list))))
   ;; Switch to the first workspace
   (exwm-workspace-switch 0 t))
+
+(defun exwm-workspace--post-init ()
+  "The second stage in the initialization of the workspace module."
+  ;; Delay making the workspaces fullscreen until Emacs becomes idle
+  (run-with-idle-timer 0 nil
+                       (lambda ()
+                         (dolist (i exwm-workspace--list)
+                           (set-frame-parameter i 'fullscreen 'fullboth)))))
 
 
 
