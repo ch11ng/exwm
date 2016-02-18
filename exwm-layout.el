@@ -396,13 +396,18 @@ See also `exwm-layout-enlarge-window'."
   "Hide mode-line."
   (interactive)
   (when (and (eq major-mode 'exwm-mode) mode-line-format)
-    (setq exwm--mode-line-format mode-line-format
-          mode-line-format nil)
-    (if (not exwm--floating-frame)
-        (exwm-layout--show exwm--id)
-      (exwm-floating--fit-frame-to-window)
-      (xcb:flush exwm--connection)
-      (setq window-size-fixed exwm--fixed-size))))
+    (let (mode-line-height)
+      (when exwm--floating-frame
+        (setq mode-line-height (window-mode-line-height
+                                (frame-root-window exwm--floating-frame))))
+      (setq exwm--mode-line-format mode-line-format
+            mode-line-format nil)
+      (if (not exwm--floating-frame)
+          (exwm-layout--show exwm--id)
+        (set-frame-height exwm--floating-frame
+                          (- (frame-pixel-height exwm--floating-frame)
+                             mode-line-height)
+                          nil t)))))
 
 (defun exwm-layout-show-mode-line ()
   "Show mode-line."
@@ -412,10 +417,12 @@ See also `exwm-layout-enlarge-window'."
           exwm--mode-line-format nil)
     (if (not exwm--floating-frame)
         (exwm-layout--show exwm--id)
-      (exwm-floating--fit-frame-to-window)
-      (exwm-input-grab-keyboard)
-      (xcb:flush exwm--connection)
-      (setq window-size-fixed exwm--fixed-size))))
+      (set-frame-height exwm--floating-frame
+                        (+ (frame-pixel-height exwm--floating-frame)
+                           (window-mode-line-height (frame-root-window
+                                                     exwm--floating-frame)))
+                        nil t)
+      (exwm-input-grab-keyboard))))
 
 ;;;###autoload
 (defun exwm-layout-toggle-mode-line ()

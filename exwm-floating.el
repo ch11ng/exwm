@@ -50,6 +50,8 @@
 (defvar exwm-floating--cursor-bottom-left nil)
 (defvar exwm-floating--cursor-left nil)
 
+(declare-function exwm-layout--refresh "exwm-layout.el")
+
 ;;;###autoload
 (defun exwm-floating--set-floating (id)
   "Make window ID floating."
@@ -78,6 +80,8 @@
                      (internal-border-width . ,exwm-floating-border-width)
                      (left . 10000)
                      (top . 10000)
+                     (width . ,window-min-width)
+                     (height . ,window-min-height)
                      (unsplittable . t))))) ;and fix the size later
          (outer-id (string-to-number (frame-parameter frame 'outer-window-id)))
          (container (with-current-buffer (exwm--id->buffer id)
@@ -151,7 +155,17 @@
                   y (/ (- display-height height) 2))))))
     (exwm--log "Floating geometry (corrected): %dx%d%+d%+d" width height x y)
     ;; Fit frame to client
-    (exwm-floating--fit-frame-to-window outer-id width height)
+    ;; It seems we have to make the frame invisible in order to resize it
+    ;; timely.
+    ;; The frame will be made visible by `select-frame-set-input-focus'.
+    (make-frame-invisible frame)
+    (let ((edges (window-inside-pixel-edges window)))
+      (set-frame-size frame
+                      (+ width (- (frame-pixel-width frame)
+                                  (- (elt edges 2) (elt edges 0))))
+                      (+ height (- (frame-pixel-height frame)
+                                   (- (elt edges 3) (elt edges 1))))
+                      t))
     ;; Reparent this frame to the container
     (xcb:+request exwm--connection
         (make-instance 'xcb:ReparentWindow
@@ -171,8 +185,12 @@
       (setq window-size-fixed exwm--fixed-size
             exwm--frame original-frame
             exwm--floating-frame frame)
+      ;; Do the refresh manually.
+      (remove-hook 'window-configuration-change-hook #'exwm-layout--refresh)
       (set-window-buffer window (current-buffer)) ;this changes current buffer
-      (set-window-dedicated-p window t))
+      (add-hook 'window-configuration-change-hook #'exwm-layout--refresh)
+      (set-window-dedicated-p window t)
+      (exwm-layout--show id window))
     (select-frame-set-input-focus frame))
   (run-hooks 'exwm-floating-setup-hook))
 
@@ -182,6 +200,16 @@
   (interactive)
   (let ((buffer (exwm--id->buffer id)))
     (with-current-buffer buffer
+      ;; Reparent the frame back to the root window.
+      (when exwm--floating-frame
+        (let ((frame-id (frame-parameter exwm--floating-frame 'exwm-outer-id)))
+          (xcb:+request exwm--connection
+              (make-instance 'xcb:UnmapWindow :window frame-id))
+          (xcb:+request exwm--connection
+              (make-instance 'xcb:ReparentWindow
+                             :window frame-id
+                             :parent exwm--root
+                             :x 0 :y 0))))
       ;; Reparent the container to the workspace
       (xcb:+request exwm--connection
           (make-instance 'xcb:ReparentWindow
@@ -220,34 +248,6 @@
     (if exwm--floating-frame
         (exwm-floating--unset-floating exwm--id)
       (exwm-floating--set-floating exwm--id))))
-
-;;;###autoload
-(defun exwm-floating--fit-frame-to-window (&optional frame-outer-id
-                                                     width height)
-  "Resize a floating frame to make it fit the size of the window.
-
-Default to resize `exwm--floating-frame' unless FRAME-OUTER-ID is non-nil.
-This function will issue an `xcb:GetGeometry' request unless WIDTH and HEIGHT
-are provided. You should call `xcb:flush' and restore the value of
-`window-size-fixed' afterwards."
-  (setq window-size-fixed nil)
-  (unless (and width height)
-    (let ((geometry (xcb:+request-unchecked+reply exwm--connection
-                        (make-instance 'xcb:GetGeometry :drawable exwm--id))))
-      (setq width (slot-value geometry 'width)
-            height (slot-value geometry 'height))))
-  (xcb:+request exwm--connection
-      (make-instance 'xcb:ConfigureWindow
-                     :window (or frame-outer-id
-                                 (frame-parameter exwm--floating-frame
-                                                  'exwm-outer-id))
-                     :value-mask (eval-when-compile
-                                   (logior xcb:ConfigWindow:Width
-                                           xcb:ConfigWindow:Height))
-                     :width (+ width (* 2 exwm-floating-border-width))
-                     :height (+ height (* 2 exwm-floating-border-width)
-                                (window-mode-line-height)
-                                (window-header-line-height)))))
 
 (define-obsolete-function-alias 'exwm-floating-hide-mode-line
   'exwm-layout-hide-mode-line "25.1" "Hide mode-line of a floating frame.")
