@@ -23,9 +23,6 @@
 
 ;; This module adds workspace support for EXWM.
 
-;; Todo:
-;; + Add system tray support.
-
 ;;; Code:
 
 (require 'exwm-core)
@@ -141,6 +138,9 @@ workspace frame."
                        :stack-mode xcb:StackMode:Above))
     (set-frame-width exwm-workspace--minibuffer width nil t)))
 
+(defvar exwm-workspace-switch-hook nil
+  "Normal hook run after switching workspace.")
+
 ;;;###autoload
 (defun exwm-workspace-switch (index &optional force)
   "Switch to workspace INDEX. Query for INDEX if it's not specified.
@@ -203,7 +203,8 @@ The optional FORCE option is for internal use only."
         (xcb:+request exwm--connection
             (make-instance 'xcb:ewmh:set-_NET_CURRENT_DESKTOP
                            :window exwm--root :data index))
-        (xcb:flush exwm--connection)))))
+        (xcb:flush exwm--connection))
+      (run-hooks 'exwm-workspace-switch-hook))))
 
 ;;;###autoload
 (defun exwm-workspace-move-window (index &optional id)
