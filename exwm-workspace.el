@@ -62,7 +62,6 @@
 (defvar exwm-workspace--switch-history-outdated nil
   "Non-nil to indicate `exwm-workspace--switch-history' is outdated.")
 
-;;;###autoload
 (defun exwm-workspace--update-switch-history ()
   "Update the history for switching workspace to reflect the latest status."
   (when exwm-workspace--switch-history-outdated
@@ -109,6 +108,22 @@ Value nil means to use the default position which is fixed at bottom, while
   "Timer for auto-hiding echo area.")
 
 ;;;###autoload
+(defun exwm-workspace--current-width ()
+  "Return the width of current workspace."
+  (let ((geometry (frame-parameter exwm-workspace--current 'exwm-geometry)))
+    (if geometry
+        (slot-value geometry 'width)
+      (x-display-pixel-width))))
+
+;;;###autoload
+(defun exwm-workspace--current-height ()
+  "Return the height of current workspace."
+  (let ((geometry (frame-parameter exwm-workspace--current 'exwm-geometry)))
+    (if geometry
+        (slot-value geometry 'height)
+      (x-display-pixel-height))))
+
+;;;###autoload
 (defun exwm-workspace--minibuffer-own-frame-p ()
   "Reports whether the minibuffer is displayed in its own frame."
   (memq exwm-workspace-minibuffer-position '(top bottom)))
@@ -122,9 +137,9 @@ workspace frame."
   (cl-assert (exwm-workspace--minibuffer-own-frame-p))
   (let ((y (if (eq exwm-workspace-minibuffer-position 'top)
                0
-             (- (or height (frame-pixel-height exwm-workspace--current))
+             (- (or height (exwm-workspace--current-height))
                 (frame-pixel-height exwm-workspace--minibuffer))))
-        (width (or width (frame-pixel-width exwm-workspace--current)))
+        (width (or width (exwm-workspace--current-width)))
         (container (frame-parameter exwm-workspace--minibuffer
                                     'exwm-container)))
     (xcb:+request exwm--connection
@@ -206,6 +221,8 @@ The optional FORCE option is for internal use only."
         (xcb:flush exwm--connection))
       (run-hooks 'exwm-workspace-switch-hook))))
 
+(declare-function exwm-layout--hide "exwm-layout.el" (id))
+
 ;;;###autoload
 (defun exwm-workspace-move-window (index &optional id)
   "Move window ID to workspace INDEX."
@@ -266,6 +283,7 @@ The optional FORCE option is for internal use only."
                              (exwm--id->buffer id)))))
     (setq exwm-workspace--switch-history-outdated t)))
 
+;;;###autoload
 (defun exwm-workspace-switch-to-buffer ()
   "Make the current Emacs window display another buffer."
   (interactive)
@@ -348,10 +366,10 @@ The optional FORCE option is for internal use only."
                 window)
         (when (and (floatp max-mini-window-height)
                    (> height (* max-mini-window-height
-                                (frame-pixel-height exwm-workspace--current))))
+                                (exwm-workspace--current-height))))
           (setq height (floor
                         (* max-mini-window-height
-                           (frame-pixel-height exwm-workspace--current))))
+                           (exwm-workspace--current-height))))
           (xcb:+request exwm--connection
               (make-instance 'xcb:ConfigureWindow
                              :window window
@@ -361,7 +379,7 @@ The optional FORCE option is for internal use only."
             (setq value-mask xcb:ConfigWindow:Height
                   y 0)
           (setq value-mask (logior xcb:ConfigWindow:Y xcb:ConfigWindow:Height)
-                y (- (frame-pixel-height exwm-workspace--current) height)))
+                y (- (exwm-workspace--current-height) height)))
         (xcb:+request exwm--connection
             (make-instance 'xcb:ConfigureWindow
                            :window (frame-parameter exwm-workspace--minibuffer
@@ -456,6 +474,8 @@ This functions is modified from `display-buffer-reuse-window' and
   (when exwm-workspace--display-echo-area-timer
     (cancel-timer exwm-workspace--display-echo-area-timer)
     (setq exwm-workspace--display-echo-area-timer nil)))
+
+(declare-function exwm-manage--unmanage-window "exwm-manage.el")
 
 (defun exwm-workspace--confirm-kill-emacs (prompt)
   "Confirm before exiting Emacs."
@@ -611,13 +631,17 @@ This functions is modified from `display-buffer-reuse-window' and
   ;; Switch to the first workspace
   (exwm-workspace-switch 0 t))
 
+(defvar exwm-layout--fullscreen-frame-count)
+
 (defun exwm-workspace--post-init ()
   "The second stage in the initialization of the workspace module."
-  ;; Delay making the workspaces fullscreen until Emacs becomes idle
-  (run-with-idle-timer 0 nil
-                       (lambda ()
-                         (dolist (i exwm-workspace--list)
-                           (set-frame-parameter i 'fullscreen 'fullboth)))))
+  ;; Make the workspaces fullscreen.
+  (dolist (i exwm-workspace--list)
+    (set-frame-parameter i 'fullscreen 'fullboth))
+  ;; Wait until all workspace frames are resized.
+  (with-timeout (1)
+    (while (< exwm-layout--fullscreen-frame-count exwm-workspace-number)
+      (accept-process-output nil 0.1))))
 
 
 

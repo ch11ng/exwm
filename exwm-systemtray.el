@@ -33,7 +33,6 @@
 (require 'xcb-xembed)
 (require 'xcb-systemtray)
 (require 'exwm-core)
-(require 'exwm-workspace)
 
 (defclass exwm-systemtray--icon ()
   ((width :initarg :width)
@@ -161,7 +160,7 @@ You shall use the default value if using auto-hide minibuffer.")
                        :window exwm-systemtray--embedder
                        :value-mask (logior xcb:ConfigWindow:X
                                            xcb:ConfigWindow:Width)
-                       :x (- (frame-pixel-width exwm-workspace--current) x)
+                       :x (- (exwm-workspace--current-width) x)
                        :width x))
     (when map
       (xcb:+request exwm-systemtray--connection
@@ -173,7 +172,7 @@ You shall use the default value if using auto-hide minibuffer.")
   (let ((obj (make-instance 'xcb:DestroyNotify)))
     (xcb:unmarshal obj data)
     (with-slots (window) obj
-      (when (alist-get window exwm-systemtray--list)
+      (when (assoc window exwm-systemtray--list)
         (exwm-systemtray--unembed window)))))
 
 (defun exwm-systemtray--on-ReparentNotify (data _synthetic)
@@ -182,7 +181,7 @@ You shall use the default value if using auto-hide minibuffer.")
     (xcb:unmarshal obj data)
     (with-slots (window parent) obj
       (when (and (/= parent exwm-systemtray--embedder)
-                 (alist-get window exwm-systemtray--list))
+                 (assoc window exwm-systemtray--list))
         (exwm-systemtray--unembed window)))))
 
 (defun exwm-systemtray--on-ResizeRequest (data _synthetic)
@@ -191,7 +190,7 @@ You shall use the default value if using auto-hide minibuffer.")
         attr)
     (xcb:unmarshal obj data)
     (with-slots (window width height) obj
-      (when (setq attr (alist-get window exwm-systemtray--list))
+      (when (setq attr (cdr (assoc window exwm-systemtray--list)))
         (with-slots ((width* width)
                      (height* height))
             attr
@@ -220,7 +219,7 @@ You shall use the default value if using auto-hide minibuffer.")
     (with-slots (window atom state) obj
       (when (and (eq state xcb:Property:NewValue)
                  (eq atom xcb:Atom:_XEMBED_INFO)
-                 (setq attr (alist-get window exwm-systemtray--list)))
+                 (setq attr (cdr (assoc window exwm-systemtray--list))))
         (setq info (xcb:+request-unchecked+reply exwm-systemtray--connection
                        (make-instance 'xcb:xembed:get-_XEMBED_INFO
                                       :window window)))
@@ -256,20 +255,36 @@ You shall use the default value if using auto-hide minibuffer.")
               (t
                (exwm--log "(System Tray) Unknown opcode message: %s" obj)))))))
 
-(defun exwm-systemtray--on-exwm-workspace-switch ()
-  "Reparent the system tray in `exwm-workspace-switch-hook'."
-  (xcb:+request exwm-systemtray--connection
-      (make-instance 'xcb:ReparentWindow
-                     :window exwm-systemtray--embedder
-                     :parent (string-to-number
-                              (frame-parameter exwm-workspace--current
-                                               'window-id))
-                     :x 0
-                     :y (- (frame-pixel-height exwm-workspace--current)
-                           exwm-systemtray-height)))
+(defvar exwm-workspace-minibuffer-position)
+(defvar exwm-workspace--current)
+
+(defun exwm-systemtray--on-workspace-switch ()
+  "Reparent/Refresh the system tray in `exwm-workspace-switch-hook'."
+  (unless exwm-workspace-minibuffer-position
+    (xcb:+request exwm-systemtray--connection
+        (make-instance 'xcb:ReparentWindow
+                       :window exwm-systemtray--embedder
+                       :parent (string-to-number
+                                (frame-parameter exwm-workspace--current
+                                                 'window-id))
+                       :x 0
+                       :y (- (exwm-workspace--current-height)
+                             exwm-systemtray-height))))
+  (exwm-systemtray--refresh))
+
+(defun exwm-systemtray--on-randr-refresh ()
+  "Reposition/Refresh the system tray in `exwm-randr-refresh-hook'."
+  (unless exwm-workspace-minibuffer-position
+    (xcb:+request exwm-systemtray--connection
+        (make-instance 'xcb:ConfigureWindow
+                       :window exwm-systemtray--embedder
+                       :value-mask xcb:ConfigWindow:Y
+                       :y (- (exwm-workspace--current-height)
+                             exwm-systemtray-height))))
   (exwm-systemtray--refresh))
 
 (defvar xcb:Atom:_NET_SYSTEM_TRAY_S0)
+(defvar exwm-workspace--minibuffer)
 
 (defun exwm-systemtray--init ()
   "Initialize system tray module."
@@ -335,8 +350,7 @@ You shall use the default value if using auto-hide minibuffer.")
       (setq parent (string-to-number (frame-parameter exwm-workspace--current
                                                       'window-id))
             ;; Bottom aligned.
-            y (- (frame-pixel-height exwm-workspace--current)
-                 exwm-systemtray-height)))
+            y (- (exwm-workspace--current-height) exwm-systemtray-height)))
     (xcb:+request exwm-systemtray--connection
         (make-instance 'xcb:ReparentWindow
                        :window id :parent parent :x 0 :y y))
@@ -356,10 +370,9 @@ You shall use the default value if using auto-hide minibuffer.")
               #'exwm-systemtray--on-PropertyNotify)
   (xcb:+event exwm-systemtray--connection 'xcb:ClientMessage
               #'exwm-systemtray--on-ClientMessage)
-  ;; Add hook to reparent the embedder.
-  (unless exwm-workspace-minibuffer-position
-    (add-hook 'exwm-workspace-switch-hook
-              #'exwm-systemtray--on-exwm-workspace-switch)))
+  ;; Add hook to move/reparent the embedder.
+  (add-hook 'exwm-workspace-switch-hook #'exwm-systemtray--on-workspace-switch)
+  (add-hook 'exwm-randr-refresh-hook #'exwm-systemtray--on-randr-refresh))
 
 (defun exwm-systemtray-enable ()
   "Enable system tray support for EXWM."

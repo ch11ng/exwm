@@ -78,6 +78,9 @@
     (logior xcb:EventMask:StructureNotify xcb:EventMask:PropertyChange))
   "Event mask set on all managed windows.")
 
+(declare-function exwm-input--on-KeyPress-line-mode "exwm-input.el"
+                  (key-press))
+
 ;; Internal variables
 (defvar-local exwm--id nil)               ;window ID
 (defvar-local exwm--container nil)        ;container
@@ -110,7 +113,7 @@
 (defvar-local exwm--normal-hints-max-height nil)
 ;; (defvar-local exwm--normal-hints-win-gravity nil)
 ;; WM_HINTS
-(defvar-local exwm--hints-input nil)    ;FIXME
+(defvar-local exwm--hints-input nil)
 (defvar-local exwm--hints-urgency nil)
 ;; _MOTIF_WM_HINTS
 (defvar-local exwm--mwm-hints nil)
@@ -125,6 +128,8 @@
     (define-key map "\C-cM" #'exwm-layout-toggle-mode-line)
     map)
   "Keymap for `exwm-mode'.")
+
+(declare-function exwm-manage--kill-buffer-query-function "exwm-manage.el")
 
 (define-derived-mode exwm-mode nil "EXWM"
   "Major mode for managing X windows.
