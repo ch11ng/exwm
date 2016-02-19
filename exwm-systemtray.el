@@ -101,8 +101,13 @@ You shall use the default value if using auto-hide minibuffer.")
                          :value-mask xcb:CW:EventMask
                          :event-mask (logior xcb:EventMask:ResizeRedirect
                                              xcb:EventMask:PropertyChange)))
-      (when (setq visible
-                  (/= 0 (logand (slot-value info 'flags) xcb:xembed:MAPPED)))
+      (setq visible (slot-value info 'flags))
+      (if visible
+          (setq visible
+                (/= 0 (logand (slot-value info 'flags) xcb:xembed:MAPPED)))
+        ;; Default to visible.
+        (setq visible t))
+      (when visible
         (exwm--log "(System Tray) Map the window")
         (xcb:+request exwm-systemtray--connection
             (make-instance 'xcb:MapWindow :window icon)))
@@ -245,13 +250,11 @@ You shall use the default value if using auto-hide minibuffer.")
         (setq data32 (slot-value data 'data32)
               opcode (elt data32 1))
         (cond ((= opcode xcb:systemtray:opcode:REQUEST-DOCK)
-               (exwm-systemtray--embed (elt data32 2)))
-              ((= opcode xcb:systemtray:opcode:BEGIN-MESSAGE)
-               ;; FIXME
-               )
-              ((= opcode xcb:systemtray:opcode:CANCEL-MESSAGE)
-               ;; FIXME
-               )
+               (unless (assoc (elt data32 2) exwm-systemtray--list)
+                 (exwm-systemtray--embed (elt data32 2))))
+              ;; Not implemented (rarely used nowadays).
+              ((or (= opcode xcb:systemtray:opcode:BEGIN-MESSAGE)
+                   (= opcode xcb:systemtray:opcode:CANCEL-MESSAGE)))
               (t
                (exwm--log "(System Tray) Unknown opcode message: %s" obj)))))))
 
