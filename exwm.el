@@ -30,11 +30,12 @@
 ;; --------
 ;; EXWM (Emacs X Window Manager) is a full-featured tiling X window manager for
 ;; Emacs built on top of XELB.  It features:
-;; + Fully keyboard-driven operation
+;; + Fully keyboard-driven operations
 ;; + Hybrid layout modes (tiling & stacking)
 ;; + Workspace support
 ;; + ICCCM/EWMH compliance
-;; + Basic RandR support (optional)
+;; ++ (Optional) RandR (multi-monitor) support
+;; ++ (Optional) system tray
 
 ;; Installation & configuration
 ;; ----------------------------
@@ -70,6 +71,7 @@
 (require 'exwm-manage)
 (require 'exwm-input)
 
+;;;###autoload
 (defun exwm-reset ()
   "Reset window to standard state: non-fullscreen, line-mode."
   (interactive)
@@ -80,7 +82,6 @@
       (exwm-layout--refresh)
       (exwm-input-grab-keyboard))))
 
-;;;###autoload
 (defun exwm--update-window-type (id &optional force)
   "Update _NET_WM_WINDOW_TYPE."
   (with-current-buffer (exwm--id->buffer id)
@@ -94,7 +95,6 @@
 (defvar exwm-update-class-hook nil
   "Normal hook run when window class is updated.")
 
-;;;###autoload
 (defun exwm--update-class (id &optional force)
   "Update WM_CLASS."
   (with-current-buffer (exwm--id->buffer id)
@@ -110,7 +110,6 @@
 (defvar exwm-update-title-hook nil
   "Normal hook run when window title is updated.")
 
-;;;###autoload
 (defun exwm--update-utf8-title (id &optional force)
   "Update _NET_WM_NAME."
   (with-current-buffer (exwm--id->buffer id)
@@ -123,7 +122,6 @@
             (setq exwm--title-is-utf8 t)
             (run-hooks 'exwm-update-title-hook)))))))
 
-;;;###autoload
 (defun exwm--update-ctext-title (id &optional force)
   "Update WM_NAME."
   (with-current-buffer (exwm--id->buffer id)
@@ -136,13 +134,11 @@
           (when exwm-title
             (run-hooks 'exwm-update-title-hook)))))))
 
-;;;###autoload
 (defun exwm--update-title (id)
   "Update _NET_WM_NAME or WM_NAME."
   (exwm--update-utf8-title id)
   (exwm--update-ctext-title id))
 
-;;;###autoload
 (defun exwm--update-transient-for (id &optional force)
   "Update WM_TRANSIENT_FOR."
   (with-current-buffer (exwm--id->buffer id)
@@ -153,7 +149,6 @@
         (when reply                     ;nil when destroyed
           (setq exwm-transient-for (slot-value reply 'value)))))))
 
-;;;###autoload
 (defun exwm--update-normal-hints (id &optional force)
   "Update WM_NORMAL_HINTS."
   (with-current-buffer (exwm--id->buffer id)
@@ -201,7 +196,6 @@
                        (= exwm--normal-hints-min-height
                           exwm--normal-hints-max-height)))))))))
 
-;;;###autoload
 (defun exwm--update-hints (id &optional force)
   "Update WM_HINTS."
   (with-current-buffer (exwm--id->buffer id)
@@ -221,7 +215,6 @@
               (set-frame-parameter exwm--frame 'exwm--urgency t)
               (setq exwm-workspace--switch-history-outdated t))))))))
 
-;;;###autoload
 (defun exwm--update-protocols (id &optional force)
   "Update WM_PROTOCOLS."
   (with-current-buffer (exwm--id->buffer id)
@@ -232,7 +225,6 @@
         (when reply                     ;nil when destroyed
           (setq exwm--protocols (append (slot-value reply 'value) nil)))))))
 
-;;;###autoload
 (defun exwm--update-state (id &optional force)
   "Update WM_STATE."
   (with-current-buffer (exwm--id->buffer id)

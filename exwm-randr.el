@@ -48,10 +48,18 @@
 
 (require 'xcb-randr)
 (require 'exwm-core)
-(require 'exwm-layout)
-(eval-when-compile (require 'exwm-workspace))
 
 (defvar exwm-randr-workspace-output-plist nil)
+
+(defvar exwm-randr-refresh-hook nil
+  "Normal hook run when the RandR module just refreshed.")
+
+(defvar exwm-workspace-minibuffer-position)
+(defvar exwm-layout--fullscreen-frame-count)
+(defvar exwm-workspace-number)
+(defvar exwm-workspace--list)
+
+(declare-function exwm-layout--set-frame-fullscreen "exwm-layout.el" (frame))
 
 (defun exwm-randr--refresh ()
   "Refresh workspaces according to the updated RandR info."
@@ -89,6 +97,7 @@
       (setq workarea-offset (if exwm-workspace-minibuffer-position
                                 0
                               (window-pixel-height (minibuffer-window))))
+      (setq exwm-layout--fullscreen-frame-count 0)
       (dotimes (i exwm-workspace-number)
         (let* ((output (plist-get exwm-randr-workspace-output-plist i))
                (geometry (lax-plist-get output-plist output))
@@ -98,15 +107,8 @@
                   output nil))
           (set-frame-parameter frame 'exwm-randr-output output)
           (set-frame-parameter frame 'exwm-geometry geometry)
+          (exwm-layout--set-frame-fullscreen frame)
           (with-slots (x y width height) geometry
-            (exwm-layout--resize-container (frame-parameter frame
-                                                            'exwm-outer-id)
-                                           (frame-parameter frame
-                                                            'exwm-workspace)
-                                           x y width height)
-            (when (and (eq frame exwm-workspace--current)
-                       (exwm-workspace--minibuffer-own-frame-p))
-              (exwm-workspace--resize-minibuffer-frame width height))
             (setq workareas
                   (nconc workareas (list x y width (- height
                                                       workarea-offset)))
@@ -120,7 +122,8 @@
           (make-instance 'xcb:ewmh:set-_NET_DESKTOP_VIEWPORT
                          :window exwm--root
                          :data (vconcat viewports)))
-      (xcb:flush exwm--connection))))
+      (xcb:flush exwm--connection)
+      (run-hooks 'exwm-randr-refresh-hook))))
 
 (defvar exwm-randr-screen-change-hook nil
   "Normal hook run when screen changes.")

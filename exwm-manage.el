@@ -27,7 +27,6 @@
 ;;; Code:
 
 (require 'exwm-core)
-(eval-when-compile (require 'exwm-workspace))
 
 (defvar exwm-manage-finish-hook nil
   "Normal hook run after a window is just managed, in the context of the
@@ -58,6 +57,20 @@ corresponding buffer.")
                                       :long-length 5))))
         (when reply
           (setq exwm--mwm-hints (append (slot-value reply 'value) nil)))))))
+
+(defvar exwm-workspace--current)
+(defvar exwm-workspace--switch-history-outdated)
+
+(declare-function exwm--update-window-type "exwm.el" (id &optional force))
+(declare-function exwm--update-class "exwm.el" (id &optional force))
+(declare-function exwm--update-transient-for "exwm.el" (id &optional force))
+(declare-function exwm--update-normal-hints "exwm.el" (id &optional force))
+(declare-function exwm--update-title "exwm.el" (id))
+(declare-function exwm--update-hints "exwm.el" (id &optional force))
+(declare-function exwm--update-protocols "exwm.el" (id &optional force))
+(declare-function exwm--update-state "exwm.el" (id &optional force))
+(declare-function exwm-floating--set-floating "exwm-floating.el" (id))
+(declare-function exwm-floating--unset-floating "exwm-floating.el" (id))
 
 (defun exwm-manage--manage-window (id)
   "Manage window ID."
@@ -130,12 +143,9 @@ corresponding buffer.")
                                :value-mask (eval-when-compile
                                              (logior xcb:ConfigWindow:X
                                                      xcb:ConfigWindow:Y))
-                               :x (/ (- (frame-pixel-width
-                                         exwm-workspace--current)
-                                        width)
+                               :x (/ (- (exwm-workspace--current-width) width)
                                      2)
-                               :y (/ (- (frame-pixel-height
-                                         exwm-workspace--current)
+                               :y (/ (- (exwm-workspace--current-height)
                                         height)
                                      2)))))
         (xcb:flush exwm--connection)
@@ -200,7 +210,6 @@ corresponding buffer.")
       (with-current-buffer (exwm--id->buffer id)
         (run-hooks 'exwm-manage-finish-hook)))))
 
-;;;###autoload
 (defun exwm-manage--unmanage-window (id &optional withdraw-only)
   "Unmanage window ID."
   (let ((buffer (exwm--id->buffer id)))
@@ -284,7 +293,6 @@ corresponding buffer.")
   "Non-nil indicates EXWM is pinging a window.")
 (defvar exwm-manage-ping-timeout 3 "Seconds to wait before killing a client.")
 
-;;;###autoload
 (defun exwm-manage--kill-buffer-query-function ()
   "Run in `kill-buffer-query-functions'."
   (catch 'return
@@ -359,7 +367,6 @@ Would you like to kill it? "
 
 (defun exwm-manage--kill-client (&optional id)
   "Kill an X client."
-  (interactive)
   (unless id (setq id (exwm--buffer->id (current-buffer))))
   (let* ((response (xcb:+request-unchecked+reply exwm--connection
                        (make-instance 'xcb:ewmh:get-_NET_WM_PID :window id)))
@@ -390,8 +397,8 @@ Would you like to kill it? "
             (setq edges
                   (if exwm--fullscreen
                       (list 0 0
-                            (frame-pixel-width exwm-workspace--current)
-                            (frame-pixel-height exwm-workspace--current))
+                            (exwm-workspace--current-width)
+                            (exwm-workspace--current-height))
                     (window-inside-absolute-pixel-edges
                      (get-buffer-window buffer t))))
             (exwm--log "Reply with ConfigureNotify (edges): %s" edges)

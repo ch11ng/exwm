@@ -26,7 +26,6 @@
 ;;; Code:
 
 (require 'exwm-core)
-(eval-when-compile (require 'exwm-workspace))
 
 (defvar exwm-floating-border-width)
 
@@ -51,7 +50,6 @@
                                              xcb:ConfigWindow:Height))
                        :width width :height height))))
 
-;;;###autoload
 (defun exwm-layout--show (id &optional window)
   "Show window ID exactly fit in the Emacs window WINDOW."
   (exwm--log "Show #x%x in %s" id window)
@@ -112,7 +110,6 @@
                                exwm--connection))))
   (xcb:flush exwm--connection))
 
-;;;###autoload
 (defun exwm-layout--hide (id)
   "Hide window ID."
   (unless (eq xcb:icccm:WM_STATE:IconicState ;already hidden
@@ -137,6 +134,9 @@
                        :icon xcb:Window:None))
     (xcb:flush exwm--connection)))
 
+(defvar exwm-workspace--current)
+(defvar exwm-workspace--list)
+
 ;;;###autoload
 (defun exwm-layout-set-fullscreen (&optional id)
   "Make window ID fullscreen."
@@ -153,9 +153,8 @@
               (vector (slot-value geometry 'x) (slot-value geometry 'y))))
       (xcb:flush exwm--connection))
     (exwm-layout--resize-container exwm--id exwm--container 0 0
-                                   (frame-pixel-width exwm-workspace--current)
-                                   (frame-pixel-height
-                                    exwm-workspace--current))
+                                   (exwm-workspace--current-width)
+                                   (exwm-workspace--current-height))
     (xcb:+request exwm--connection
         (make-instance 'xcb:ewmh:set-_NET_WM_STATE
                        :window exwm--id
@@ -164,6 +163,7 @@
     (setq exwm--fullscreen t)
     (exwm-input-release-keyboard)))
 
+;;;###autoload
 (defun exwm-layout-unset-fullscreen (&optional id)
   "Restore window from fullscreen state."
   (interactive)
@@ -187,6 +187,9 @@
     (setq exwm--fullscreen nil)
     (exwm-input-grab-keyboard)))
 
+(defvar exwm-layout--fullscreen-frame-count 0
+  "Count the fullscreen workspace frames.")
+
 ;; This function is superficially similar to `exwm-layout-set-fullscreen', but
 ;; they do very different things: `exwm-layout--set-frame-fullscreen' resizes a
 ;; frame to the actual monitor size, `exwm-layout-set-fullscreen' resizes an X
@@ -207,7 +210,8 @@
                  (exwm-workspace--minibuffer-own-frame-p))
         (exwm-workspace--resize-minibuffer-frame width height))
       (exwm-layout--resize-container id workspace x y width height)
-      (xcb:flush exwm--connection))))
+      (xcb:flush exwm--connection)))
+  (cl-incf exwm-layout--fullscreen-frame-count))
 
 (defvar exwm-layout-show-all-buffers nil
   "Non-nil to allow switching to buffers on other workspaces.")
@@ -297,6 +301,7 @@
         (exwm-layout--refresh)
       (run-with-idle-timer 0.01 nil #'exwm-layout--refresh)))) ;FIXME
 
+;;;###autoload
 (defun exwm-layout-enlarge-window (delta &optional horizontal)
   "Make the selected window DELTA pixels taller.
 
@@ -371,6 +376,7 @@ windows."
                            :height height))
         (xcb:flush exwm--connection))))))
 
+;;;###autoload
 (defun exwm-layout-enlarge-window-horizontally (delta)
   "Make the selected window DELTA pixels wider.
 
@@ -378,6 +384,7 @@ See also `exwm-layout-enlarge-window'."
   (interactive "p")
   (exwm-layout-enlarge-window delta t))
 
+;;;###autoload
 (defun exwm-layout-shrink-window (delta)
   "Make the selected window DELTA pixels lower.
 
@@ -385,6 +392,7 @@ See also `exwm-layout-enlarge-window'."
   (interactive "p")
   (exwm-layout-enlarge-window (- delta)))
 
+;;;###autoload
 (defun exwm-layout-shrink-window-horizontally (delta)
   "Make the selected window DELTA pixels narrower.
 
@@ -392,6 +400,7 @@ See also `exwm-layout-enlarge-window'."
   (interactive "p")
   (exwm-layout-enlarge-window (- delta) t))
 
+;;;###autoload
 (defun exwm-layout-hide-mode-line ()
   "Hide mode-line."
   (interactive)
@@ -409,6 +418,7 @@ See also `exwm-layout-enlarge-window'."
                              mode-line-height)
                           nil t)))))
 
+;;;###autoload
 (defun exwm-layout-show-mode-line ()
   "Show mode-line."
   (interactive)

@@ -28,7 +28,6 @@
 
 (require 'xcb-cursor)
 (require 'exwm-core)
-(eval-when-compile (require 'exwm-workspace))
 
 (defvar exwm-floating-border-width 1 "Border width of the floating window.")
 (defvar exwm-floating-border-color "navy"
@@ -50,12 +49,17 @@
 (defvar exwm-floating--cursor-bottom-left nil)
 (defvar exwm-floating--cursor-left nil)
 
-(declare-function exwm-layout--refresh "exwm-layout.el")
+(defvar exwm-workspace--current)
+(defvar exwm-workspace--list)
+(defvar exwm-workspace-current-index)
+(defvar exwm-workspace--switch-history-outdated)
+(defvar exwm-workspace-minibuffer-position)
 
-;;;###autoload
+(declare-function exwm-layout--refresh "exwm-layout.el")
+(declare-function exwm-layout--show "exwm-layout.el")
+
 (defun exwm-floating--set-floating (id)
   "Make window ID floating."
-  (interactive)
   (let ((window (get-buffer-window (exwm--id->buffer id))))
     (when window                        ;window in non-floating state
       (set-window-buffer window (other-buffer)))) ;hide it first
@@ -85,7 +89,7 @@
                      (unsplittable . t))))) ;and fix the size later
          (outer-id (string-to-number (frame-parameter frame 'outer-window-id)))
          (container (with-current-buffer (exwm--id->buffer id)
-                          exwm--container))
+                      exwm--container))
          (window (frame-first-window frame)) ;and it's the only window
          (x (slot-value exwm--geometry 'x))
          (y (slot-value exwm--geometry 'y))
@@ -194,10 +198,8 @@
     (select-frame-set-input-focus frame))
   (run-hooks 'exwm-floating-setup-hook))
 
-;;;###autoload
 (defun exwm-floating--unset-floating (id)
   "Make window ID non-floating."
-  (interactive)
   (let ((buffer (exwm--id->buffer id)))
     (with-current-buffer buffer
       ;; Reparent the frame back to the root window.
@@ -257,7 +259,6 @@
 (defvar exwm-floating--moveresize-calculate nil
   "Calculate move/resize parameters [buffer event-mask x y width height].")
 
-;;;###autoload
 (defun exwm-floating--start-moveresize (id &optional type)
   "Start move/resize."
   (let ((buffer (exwm--id->buffer id))
@@ -404,7 +405,6 @@
                              :cursor cursor
                              :time xcb:Time:CurrentTime)))))))
 
-;;;###autoload
 (defun exwm-floating--stop-moveresize (&rest _args)
   "Stop move/resize."
   (xcb:+request exwm--connection
@@ -434,7 +434,6 @@
   (xcb:flush exwm--connection)
   (setq exwm-floating--moveresize-calculate nil))
 
-;;;###autoload
 (defun exwm-floating--do-moveresize (data _synthetic)
   "Perform move/resize."
   (when exwm-floating--moveresize-calculate

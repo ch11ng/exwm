@@ -37,7 +37,6 @@
 
 (require 'xcb-keysyms)
 (require 'exwm-core)
-(eval-when-compile (require 'exwm-workspace))
 
 (defvar exwm-input-move-event 's-down-mouse-1
   "Emacs event to start moving a window.")
@@ -93,6 +92,11 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
       (setq exwm-input--focus-window window
             exwm-input--timer
             (run-with-idle-timer 0.01 nil #'exwm-input--update-focus)))))
+
+(defvar exwm-workspace--current)
+(defvar exwm-workspace--switch-history-outdated)
+(defvar exwm-workspace-current-index)
+(defvar exwm-workspace--minibuffer)
 
 (defun exwm-input--update-focus ()
   "Update input focus."
@@ -157,6 +161,11 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
     (when exwm-input--temp-line-mode
       (setq exwm-input--temp-line-mode nil)
       (exwm-input--release-keyboard))))
+
+(declare-function exwm-floating--start-moveresize "exwm-floating.el"
+                  (id &optional type))
+
+(defvar exwm-workspace--list)
 
 (defun exwm-input--on-ButtonPress (data _synthetic)
   "Handle ButtonPress event."
@@ -262,6 +271,7 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
 
 (defun exwm-input-set-key (key command)
   "Set a global key binding."
+  (interactive "KSet key globally: \nCSet key %s to command: ")
   (global-set-key key command)
   (cl-pushnew key exwm-input--global-keys))
 
@@ -273,7 +283,6 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
 (defvar exwm-input--during-command nil
   "Indicate whether between `pre-command-hook' and `post-command-hook'.")
 
-;;;###autoload
 (defun exwm-input--on-KeyPress-line-mode (key-press)
   "Parse X KeyPress event to Emacs key event and then feed the command loop."
   (with-slots (detail state) key-press
@@ -443,12 +452,13 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
 (defun exwm-input-set-simulation-keys (simulation-keys)
   "Set simulation keys.
 
-SIMULATION-KEYS is a list of alist (key-sequence1 . key-sequence2)."
+SIMULATION-KEYS is an alist of the form (original-key . simulated-key)."
   (setq exwm-input--simulation-keys nil)
   (dolist (i simulation-keys)
     (cl-pushnew `(,(vconcat (car i)) . ,(cdr i)) exwm-input--simulation-keys))
   (exwm-input--update-simulation-prefix-keys))
 
+;;;###autoload
 (defun exwm-input-send-simulation-key (times)
   "Fake a key event according to last input key sequence."
   (interactive "p")
@@ -460,6 +470,11 @@ SIMULATION-KEYS is a list of alist (key-sequence1 . key-sequence2)."
       (dotimes (_ times)
         (dolist (j pair)
           (exwm-input--fake-key j))))))
+
+(declare-function exwm-floating--stop-moveresize "exwm-floating.el"
+                  (&rest _args))
+(declare-function exwm-floating--do-moveresize "exwm-floating.el"
+                  (data _synthetic))
 
 (defun exwm-input--init ()
   "Initialize the keyboard module."
