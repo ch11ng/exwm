@@ -120,12 +120,12 @@
 
 (defvar exwm-mode-map
   (let ((map (make-sparse-keymap)))
-    (define-key map "\C-ck" #'exwm-input-release-keyboard)
-    (define-key map "\C-cf" #'exwm-layout-set-fullscreen)
-    (define-key map "\C-cm" #'exwm-floating-toggle-floating)
-    (define-key map "\C-cq" #'exwm-input-send-next-key)
-    (define-key map "\C-cv" #'exwm-workspace-move-window)
-    (define-key map "\C-cM" #'exwm-layout-toggle-mode-line)
+    (define-key map "\C-c\C-f" #'exwm-layout-set-fullscreen)
+    (define-key map "\C-c\C-k" #'exwm-input-release-keyboard)
+    (define-key map "\C-c\C-m" #'exwm-workspace-move-window)
+    (define-key map "\C-c\C-q" #'exwm-input-send-next-key)
+    (define-key map "\C-c\C-t\C-f" #'exwm-floating-toggle-floating)
+    (define-key map "\C-c\C-t\C-m" #'exwm-layout-toggle-mode-line)
     map)
   "Keymap for `exwm-mode'.")
 
