@@ -113,8 +113,8 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
                 (exwm-workspace-switch exwm-workspace-current-index t))
             (exwm--log "Set focus on #x%x" exwm--id)
             (exwm-input--set-focus exwm--id)
-            ;; Adjust stacking orders
             (when exwm--floating-frame
+              ;; Adjust stacking orders of the floating container.
               (if (exwm-workspace--minibuffer-own-frame-p)
                   ;; Put this floating X window just below the minibuffer.
                   (xcb:+request exwm--connection
@@ -132,16 +132,8 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
                     (make-instance 'xcb:ConfigureWindow
                                    :window exwm--container
                                    :value-mask xcb:ConfigWindow:StackMode
-                                   :stack-mode xcb:StackMode:Above))))
-            ;; Make sure Emacs frames are at bottom.
-            (xcb:+request exwm--connection
-                (make-instance 'xcb:ConfigureWindow
-                               :window (frame-parameter
-                                        (or exwm--floating-frame exwm--frame)
-                                        'exwm-outer-id)
-                               :value-mask xcb:ConfigWindow:StackMode
-                               :stack-mode xcb:StackMode:BottomIf))
-            (xcb:flush exwm--connection))
+                                   :stack-mode xcb:StackMode:Above)))
+              (xcb:flush exwm--connection)))
         (when (eq (selected-window) exwm-input--focus-window)
           (exwm--log "Focus on %s" exwm-input--focus-window)
           (select-frame-set-input-focus (window-frame exwm-input--focus-window)

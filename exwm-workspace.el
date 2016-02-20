@@ -252,7 +252,7 @@ The optional FORCE option is for internal use only."
                (concat " " name)))))
         (setq exwm--frame frame)
         (if exwm--floating-frame
-            ;; Move the floating frame is enough
+            ;; Move the floating container.
             (progn
               (xcb:+request exwm--connection
                   (make-instance 'xcb:ReparentWindow
@@ -261,7 +261,7 @@ The optional FORCE option is for internal use only."
                                  (frame-parameter frame 'exwm-workspace)
                                  :x 0 :y 0))
               (xcb:flush exwm--connection))
-          ;; Move the window itself
+          ;; Move the X window container.
           (if (/= index exwm-workspace-current-index)
               (bury-buffer)
             (set-window-buffer (get-buffer-window (current-buffer) t)
@@ -483,28 +483,30 @@ This functions is modified from `display-buffer-reuse-window' and
           (0 (y-or-n-p prompt))
           (x (yes-or-no-p (format "[EXWM] %d window%s currently alive. %s"
                                   x (if (= x 1) "" "s") prompt))))
-    ;; Remove SubstructureRedirect event.
-    (xcb:+request exwm--connection
-        (make-instance 'xcb:ChangeWindowAttributes
-                       :window exwm--root :value-mask xcb:CW:EventMask
-                       :event-mask 0))
-    ;; Remove the _NET_SUPPORTING_WM_CHECK X window.
-    (with-slots (value)
-        (xcb:+request-unchecked+reply exwm--connection
-            (make-instance 'xcb:ewmh:get-_NET_SUPPORTING_WM_CHECK
-                           :window exwm--root))
-      (xcb:+request exwm--connection
-          (make-instance 'xcb:DeleteProperty
-                         :window exwm--root
-                         :property xcb:Atom:_NET_SUPPORTING_WM_CHECK))
-      (xcb:+request exwm--connection
-          (make-instance 'xcb:DestroyWindow :window value)))
     ;; Unmanage all X windows.
     (dolist (i exwm--id-buffer-alist)
       (exwm-manage--unmanage-window (car i) t)
       (xcb:+request exwm--connection
           (make-instance 'xcb:MapWindow :window (car i))))
+    ;; Reparent out the minibuffer frame.
+    (when exwm-workspace-minibuffer-position
+      (xcb:+request exwm--connection
+          (make-instance 'xcb:ReparentWindow
+                         :window (frame-parameter exwm-workspace--minibuffer
+                                                  'exwm-outer-id)
+                         :parent exwm--root
+                         :x 0
+                         :y 0)))
+    ;; Reparent out all workspace frames.
+    (dolist (f exwm-workspace--list)
+      (xcb:+request exwm--connection
+          (make-instance 'xcb:ReparentWindow
+                         :window (frame-parameter f 'exwm-outer-id)
+                         :parent exwm--root
+                         :x 0
+                         :y 0)))
     (xcb:flush exwm--connection)
+    ;; Destroy all resources created by this connection.
     (xcb:disconnect exwm--connection)
     t))
 
@@ -589,9 +591,11 @@ This functions is modified from `display-buffer-reuse-window' and
   ;; Configure workspaces
   (dolist (i exwm-workspace--list)
     (let ((outer-id (string-to-number (frame-parameter i 'outer-window-id)))
+          (container (xcb:generate-id exwm--connection))
           (workspace (xcb:generate-id exwm--connection)))
       ;; Save window IDs
       (set-frame-parameter i 'exwm-outer-id outer-id)
+      (set-frame-parameter i 'exwm-container container)
       (set-frame-parameter i 'exwm-workspace workspace)
       (xcb:+request exwm--connection
           (make-instance 'xcb:CreateWindow
@@ -605,16 +609,34 @@ This functions is modified from `display-buffer-reuse-window' and
                                              xcb:CW:EventMask)
                          :override-redirect 1
                          :event-mask xcb:EventMask:SubstructureRedirect))
+      (xcb:+request exwm--connection
+          (make-instance 'xcb:CreateWindow
+                         :depth 0 :wid container :parent workspace
+                         :x 0 :y 0
+                         :width (x-display-pixel-width)
+                         :height (x-display-pixel-height)
+                         :border-width 0 :class xcb:WindowClass:CopyFromParent
+                         :visual 0      ;CopyFromParent
+                         :value-mask xcb:CW:OverrideRedirect
+                         :override-redirect 1))
       (exwm--debug
        (xcb:+request exwm--connection
            (make-instance 'xcb:ewmh:set-_NET_WM_NAME
                           :window workspace
                           :data
                           (format "EXWM workspace %d"
+                                  (cl-position i exwm-workspace--list))))
+       (xcb:+request exwm--connection
+           (make-instance 'xcb:ewmh:set-_NET_WM_NAME
+                          :window container
+                          :data
+                          (format "EXWM workspace %d frame container"
                                   (cl-position i exwm-workspace--list)))))
       (xcb:+request exwm--connection
           (make-instance 'xcb:ReparentWindow
-                         :window outer-id :parent workspace :x 0 :y 0))
+                         :window outer-id :parent container :x 0 :y 0))
+      (xcb:+request exwm--connection
+          (make-instance 'xcb:MapWindow :window container))
       (xcb:+request exwm--connection
           (make-instance 'xcb:MapWindow :window workspace))))
   (xcb:flush exwm--connection)

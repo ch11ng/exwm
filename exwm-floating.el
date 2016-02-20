@@ -90,6 +90,7 @@
          (outer-id (string-to-number (frame-parameter frame 'outer-window-id)))
          (container (with-current-buffer (exwm--id->buffer id)
                       exwm--container))
+         (frame-container (xcb:generate-id exwm--connection))
          (window (frame-first-window frame)) ;and it's the only window
          (x (slot-value exwm--geometry 'x))
          (y (slot-value exwm--geometry 'y))
@@ -103,8 +104,9 @@
             y (- y (slot-value frame-geometry 'y))))
     (exwm--log "Floating geometry (original, relative): %dx%d%+d%+d"
                width height x y)
-    ;; Save window IDs
+    ;; Save frame parameters.
     (set-frame-parameter frame 'exwm-outer-id outer-id)
+    (set-frame-parameter frame 'exwm-container frame-container)
     ;; Set urgency flag if it's not appear in the active workspace
     (let ((idx (cl-position original-frame exwm-workspace--list)))
       (when (/= idx exwm-workspace-current-index)
@@ -163,18 +165,43 @@
     ;; timely.
     ;; The frame will be made visible by `select-frame-set-input-focus'.
     (make-frame-invisible frame)
-    (let ((edges (window-inside-pixel-edges window)))
-      (set-frame-size frame
-                      (+ width (- (frame-pixel-width frame)
-                                  (- (elt edges 2) (elt edges 0))))
-                      (+ height (- (frame-pixel-height frame)
-                                   (- (elt edges 3) (elt edges 1))))
-                      t))
-    ;; Reparent this frame to the container
+    (let* ((edges (window-inside-pixel-edges window))
+           (frame-width (+ width (- (frame-pixel-width frame)
+                                    (- (elt edges 2) (elt edges 0)))))
+           (frame-height (+ height (- (frame-pixel-height frame)
+                                      (- (elt edges 3) (elt edges 1))))))
+      (set-frame-size frame frame-width frame-height t)
+      ;; Create the frame container as the parent of the frame and
+      ;; a child of the X window container.
+      (xcb:+request exwm--connection
+          (make-instance 'xcb:CreateWindow
+                         :depth 0 :wid frame-container
+                         :parent container
+                         :x 0 :y 0 :width width :height height :border-width 0
+                         :class xcb:WindowClass:CopyFromParent
+                         :visual 0      ;CopyFromParent
+                         :value-mask xcb:CW:OverrideRedirect
+                         :override-redirect 1))
+      ;; Put it at bottom.
+      (xcb:+request exwm--connection
+          (make-instance 'xcb:ConfigureWindow
+                         :window frame-container
+                         :value-mask xcb:ConfigWindow:StackMode
+                         :stack-mode xcb:StackMode:Below))
+      ;; Map it.
+      (xcb:+request exwm--connection
+          (make-instance 'xcb:MapWindow :window frame-container))
+      (exwm--debug
+       (xcb:+request exwm--connection
+           (make-instance 'xcb:ewmh:set-_NET_WM_NAME
+                          :window frame-container
+                          :data
+                          (format "floating frame container for 0x%x" id)))))
+    ;; Reparent this frame to its container.
     (xcb:+request exwm--connection
         (make-instance 'xcb:ReparentWindow
-                       :window outer-id :parent container :x 0 :y 0))
-    ;; Place the container
+                       :window outer-id :parent frame-container :x 0 :y 0))
+    ;; Place the X window container.
     (xcb:+request exwm--connection
         (make-instance 'xcb:ConfigureWindow
                        :window container
@@ -193,16 +220,9 @@
       (remove-hook 'window-configuration-change-hook #'exwm-layout--refresh)
       (set-window-buffer window (current-buffer)) ;this changes current buffer
       (add-hook 'window-configuration-change-hook #'exwm-layout--refresh)
-      (set-window-dedicated-p window t))
-    (select-frame-set-input-focus frame)
-    ;; `x_make_frame_visible' autoraises the frame.  Force lowering it.
-    (xcb:+request exwm--connection
-        (make-instance 'xcb:ConfigureWindow
-                       :window outer-id
-                       :value-mask xcb:ConfigWindow:StackMode
-                       :stack-mode xcb:StackMode:Below))
-    ;; Show the X window with its container (and flush).
-    (exwm-layout--show id window))
+      (set-window-dedicated-p window t)
+      (exwm-layout--show id window))
+    (select-frame-set-input-focus frame))
   (run-hooks 'exwm-floating-setup-hook)
   ;; Redraw the frame.
   (redisplay))
@@ -229,29 +249,28 @@
                            :window id :value-mask xcb:CW:EventMask
                            :event-mask exwm--client-event-mask))
         ;; Reparent the floating frame back to the root window.
-        (let ((frame-id (frame-parameter exwm--floating-frame 'exwm-outer-id)))
+        (let ((frame-id (frame-parameter exwm--floating-frame 'exwm-outer-id))
+              (frame-container (frame-parameter exwm--floating-frame
+                                                'exwm-container)))
           (xcb:+request exwm--connection
               (make-instance 'xcb:UnmapWindow :window frame-id))
           (xcb:+request exwm--connection
               (make-instance 'xcb:ReparentWindow
                              :window frame-id
                              :parent exwm--root
-                             :x 0 :y 0))))
-      ;; Reparent the container to the workspace
-      (xcb:+request exwm--connection
-          (make-instance 'xcb:ReparentWindow
-                         :window exwm--container
-                         :parent (frame-parameter exwm-workspace--current
-                                                  'exwm-workspace)
-                         :x 0 :y 0))    ;temporary position
-      ;; Put the container just above the Emacs frame
+                             :x 0 :y 0))
+          ;; Also destroy its container.
+          (xcb:+request exwm--connection
+              (make-instance 'xcb:DestroyWindow :window frame-container))))
+      ;; Put the X window container just above the Emacs frame container
+      ;; (the stacking order won't change from now on).
       (xcb:+request exwm--connection
           (make-instance 'xcb:ConfigureWindow
                          :window exwm--container
                          :value-mask (logior xcb:ConfigWindow:Sibling
                                              xcb:ConfigWindow:StackMode)
                          :sibling (frame-parameter exwm-workspace--current
-                                                   'exwm-outer-id)
+                                                   'exwm-container)
                          :stack-mode xcb:StackMode:Above)))
     (xcb:flush exwm--connection)
     (with-current-buffer buffer
@@ -466,13 +485,19 @@
           (geometry (frame-parameter exwm-workspace--current 'exwm-geometry))
           (frame-x 0)
           (frame-y 0)
-          result)
+          result value-mask width height)
       (when geometry
         (setq frame-x (slot-value geometry 'x)
               frame-y (slot-value geometry 'y)))
       (xcb:unmarshal obj data)
       (setq result (funcall exwm-floating--moveresize-calculate
-                            (slot-value obj 'root-x) (slot-value obj 'root-y)))
+                            (slot-value obj 'root-x) (slot-value obj 'root-y))
+            value-mask (logand (aref result 1)
+                               (eval-when-compile
+                                 (logior xcb:ConfigWindow:Width
+                                         xcb:ConfigWindow:Height)))
+            width (aref result 4)
+            height (aref result 5))
       (with-current-buffer (aref result 0)
         (xcb:+request exwm--connection
             (make-instance 'xcb:ConfigureWindow
@@ -486,13 +511,17 @@
         (xcb:+request exwm--connection
             (make-instance 'xcb:ConfigureWindow
                            :window (frame-parameter exwm--floating-frame
+                                                    'exwm-container)
+                           :value-mask value-mask
+                           :width width
+                           :height height))
+        (xcb:+request exwm--connection
+            (make-instance 'xcb:ConfigureWindow
+                           :window (frame-parameter exwm--floating-frame
                                                     'exwm-outer-id)
-                           :value-mask
-                           (logand (aref result 1)
-                                   (eval-when-compile
-                                     (logior xcb:ConfigWindow:Width
-                                             xcb:ConfigWindow:Height)))
-                           :width (aref result 4) :height (aref result 5))))
+                           :value-mask value-mask
+                           :width width
+                           :height height)))
       (xcb:flush exwm--connection))))
 
 (defun exwm-floating-move (&optional delta-x delta-y)

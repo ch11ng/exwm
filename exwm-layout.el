@@ -55,37 +55,46 @@
   (exwm--log "Show #x%x in %s" id window)
   (let* ((edges (window-inside-absolute-pixel-edges window))
          (width (- (elt edges 2) (elt edges 0)))
-         (height (- (elt edges 3) (elt edges 1))))
+         (height (- (elt edges 3) (elt edges 1)))
+         frame-width frame-height)
     (with-current-buffer (exwm--id->buffer id)
-      (if exwm--floating-frame
-          ;; A floating X window is of the same size as the Emacs window,
-          ;; whereas its container is of the same size as the Emacs frame.
-          (progn
-            (xcb:+request exwm--connection
-                (make-instance 'xcb:ConfigureWindow
-                               :window exwm--container
-                               :value-mask (logior xcb:ConfigWindow:Width
-                                                   xcb:ConfigWindow:Height)
-                               :width (frame-pixel-width exwm--floating-frame)
-                               :height (frame-pixel-height
-                                        exwm--floating-frame)))
-            (xcb:+request exwm--connection
-                (make-instance 'xcb:ConfigureWindow
-                               :window exwm--id
-                               :value-mask (logior xcb:ConfigWindow:X
-                                                   xcb:ConfigWindow:Y
-                                                   xcb:ConfigWindow:Width
-                                                   xcb:ConfigWindow:Height)
-                               :x exwm-floating-border-width
-                               :y exwm-floating-border-width
-                               :width width
-                               :height height)))
-        (let ((relative-edges (window-inside-pixel-edges window)))
-          (exwm-layout--resize-container id exwm--container
-                                         (elt relative-edges 0)
-                                         (elt relative-edges 1)
-                                         width height
-                                         (active-minibuffer-window))))
+      (if (not exwm--floating-frame)
+          (let ((relative-edges (window-inside-pixel-edges window)))
+            (exwm-layout--resize-container id exwm--container
+                                           (elt relative-edges 0)
+                                           (elt relative-edges 1)
+                                           width height
+                                           (active-minibuffer-window)))
+        ;; A floating X window is of the same size as the Emacs window,
+        ;; whereas its container is of the same size as the Emacs frame.
+        (setq frame-width (frame-pixel-width exwm--floating-frame)
+              frame-height (frame-pixel-height exwm--floating-frame))
+        (xcb:+request exwm--connection
+            (make-instance 'xcb:ConfigureWindow
+                           :window exwm--container
+                           :value-mask (logior xcb:ConfigWindow:Width
+                                               xcb:ConfigWindow:Height)
+                           :width frame-width
+                           :height frame-height))
+        (xcb:+request exwm--connection
+            (make-instance 'xcb:ConfigureWindow
+                           :window (frame-parameter exwm--floating-frame
+                                                    'exwm-container)
+                           :value-mask (logior xcb:ConfigWindow:Width
+                                               xcb:ConfigWindow:Height)
+                           :width frame-width
+                           :height frame-height))
+        (xcb:+request exwm--connection
+            (make-instance 'xcb:ConfigureWindow
+                           :window exwm--id
+                           :value-mask (logior xcb:ConfigWindow:X
+                                               xcb:ConfigWindow:Y
+                                               xcb:ConfigWindow:Width
+                                               xcb:ConfigWindow:Height)
+                           :x exwm-floating-border-width
+                           :y exwm-floating-border-width
+                           :width width
+                           :height height)))
       ;; Make the resizing take effect.
       (xcb:flush exwm--connection)
       (xcb:+request exwm--connection (make-instance 'xcb:MapWindow :window id))
@@ -151,8 +160,7 @@
                            (make-instance 'xcb:GetGeometry
                                           :drawable exwm--container))))
         (setq exwm--floating-frame-position
-              (vector (slot-value geometry 'x) (slot-value geometry 'y))))
-      (xcb:flush exwm--connection))
+              (vector (slot-value geometry 'x) (slot-value geometry 'y)))))
     (exwm-layout--resize-container exwm--id exwm--container 0 0
                                    (exwm-workspace--current-width)
                                    (exwm-workspace--current-height))
@@ -205,12 +213,14 @@
                                      :width (x-display-pixel-width)
                                      :height (x-display-pixel-height))))
         (id (frame-parameter frame 'exwm-outer-id))
+        (container (frame-parameter frame 'exwm-container))
         (workspace (frame-parameter frame 'exwm-workspace)))
     (with-slots (x y width height) geometry
       (when (and (eq frame exwm-workspace--current)
                  (exwm-workspace--minibuffer-own-frame-p))
         (exwm-workspace--resize-minibuffer-frame width height))
-      (exwm-layout--resize-container id workspace x y width height)
+      (exwm-layout--resize-container id container 0 0 width height)
+      (exwm-layout--resize-container nil workspace x y width height t)
       (xcb:flush exwm--connection)))
   (cl-incf exwm-layout--fullscreen-frame-count))
 
@@ -349,6 +359,12 @@ windows."
                                                     'exwm-outer-id)
                            :value-mask xcb:ConfigWindow:Width
                            :width width))
+        (xcb:+request exwm--connection
+            (make-instance 'xcb:ConfigureWindow
+                           :window (frame-parameter exwm--floating-frame
+                                                    'exwm-container)
+                           :value-mask xcb:ConfigWindow:Width
+                           :width width))
         (xcb:flush exwm--connection))))
    (t
     (let* ((height (frame-pixel-height))
@@ -373,6 +389,12 @@ windows."
             (make-instance 'xcb:ConfigureWindow
                            :window (frame-parameter exwm--floating-frame
                                                     'exwm-outer-id)
+                           :value-mask xcb:ConfigWindow:Height
+                           :height height))
+        (xcb:+request exwm--connection
+            (make-instance 'xcb:ConfigureWindow
+                           :window (frame-parameter exwm--floating-frame
+                                                    'exwm-container)
                            :value-mask xcb:ConfigWindow:Height
                            :height height))
         (xcb:flush exwm--connection))))))

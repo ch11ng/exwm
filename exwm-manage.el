@@ -224,6 +224,9 @@ corresponding buffer.")
         (xcb:+request exwm--connection
             (make-instance 'xcb:UnmapWindow :window exwm--container))
         (xcb:flush exwm--connection)
+        ;; Unmap the X window.
+        (xcb:+request exwm--connection
+            (make-instance 'xcb:UnmapWindow :window id))
         ;;
         (setq exwm-workspace--switch-history-outdated t)
         ;;
@@ -256,18 +259,17 @@ corresponding buffer.")
           (xcb:+request exwm--connection
               (make-instance 'xcb:DeleteProperty
                              :window id :property xcb:Atom:WM_STATE)))
-        ;; Destroy the container (it seems it has to be delayed).
         (when exwm--floating-frame
-          ;; Unmap the floating frame.
+          ;; Unmap the floating frame before destroying the containers.
           (let ((window (frame-parameter exwm--floating-frame 'exwm-outer-id)))
             (xcb:+request exwm--connection
                 (make-instance 'xcb:UnmapWindow :window window))
             (xcb:+request exwm--connection
                 (make-instance 'xcb:ReparentWindow
                                :window window :parent exwm--root :x 0 :y 0))))
+        ;; Destroy the X window container (and the frame container if any).
         (xcb:+request exwm--connection
             (make-instance 'xcb:DestroyWindow :window exwm--container))
-        (xcb:flush exwm--connection)
         (let ((kill-buffer-query-functions nil)
               (floating exwm--floating-frame))
           (kill-buffer)
@@ -310,12 +312,14 @@ corresponding buffer.")
           (make-instance 'xcb:UnmapWindow :window exwm--container))
       (xcb:flush exwm--connection)
       (when exwm--floating-frame
-        (xcb:+request exwm--connection
-            (make-instance 'xcb:ReparentWindow
-                           :window (frame-parameter exwm--floating-frame
-                                                    'exwm-outer-id)
-                           :parent exwm--root
-                           :x 0 :y 0)))
+        (let ((window (frame-parameter exwm--floating-frame 'exwm-outer-id)))
+          (xcb:+request exwm--connection
+              (make-instance 'xcb:UnmapWindow :window window))
+          (xcb:+request exwm--connection
+              (make-instance 'xcb:ReparentWindow
+                             :window window
+                             :parent exwm--root
+                             :x 0 :y 0))))
       (xcb:+request exwm--connection
           (make-instance 'xcb:DestroyWindow :window exwm--container))
       (xcb:flush exwm--connection)
@@ -410,10 +414,13 @@ Would you like to kill it? "
   (let ((obj (make-instance 'xcb:ConfigureRequest))
         buffer edges)
     (xcb:unmarshal obj data)
-    (with-slots (window x y width height border-width value-mask)
+    (with-slots (window x y width height
+                        border-width sibling stack-mode value-mask)
         obj
-      (exwm--log "ConfigureRequest from #x%x (#x%x) @%dx%d%+d%+d, border: %d"
-                 window value-mask width height x y border-width)
+      (exwm--log "ConfigureRequest from #x%x (#x%x) @%dx%d%+d%+d; \
+border-width: %d; sibling: #x%x; stack-mode: %d"
+                 window value-mask width height x y
+                 border-width sibling stack-mode)
       (if (setq buffer (exwm--id->buffer window))
           ;; Send client message for managed windows
           (with-current-buffer buffer
@@ -440,16 +447,15 @@ Would you like to kill it? "
                                         :border-width 0 :override-redirect 0)
                                        exwm--connection))))
         (exwm--log "ConfigureWindow (preserve geometry)")
-        ;; Configure the unmanaged window without changing the stacking order.
+        ;; Configure the unmanaged window.
         (xcb:+request exwm--connection
             (make-instance 'xcb:ConfigureWindow
                            :window window
-                           :value-mask
-                           (logand value-mask
-                                   (lognot xcb:ConfigWindow:Sibling)
-                                   (lognot xcb:ConfigWindow:StackMode))
+                           :value-mask value-mask
                            :x x :y y :width width :height height
-                           :border-width border-width)))))
+                           :border-width border-width
+                           :sibling sibling
+                           :stack-mode stack-mode)))))
   (xcb:flush exwm--connection))
 
 (defun exwm-manage--on-MapRequest (data _synthetic)
