@@ -193,17 +193,42 @@
       (remove-hook 'window-configuration-change-hook #'exwm-layout--refresh)
       (set-window-buffer window (current-buffer)) ;this changes current buffer
       (add-hook 'window-configuration-change-hook #'exwm-layout--refresh)
-      (set-window-dedicated-p window t)
-      (exwm-layout--show id window))
-    (select-frame-set-input-focus frame))
-  (run-hooks 'exwm-floating-setup-hook))
+      (set-window-dedicated-p window t))
+    (select-frame-set-input-focus frame)
+    ;; `x_make_frame_visible' autoraises the frame.  Force lowering it.
+    (xcb:+request exwm--connection
+        (make-instance 'xcb:ConfigureWindow
+                       :window outer-id
+                       :value-mask xcb:ConfigWindow:StackMode
+                       :stack-mode xcb:StackMode:Below))
+    ;; Show the X window with its container (and flush).
+    (exwm-layout--show id window))
+  (run-hooks 'exwm-floating-setup-hook)
+  ;; Redraw the frame.
+  (redisplay))
 
 (defun exwm-floating--unset-floating (id)
   "Make window ID non-floating."
   (let ((buffer (exwm--id->buffer id)))
     (with-current-buffer buffer
-      ;; Reparent the frame back to the root window.
       (when exwm--floating-frame
+        ;; The X window is already mapped.
+        ;; Unmap the container to prevent flickering.
+        (xcb:+request exwm--connection
+            (make-instance 'xcb:UnmapWindow :window exwm--container))
+        (xcb:flush exwm--connection)
+        ;; Unmap the X window.
+        (xcb:+request exwm--connection
+            (make-instance 'xcb:ChangeWindowAttributes
+                           :window id :value-mask xcb:CW:EventMask
+                           :event-mask xcb:EventMask:NoEvent))
+        (xcb:+request exwm--connection
+            (make-instance 'xcb:UnmapWindow :window id))
+        (xcb:+request exwm--connection
+            (make-instance 'xcb:ChangeWindowAttributes
+                           :window id :value-mask xcb:CW:EventMask
+                           :event-mask exwm--client-event-mask))
+        ;; Reparent the floating frame back to the root window.
         (let ((frame-id (frame-parameter exwm--floating-frame 'exwm-outer-id)))
           (xcb:+request exwm--connection
               (make-instance 'xcb:UnmapWindow :window frame-id))

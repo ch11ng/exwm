@@ -213,14 +213,18 @@ corresponding buffer.")
 (defun exwm-manage--unmanage-window (id &optional withdraw-only)
   "Unmanage window ID."
   (let ((buffer (exwm--id->buffer id)))
-    (exwm--log "Unmanage #x%x (buffer: %s)" id buffer)
+    (exwm--log "Unmanage #x%x (buffer: %s, widthdraw: %s)"
+               id buffer withdraw-only)
     (setq exwm--id-buffer-alist (assq-delete-all id exwm--id-buffer-alist))
     (when (buffer-live-p buffer)
       (with-current-buffer buffer
-        ;; Hide the floating frame as early as possible.
-        (when exwm--floating-frame (make-frame-invisible exwm--floating-frame))
+        ;; Flickering seems unavoidable here if the DestroyWindow request is
+        ;; not initiated by us.
+        ;; What we can do is to hide the its container ASAP.
         (xcb:+request exwm--connection
             (make-instance 'xcb:UnmapWindow :window exwm--container))
+        (xcb:flush exwm--connection)
+        ;;
         (setq exwm-workspace--switch-history-outdated t)
         ;;
         (when withdraw-only
@@ -254,12 +258,13 @@ corresponding buffer.")
                              :window id :property xcb:Atom:WM_STATE)))
         ;; Destroy the container (it seems it has to be delayed).
         (when exwm--floating-frame
-          (xcb:+request exwm--connection
-              (make-instance 'xcb:ReparentWindow
-                             :window (frame-parameter exwm--floating-frame
-                                                      'exwm-outer-id)
-                             :parent exwm--root
-                             :x 0 :y 0)))
+          ;; Unmap the floating frame.
+          (let ((window (frame-parameter exwm--floating-frame 'exwm-outer-id)))
+            (xcb:+request exwm--connection
+                (make-instance 'xcb:UnmapWindow :window window))
+            (xcb:+request exwm--connection
+                (make-instance 'xcb:ReparentWindow
+                               :window window :parent exwm--root :x 0 :y 0))))
         (xcb:+request exwm--connection
             (make-instance 'xcb:DestroyWindow :window exwm--container))
         (xcb:flush exwm--connection)
@@ -268,12 +273,12 @@ corresponding buffer.")
           (kill-buffer)
           (when floating
             (select-window
-             (frame-selected-window exwm-workspace--current))))))
-    (xcb:+request exwm--connection      ;update _NET_CLIENT_LIST
-        (make-instance 'xcb:ewmh:set-_NET_CLIENT_LIST
-                       :window exwm--root
-                       :data (vconcat (mapcar #'car exwm--id-buffer-alist))))
-    (xcb:flush exwm--connection)))
+             (frame-selected-window exwm-workspace--current)))))
+      (xcb:+request exwm--connection    ;update _NET_CLIENT_LIST
+          (make-instance 'xcb:ewmh:set-_NET_CLIENT_LIST
+                         :window exwm--root
+                         :data (vconcat (mapcar #'car exwm--id-buffer-alist))))
+      (xcb:flush exwm--connection))))
 
 (defun exwm-manage--scan ()
   "Search for existing windows and try to manage them."
@@ -300,6 +305,10 @@ corresponding buffer.")
               (make-instance 'xcb:MapWindow :window exwm--id))
       ;; The X window is no longer alive so just close the buffer.
       ;; Destroy the container.
+      ;; Hide the container to prevent flickering.
+      (xcb:+request exwm--connection
+          (make-instance 'xcb:UnmapWindow :window exwm--container))
+      (xcb:flush exwm--connection)
       (when exwm--floating-frame
         (xcb:+request exwm--connection
             (make-instance 'xcb:ReparentWindow
@@ -313,6 +322,9 @@ corresponding buffer.")
       (throw 'return t))
     (unless (memq xcb:Atom:WM_DELETE_WINDOW exwm--protocols)
       ;; The X window does not support WM_DELETE_WINDOW; destroy it.
+      ;; Hide the container to prevent flickering.
+      (xcb:+request exwm--connection
+          (make-instance 'xcb:UnmapWindow :window exwm--container))
       (xcb:+request exwm--connection
           (make-instance 'xcb:DestroyWindow :window exwm--id))
       (xcb:flush exwm--connection)
@@ -331,6 +343,10 @@ corresponding buffer.")
     (unless (memq xcb:Atom:_NET_WM_PING exwm--protocols)
       ;; The window does not support _NET_WM_PING.  To make sure it'll die,
       ;; kill it after the time runs out.
+      ;; Hide the container to prevent flickering.
+      (xcb:+request exwm--connection
+          (make-instance 'xcb:UnmapWindow :window exwm--container))
+      (xcb:flush exwm--connection)
       (run-with-timer exwm-manage-ping-timeout nil
                       `(lambda () (exwm-manage--kill-client ,exwm--id)))
       ;; Wait for DestroyNotify event.
@@ -368,6 +384,13 @@ Would you like to kill it? "
 (defun exwm-manage--kill-client (&optional id)
   "Kill an X client."
   (unless id (setq id (exwm--buffer->id (current-buffer))))
+  ;; Hide the container to prevent flickering.
+  (let ((buffer (exwm--id->buffer id)))
+    (when buffer
+      (with-current-buffer buffer
+        (xcb:+request exwm--connection
+            (make-instance 'xcb:UnmapWindow :window exwm--container))
+        (xcb:flush exwm--connection))))
   (let* ((response (xcb:+request-unchecked+reply exwm--connection
                        (make-instance 'xcb:ewmh:get-_NET_WM_PID :window id)))
          (pid (and response (slot-value response 'value)))

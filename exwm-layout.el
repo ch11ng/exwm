@@ -53,14 +53,6 @@
 (defun exwm-layout--show (id &optional window)
   "Show window ID exactly fit in the Emacs window WINDOW."
   (exwm--log "Show #x%x in %s" id window)
-  (xcb:+request exwm--connection (make-instance 'xcb:MapWindow :window id))
-  (with-current-buffer (exwm--id->buffer id)
-    (xcb:+request exwm--connection
-        (make-instance 'xcb:MapWindow :window exwm--container)))
-  (xcb:+request exwm--connection
-      (make-instance 'xcb:icccm:set-WM_STATE
-                     :window id :state xcb:icccm:WM_STATE:NormalState
-                     :icon xcb:Window:None))
   (let* ((edges (window-inside-absolute-pixel-edges window))
          (width (- (elt edges 2) (elt edges 0)))
          (height (- (elt edges 3) (elt edges 1))))
@@ -93,7 +85,16 @@
                                          (elt relative-edges 0)
                                          (elt relative-edges 1)
                                          width height
-                                         (active-minibuffer-window)))))
+                                         (active-minibuffer-window))))
+      ;; Make the resizing take effect.
+      (xcb:flush exwm--connection)
+      (xcb:+request exwm--connection (make-instance 'xcb:MapWindow :window id))
+      (xcb:+request exwm--connection
+          (make-instance 'xcb:MapWindow :window exwm--container))
+      (xcb:+request exwm--connection
+          (make-instance 'xcb:icccm:set-WM_STATE
+                         :window id :state xcb:icccm:WM_STATE:NormalState
+                         :icon xcb:Window:None)))
     (xcb:+request exwm--connection
         (make-instance 'xcb:SendEvent
                        :propagate 0 :destination id
