@@ -26,6 +26,7 @@
 ;;; Code:
 
 (require 'exwm)
+(require 'ido)
 
 (defun exwm-config-default ()
   "Default configuration of EXWM."
@@ -65,21 +66,37 @@
   ;; Other configurations
   (exwm-config-misc))
 
-(defun exwm-config--ido-buffer-window-other-frame (orig-fun buffer)
-  "Wrapper for `ido-buffer-window-other-frame' to exclude invisible windows."
-  (with-current-buffer buffer
-    (if (and (eq major-mode 'exwm-mode)
-             (or exwm--floating-frame
-                 (not exwm-layout-show-all-buffers)))
-        ;; `ido-mode' works well with `exwm-mode' buffers
-        (funcall orig-fun buffer)
-      ;; Other buffers should be selected within the same workspace
-      (get-buffer-window buffer exwm-workspace--current))))
-
 (defun exwm-config--fix/ido-buffer-window-other-frame ()
   "Fix `ido-buffer-window-other-frame'."
-  (advice-add 'ido-buffer-window-other-frame :around
-              #'exwm-config--ido-buffer-window-other-frame))
+  (defalias 'exwm-config-ido-buffer-window-other-frame
+    (symbol-function #'ido-buffer-window-other-frame))
+  (defun ido-buffer-window-other-frame (buffer)
+    "This is a version redefined by EXWM.
+
+You can find the original one at `exwm-config-ido-buffer-window-other-frame'."
+    (with-current-buffer (window-buffer (selected-window))
+      (if (and (eq major-mode 'exwm-mode)
+               exwm--floating-frame)
+          ;; Switch from a floating frame.
+          (with-current-buffer buffer
+            (if (and (eq major-mode 'exwm-mode)
+                     exwm--floating-frame
+                     (eq exwm--frame exwm-workspace--current))
+                ;; Switch to another floating frame.
+                (frame-root-window exwm--floating-frame)
+              ;; Do not switch if the buffer is not on the current workspace.
+              (or (get-buffer-window buffer exwm-workspace--current)
+                  (selected-window))))
+        (with-current-buffer buffer
+          (when (eq major-mode 'exwm-mode)
+            (if (eq exwm--frame exwm-workspace--current)
+                (when exwm--floating-frame
+                  ;; Switch to a floating frame on the current workspace.
+                  (frame-selected-window exwm--floating-frame))
+              ;; Do not switch to exwm-mode buffers on other workspace (which
+              ;; won't work unless `exwm-layout-show-all-buffers' is set)
+              (unless exwm-layout-show-all-buffers
+                (selected-window)))))))))
 
 (defun exwm-config-ido ()
   "Configure Ido to work with EXWM."
