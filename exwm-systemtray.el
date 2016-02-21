@@ -43,9 +43,7 @@
 ;; GTK icons require at least 16 pixels to show normally.
 (defconst exwm-systemtray--icon-min-size 16 "Minimum icon size.")
 
-(defvar exwm-systemtray-height (max exwm-systemtray--icon-min-size
-                                    (line-pixel-height))
-  "System tray height.
+(defvar exwm-systemtray-height nil "System tray height.
 
 You shall use the default value if using auto-hide minibuffer.")
 
@@ -258,12 +256,11 @@ You shall use the default value if using auto-hide minibuffer.")
               (t
                (exwm--log "(System Tray) Unknown opcode message: %s" obj)))))))
 
-(defvar exwm-workspace-minibuffer-position)
 (defvar exwm-workspace--current)
 
 (defun exwm-systemtray--on-workspace-switch ()
   "Reparent/Refresh the system tray in `exwm-workspace-switch-hook'."
-  (unless exwm-workspace-minibuffer-position
+  (unless (exwm-workspace--minibuffer-own-frame-p)
     (xcb:+request exwm-systemtray--connection
         (make-instance 'xcb:ReparentWindow
                        :window exwm-systemtray--embedder
@@ -277,7 +274,7 @@ You shall use the default value if using auto-hide minibuffer.")
 
 (defun exwm-systemtray--on-randr-refresh ()
   "Reposition/Refresh the system tray in `exwm-randr-refresh-hook'."
-  (unless exwm-workspace-minibuffer-position
+  (unless (exwm-workspace--minibuffer-own-frame-p)
     (xcb:+request exwm-systemtray--connection
         (make-instance 'xcb:ConfigureWindow
                        :window exwm-systemtray--embedder
@@ -295,6 +292,9 @@ You shall use the default value if using auto-hide minibuffer.")
   (cl-assert (not exwm-systemtray--list))
   (cl-assert (not exwm-systemtray--selection-owner-window))
   (cl-assert (not exwm-systemtray--embedder))
+  (unless exwm-systemtray-height
+    (setq exwm-systemtray-height (max exwm-systemtray--icon-min-size
+                                      (line-pixel-height))))
   ;; Create a new connection.
   (setq exwm-systemtray--connection (xcb:connect-to-socket))
   (set-process-query-on-exit-flag (slot-value exwm-systemtray--connection
@@ -345,7 +345,7 @@ You shall use the default value if using auto-hide minibuffer.")
                        :border-width 0 :class xcb:WindowClass:CopyFromParent
                        :visual 0 :value-mask xcb:CW:EventMask
                        :event-mask xcb:EventMask:SubstructureNotify))
-    (if exwm-workspace-minibuffer-position
+    (if (exwm-workspace--minibuffer-own-frame-p)
         (setq parent (frame-parameter exwm-workspace--minibuffer
                                       'exwm-container)
               ;; Vertically centered.

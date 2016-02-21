@@ -54,7 +54,6 @@
 (defvar exwm-randr-refresh-hook nil
   "Normal hook run when the RandR module just refreshed.")
 
-(defvar exwm-workspace-minibuffer-position)
 (defvar exwm-layout--fullscreen-frame-count)
 (defvar exwm-workspace-number)
 (defvar exwm-workspace--list)
@@ -94,7 +93,7 @@
                 (setq default-geometry geometry)))))))
     (exwm--log "(randr) outputs: %s" output-plist)
     (when output-plist
-      (setq workarea-offset (if exwm-workspace-minibuffer-position
+      (setq workarea-offset (if (exwm-workspace--minibuffer-own-frame-p)
                                 0
                               (window-pixel-height (minibuffer-window))))
       (setq exwm-layout--fullscreen-frame-count 0)

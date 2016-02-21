@@ -274,7 +274,7 @@ The optional FORCE option is for internal use only."
                                  (frame-parameter frame 'exwm-workspace)
                                  :x x :y y))
               (xcb:flush exwm--connection)
-              (unless exwm-workspace-minibuffer-position
+              (unless (exwm-workspace--minibuffer-own-frame-p)
                 ;; The frame needs to be recreated since it won't use the
                 ;; minibuffer on the new workspace.
                 (let* ((old-frame exwm--floating-frame)
@@ -567,7 +567,7 @@ This functions is modified from `display-buffer-reuse-window' and
       (xcb:+request exwm--connection
           (make-instance 'xcb:MapWindow :window (car i))))
     ;; Reparent out the minibuffer frame.
-    (when exwm-workspace-minibuffer-position
+    (when (exwm-workspace--minibuffer-own-frame-p)
       (xcb:+request exwm--connection
           (make-instance 'xcb:ReparentWindow
                          :window (frame-parameter exwm-workspace--minibuffer
@@ -614,13 +614,14 @@ This functions is modified from `display-buffer-reuse-window' and
       (setq exwm-workspace--minibuffer
             (make-frame '((window-system . x) (minibuffer . only)
                           (left . 10000) (right . 10000)
-                          (width . 0) (height . 0)))
-            default-minibuffer-frame exwm-workspace--minibuffer)
+                          (width . 0) (height . 0))))
       ;; Remove/hide existing frames.
       (dolist (f old-frames)
         (if (frame-parameter f 'client)
             (make-frame-invisible f)
           (delete-frame f))))
+    ;; This is the only usable minibuffer frame.
+    (setq default-minibuffer-frame exwm-workspace--minibuffer)
     (let ((outer-id (string-to-number
                      (frame-parameter exwm-workspace--minibuffer
                                       'outer-window-id)))

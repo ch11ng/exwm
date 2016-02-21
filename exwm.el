@@ -462,7 +462,7 @@
   (let* ((workareas
           (vector 0 0 (x-display-pixel-width)
                   (- (x-display-pixel-height)
-                     (if exwm-workspace-minibuffer-position
+                     (if (exwm-workspace--minibuffer-own-frame-p)
                          0
                        (window-pixel-height (minibuffer-window))))))
          (workareas (mapconcat (lambda (_) workareas)

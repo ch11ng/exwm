@@ -53,7 +53,6 @@
 (defvar exwm-workspace--list)
 (defvar exwm-workspace-current-index)
 (defvar exwm-workspace--switch-history-outdated)
-(defvar exwm-workspace-minibuffer-position)
 
 (declare-function exwm-layout--refresh "exwm-layout.el")
 (declare-function exwm-layout--show "exwm-layout.el")
@@ -104,7 +103,7 @@
     ;; FIXME: check normal hints restrictions
     (let* ((display-width (frame-pixel-width original-frame))
            (display-height (- (frame-pixel-height original-frame)
-                              (if exwm-workspace-minibuffer-position
+                              (if (exwm-workspace--minibuffer-own-frame-p)
                                   0
                                 (window-pixel-height (minibuffer-window
                                                       original-frame)))
