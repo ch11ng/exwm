@@ -186,7 +186,14 @@ The optional FORCE option is for internal use only."
                            :stack-mode xcb:StackMode:Above))
         (setq exwm-workspace--current frame
               exwm-workspace-current-index index)
-        (select-window (frame-selected-window frame))
+        (unless (memq (selected-frame) exwm-workspace--list)
+          ;; Save the floating frame window selected on the previous workspace.
+          (set-frame-parameter (with-current-buffer (window-buffer)
+                                 exwm--frame)
+                               'exwm-selected-window (selected-window)))
+        (select-window (or (frame-parameter frame 'exwm-selected-window)
+                           (frame-selected-window frame)))
+        (set-frame-parameter frame 'exwm-selected-window nil)
         ;; Close the (possible) active minibuffer
         (when (active-minibuffer-window)
           (run-with-idle-timer 0 nil (lambda () (abort-recursive-edit))))
@@ -221,7 +228,11 @@ The optional FORCE option is for internal use only."
         (xcb:flush exwm--connection))
       (run-hooks 'exwm-workspace-switch-hook))))
 
+(defvar exwm-floating-border-width)
+(defvar exwm-floating-border-color)
+
 (declare-function exwm-layout--hide "exwm-layout.el" (id))
+(declare-function exwm-layout--refresh "exwm-layout.el")
 
 ;;;###autoload
 (defun exwm-workspace-move-window (index &optional id)
@@ -253,14 +264,72 @@ The optional FORCE option is for internal use only."
         (setq exwm--frame frame)
         (if exwm--floating-frame
             ;; Move the floating container.
-            (progn
+            (with-slots (x y)
+                (xcb:+request-unchecked+reply exwm--connection
+                    (make-instance 'xcb:GetGeometry :drawable exwm--container))
               (xcb:+request exwm--connection
                   (make-instance 'xcb:ReparentWindow
                                  :window exwm--container
                                  :parent
                                  (frame-parameter frame 'exwm-workspace)
-                                 :x 0 :y 0))
-              (xcb:flush exwm--connection))
+                                 :x x :y y))
+              (xcb:flush exwm--connection)
+              (unless exwm-workspace-minibuffer-position
+                ;; The frame needs to be recreated since it won't use the
+                ;; minibuffer on the new workspace.
+                (let* ((old-frame exwm--floating-frame)
+                       (new-frame
+                        (with-current-buffer
+                            (or (get-buffer "*scratch*")
+                                (progn
+                                  (set-buffer-major-mode
+                                   (get-buffer-create "*scratch*"))
+                                  (get-buffer "*scratch*")))
+                          (make-frame
+                           `((minibuffer . ,(minibuffer-window frame))
+                             (background-color . ,exwm-floating-border-color)
+                             (internal-border-width
+                              . ,exwm-floating-border-width)
+                             (left . 10000)
+                             (top . 10000)
+                             (width . ,window-min-width)
+                             (height . ,window-min-height)
+                             (unsplittable . t)))))
+                       (outer-id (string-to-number
+                                  (frame-parameter new-frame
+                                                   'outer-window-id)))
+                       (frame-container (frame-parameter old-frame
+                                                         'exwm-container))
+                       (window (frame-root-window new-frame)))
+                  (set-frame-parameter new-frame 'exwm-outer-id outer-id)
+                  (set-frame-parameter new-frame 'exwm-container
+                                       frame-container)
+                  (make-frame-invisible new-frame)
+                  (set-frame-size new-frame
+                                  (frame-pixel-width old-frame)
+                                  (frame-pixel-height old-frame)
+                                  t)
+                  (xcb:+request exwm--connection
+                      (make-instance 'xcb:ReparentWindow
+                                     :window outer-id
+                                     :parent frame-container
+                                     :x 0 :y 0))
+                  (xcb:flush exwm--connection)
+                  (with-current-buffer (exwm--id->buffer id)
+                    (setq window-size-fixed nil
+                          exwm--frame frame
+                          exwm--floating-frame new-frame)
+                    (set-window-dedicated-p (frame-root-window old-frame) nil)
+                    (remove-hook 'window-configuration-change-hook
+                                 #'exwm-layout--refresh)
+                    (set-window-buffer window (current-buffer))
+                    (add-hook 'window-configuration-change-hook
+                              #'exwm-layout--refresh)
+                    (delete-frame old-frame)
+                    (set-window-dedicated-p window t))
+                  (make-frame-visible new-frame)
+                  (with-selected-frame new-frame
+                    (exwm-layout--refresh)))))
           ;; Move the X window container.
           (if (/= index exwm-workspace-current-index)
               (bury-buffer)
@@ -271,13 +340,22 @@ The optional FORCE option is for internal use only."
                                       (get-buffer-create "*scratch*"))
                                      (get-buffer "*scratch*")))))
           (exwm-layout--hide id)
-          (xcb:+request exwm--connection
-              (make-instance 'xcb:ReparentWindow
-                             ;; (current-buffer) is changed.
-                             :window (with-current-buffer (exwm--id->buffer id)
-                                       exwm--container)
-                             :parent (frame-parameter frame 'exwm-workspace)
-                             :x 0 :y 0))
+          ;; (current-buffer) is changed.
+          (with-current-buffer (exwm--id->buffer id)
+            ;; Reparent to the destination workspace.
+            (xcb:+request exwm--connection
+                (make-instance 'xcb:ReparentWindow
+                               :window exwm--container
+                               :parent (frame-parameter frame 'exwm-workspace)
+                               :x 0 :y 0))
+            ;; Place it just above the destination frame container.
+            (xcb:+request exwm--connection
+                (make-instance 'xcb:ConfigureWindow
+                               :window exwm--container
+                               :value-mask (logior xcb:ConfigWindow:Sibling
+                                                   xcb:ConfigWindow:StackMode)
+                               :sibling (frame-parameter frame 'exwm-container)
+                               :stack-mode xcb:StackMode:Above)))
           (xcb:flush exwm--connection)
           (set-window-buffer (frame-selected-window frame)
                              (exwm--id->buffer id)))))

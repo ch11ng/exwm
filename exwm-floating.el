@@ -63,14 +63,7 @@
   (let ((window (get-buffer-window (exwm--id->buffer id))))
     (when window                        ;window in non-floating state
       (set-window-buffer window (other-buffer)))) ;hide it first
-  (let* ((original-frame
-          (with-current-buffer (exwm--id->buffer id)
-            (if (and exwm-transient-for (exwm--id->buffer exwm-transient-for))
-                ;; Place a modal in the same workspace with its leading window
-                (with-current-buffer (exwm--id->buffer exwm-transient-for)
-                  exwm--frame)
-              ;; Fallback to current workspace
-              exwm-workspace--current)))
+  (let* ((original-frame exwm-workspace--current)
          ;; Create new frame
          (frame (with-current-buffer
                     (or (get-buffer "*scratch*")
@@ -79,7 +72,7 @@
                            (get-buffer-create "*scratch*"))
                           (get-buffer "*scratch*")))
                   (make-frame
-                   `((minibuffer . nil) ;use the one on workspace
+                   `((minibuffer . nil) ;use the default minibuffer.
                      (background-color . ,exwm-floating-border-color)
                      (internal-border-width . ,exwm-floating-border-width)
                      (left . 10000)
@@ -107,11 +100,6 @@
     ;; Save frame parameters.
     (set-frame-parameter frame 'exwm-outer-id outer-id)
     (set-frame-parameter frame 'exwm-container frame-container)
-    ;; Set urgency flag if it's not appear in the active workspace
-    (let ((idx (cl-position original-frame exwm-workspace--list)))
-      (when (/= idx exwm-workspace-current-index)
-        (set-frame-parameter original-frame 'exwm--urgency t)
-        (setq exwm-workspace--switch-history-outdated t)))
     ;; Fix illegal parameters
     ;; FIXME: check normal hints restrictions
     (let* ((display-width (frame-pixel-width original-frame))
