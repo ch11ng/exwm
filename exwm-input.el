@@ -73,7 +73,8 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
         (exwm--log "Focus on #x%x with SetInputFocus" id)
         (xcb:+request exwm--connection
             (make-instance 'xcb:SetInputFocus
-                           :revert-to xcb:InputFocus:Parent :focus id
+                           :revert-to xcb:InputFocus:PointerRoot
+                           :focus id
                            :time xcb:Time:CurrentTime)))
       (xcb:flush exwm--connection))))
 
