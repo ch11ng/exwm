@@ -178,7 +178,8 @@ The optional FORCE option is for internal use only."
       (user-error "[EXWM] Workspace index out of range: %d" index))
     (when (or force (/= exwm-workspace-current-index index))
       (let* ((frame (elt exwm-workspace--list index))
-             (workspace (frame-parameter frame 'exwm-workspace)))
+             (workspace (frame-parameter frame 'exwm-workspace))
+             (window (frame-parameter frame 'exwm-selected-window)))
         (xcb:+request exwm--connection
             (make-instance 'xcb:ConfigureWindow
                            :window workspace
@@ -191,7 +192,7 @@ The optional FORCE option is for internal use only."
           (set-frame-parameter (with-current-buffer (window-buffer)
                                  exwm--frame)
                                'exwm-selected-window (selected-window)))
-        (select-window (or (frame-parameter frame 'exwm-selected-window)
+        (select-window (or (when (window-live-p window) window)
                            (frame-selected-window frame)))
         (set-frame-parameter frame 'exwm-selected-window nil)
         ;; Close the (possible) active minibuffer
@@ -231,6 +232,7 @@ The optional FORCE option is for internal use only."
 (defvar exwm-floating-border-width)
 (defvar exwm-floating-border-color)
 
+(declare-function exwm-layout--show "exwm-layout.el" (id))
 (declare-function exwm-layout--hide "exwm-layout.el" (id))
 (declare-function exwm-layout--refresh "exwm-layout.el")
 
@@ -274,7 +276,10 @@ The optional FORCE option is for internal use only."
                                  (frame-parameter frame 'exwm-workspace)
                                  :x x :y y))
               (xcb:flush exwm--connection)
-              (unless (exwm-workspace--minibuffer-own-frame-p)
+              (if (exwm-workspace--minibuffer-own-frame-p)
+                  (when (= index exwm-workspace-current-index)
+                    (select-frame-set-input-focus exwm--floating-frame)
+                    (exwm-layout--refresh))
                 ;; The frame needs to be recreated since it won't use the
                 ;; minibuffer on the new workspace.
                 (let* ((old-frame exwm--floating-frame)
@@ -326,19 +331,29 @@ The optional FORCE option is for internal use only."
                     (add-hook 'window-configuration-change-hook
                               #'exwm-layout--refresh)
                     (delete-frame old-frame)
-                    (set-window-dedicated-p window t))
-                  (make-frame-visible new-frame)
-                  (with-selected-frame new-frame
-                    (exwm-layout--refresh)))))
+                    (set-window-dedicated-p window t)
+                    (exwm-layout--show id window))
+                  (if (/= index exwm-workspace-current-index)
+                      (make-frame-visible new-frame)
+                    (select-frame-set-input-focus new-frame)
+                    (redisplay))))
+              ;; Update the 'exwm-selected-window' frame parameter.
+              (when (/= index exwm-workspace-current-index)
+                (with-current-buffer (exwm--id->buffer id)
+                  (set-frame-parameter frame 'exwm-selected-window
+                                       (frame-root-window
+                                        exwm--floating-frame)))))
           ;; Move the X window container.
-          (if (/= index exwm-workspace-current-index)
-              (bury-buffer)
-            (set-window-buffer (get-buffer-window (current-buffer) t)
-                               (or (get-buffer "*scratch*")
-                                   (progn
-                                     (set-buffer-major-mode
-                                      (get-buffer-create "*scratch*"))
-                                     (get-buffer "*scratch*")))))
+          (if (= index exwm-workspace-current-index)
+              (set-window-buffer (get-buffer-window (current-buffer) t)
+                                 (or (get-buffer "*scratch*")
+                                     (progn
+                                       (set-buffer-major-mode
+                                        (get-buffer-create "*scratch*"))
+                                       (get-buffer "*scratch*"))))
+            (bury-buffer)
+            ;; Clear the 'exwm-selected-window' frame parameter.
+            (set-frame-parameter frame 'exwm-selected-window nil))
           (exwm-layout--hide id)
           ;; (current-buffer) is changed.
           (with-current-buffer (exwm--id->buffer id)
@@ -362,30 +377,33 @@ The optional FORCE option is for internal use only."
     (setq exwm-workspace--switch-history-outdated t)))
 
 ;;;###autoload
-(defun exwm-workspace-switch-to-buffer ()
+(defun exwm-workspace-switch-to-buffer (buffer-or-name)
   "Make the current Emacs window display another buffer."
-  (interactive)
-  ;; Show all buffers
-  (unless exwm-workspace-show-all-buffers
-    (dolist (pair exwm--id-buffer-alist)
-      (with-current-buffer (cdr pair)
-        (when (= ?\s (aref (buffer-name) 0))
-          (rename-buffer (substring (buffer-name) 1))))))
-  (let ((buffer (read-buffer "Switch to buffer: " nil t)))
-    (when buffer
-      (with-current-buffer buffer
-        (if (and (eq major-mode 'exwm-mode)
-                 (not (eq exwm--frame exwm-workspace--current)))
-            (exwm-workspace-move-window exwm-workspace-current-index
-                                        exwm--id)
-          (switch-to-buffer buffer)))))
-  ;; Hide buffers on other workspaces
-  (unless exwm-workspace-show-all-buffers
-    (dolist (pair exwm--id-buffer-alist)
-      (with-current-buffer (cdr pair)
-        (unless (or (eq exwm--frame exwm-workspace--current)
-                    (= ?\s (aref (buffer-name) 0)))
-          (rename-buffer (concat " " (buffer-name))))))))
+  (interactive
+   (let ((inhibit-quit t))
+     ;; Show all buffers
+     (unless exwm-workspace-show-all-buffers
+       (dolist (pair exwm--id-buffer-alist)
+         (with-current-buffer (cdr pair)
+           (when (= ?\s (aref (buffer-name) 0))
+             (rename-buffer (substring (buffer-name) 1))))))
+     (prog1
+         (with-local-quit
+           (list (get-buffer (read-buffer "Switch to buffer: " nil t))))
+       ;; Hide buffers on other workspaces
+       (unless exwm-workspace-show-all-buffers
+         (dolist (pair exwm--id-buffer-alist)
+           (with-current-buffer (cdr pair)
+             (unless (or (eq exwm--frame exwm-workspace--current)
+                         (= ?\s (aref (buffer-name) 0)))
+               (rename-buffer (concat " " (buffer-name))))))))))
+  (when buffer-or-name
+    (with-current-buffer buffer-or-name
+      (if (and (eq major-mode 'exwm-mode)
+               (not (eq exwm--frame exwm-workspace--current)))
+          (exwm-workspace-move-window exwm-workspace-current-index
+                                      exwm--id)
+        (switch-to-buffer buffer-or-name)))))
 
 (defun exwm-workspace-rename-buffer (newname)
   "Rename a buffer."
