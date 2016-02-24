@@ -209,6 +209,8 @@
       (add-hook 'window-configuration-change-hook #'exwm-layout--refresh)
       (set-window-dedicated-p window t)
       (exwm-layout--show id window))
+    (with-selected-frame exwm-workspace--current
+      (exwm-layout--refresh))
     (select-frame-set-input-focus frame))
   (run-hooks 'exwm-floating-setup-hook)
   ;; Redraw the frame.
