@@ -399,10 +399,19 @@ The optional FORCE option is for internal use only."
                (rename-buffer (concat " " (buffer-name))))))))))
   (when buffer-or-name
     (with-current-buffer buffer-or-name
-      (if (and (eq major-mode 'exwm-mode)
-               (not (eq exwm--frame exwm-workspace--current)))
-          (exwm-workspace-move-window exwm-workspace-current-index
-                                      exwm--id)
+      (if (eq major-mode 'exwm-mode)
+          ;; EXWM buffer.
+          (if (eq exwm--frame exwm-workspace--current)
+              ;; On the current workspace.
+              (if (not exwm--floating-frame)
+                  (switch-to-buffer buffer-or-name)
+                ;; Select the floating frame.
+                (select-frame-set-input-focus exwm--floating-frame)
+                (select-window (frame-root-window exwm--floating-frame)))
+            ;; On another workspace.
+            (exwm-workspace-move-window exwm-workspace-current-index
+                                        exwm--id))
+        ;; Ordinary buffer.
         (switch-to-buffer buffer-or-name)))))
 
 (defun exwm-workspace-rename-buffer (newname)
