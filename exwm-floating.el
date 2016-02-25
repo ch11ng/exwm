@@ -284,6 +284,22 @@
         (exwm-floating--unset-floating exwm--id)
       (exwm-floating--set-floating exwm--id))))
 
+;;;###autoload
+(defun exwm-floating-hide ()
+  "Hide the current floating X window (which would show again when selected)."
+  (interactive)
+  (when (and (eq major-mode 'exwm-mode)
+             exwm--floating-frame)
+    ;; Put this floating X window at bottom.
+    (xcb:+request exwm--connection
+        (make-instance 'xcb:ConfigureWindow
+                       :window exwm--container
+                       :value-mask xcb:ConfigWindow:StackMode
+                       :stack-mode xcb:StackMode:Below))
+    ;; FIXME: Should it be put into iconic state?
+    (xcb:flush exwm--connection)
+    (select-frame-set-input-focus exwm-workspace--current)))
+
 (define-obsolete-function-alias 'exwm-floating-hide-mode-line
   'exwm-layout-hide-mode-line "25.1" "Hide mode-line of a floating frame.")
 (define-obsolete-function-alias 'exwm-floating-show-mode-line

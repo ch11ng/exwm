@@ -232,7 +232,7 @@ The optional FORCE option is for internal use only."
 (defvar exwm-floating-border-width)
 (defvar exwm-floating-border-color)
 
-(declare-function exwm-layout--show "exwm-layout.el" (id))
+(declare-function exwm-layout--show "exwm-layout.el" (id &optional window))
 (declare-function exwm-layout--hide "exwm-layout.el" (id))
 (declare-function exwm-layout--refresh "exwm-layout.el")
 
