@@ -103,7 +103,8 @@
       (xcb:+request exwm--connection
           (make-instance 'xcb:icccm:set-WM_STATE
                          :window id :state xcb:icccm:WM_STATE:NormalState
-                         :icon xcb:Window:None)))
+                         :icon xcb:Window:None))
+      (setq exwm-state xcb:icccm:WM_STATE:NormalState))
     (xcb:+request exwm--connection
         (make-instance 'xcb:SendEvent
                        :propagate 0 :destination id
@@ -122,27 +123,27 @@
 
 (defun exwm-layout--hide (id)
   "Hide window ID."
-  (unless (eq xcb:icccm:WM_STATE:IconicState ;already hidden
-              (with-current-buffer (exwm--id->buffer id) exwm-state))
-    (exwm--log "Hide #x%x" id)
-    (xcb:+request exwm--connection
-        (make-instance 'xcb:ChangeWindowAttributes
-                       :window id :value-mask xcb:CW:EventMask
-                       :event-mask xcb:EventMask:NoEvent))
-    (xcb:+request exwm--connection (make-instance 'xcb:UnmapWindow :window id))
-    (xcb:+request exwm--connection
-        (make-instance 'xcb:ChangeWindowAttributes
-                       :window id :value-mask xcb:CW:EventMask
-                       :event-mask exwm--client-event-mask))
-    (with-current-buffer (exwm--id->buffer id)
+  (with-current-buffer (exwm--id->buffer id)
+    (unless (eq xcb:icccm:WM_STATE:IconicState exwm-state) ;already hidden
+      (exwm--log "Hide #x%x" id)
       (xcb:+request exwm--connection
-          (make-instance 'xcb:UnmapWindow :window exwm--container)))
-    (xcb:+request exwm--connection
-        (make-instance 'xcb:icccm:set-WM_STATE
-                       :window id
-                       :state xcb:icccm:WM_STATE:IconicState
-                       :icon xcb:Window:None))
-    (xcb:flush exwm--connection)))
+          (make-instance 'xcb:ChangeWindowAttributes
+                         :window id :value-mask xcb:CW:EventMask
+                         :event-mask xcb:EventMask:NoEvent))
+      (xcb:+request exwm--connection (make-instance 'xcb:UnmapWindow :window id))
+      (xcb:+request exwm--connection
+          (make-instance 'xcb:ChangeWindowAttributes
+                         :window id :value-mask xcb:CW:EventMask
+                         :event-mask exwm--client-event-mask))
+      (xcb:+request exwm--connection
+          (make-instance 'xcb:UnmapWindow :window exwm--container))
+      (xcb:+request exwm--connection
+          (make-instance 'xcb:icccm:set-WM_STATE
+                         :window id
+                         :state xcb:icccm:WM_STATE:IconicState
+                         :icon xcb:Window:None))
+      (setq exwm-state xcb:icccm:WM_STATE:IconicState)
+      (xcb:flush exwm--connection))))
 
 (defvar exwm-workspace--current)
 (defvar exwm-workspace--list)
