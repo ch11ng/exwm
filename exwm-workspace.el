@@ -453,7 +453,7 @@ The optional FORCE option is for internal use only."
                               (setq result
                                     (+ result
                                        (ceiling (1+ (length i)) width))))
-                            (split-string (current-message) "\n"))
+                            (split-string (or (current-message) "") "\n"))
                       result)
                   (count-screen-lines))))))
     (when (and (integerp max-mini-window-height)

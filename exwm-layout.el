@@ -455,7 +455,8 @@ See also `exwm-layout-enlarge-window'."
                            (window-mode-line-height (frame-root-window
                                                      exwm--floating-frame)))
                         nil t)
-      (exwm-input-grab-keyboard))))
+      (exwm-input-grab-keyboard))
+    (force-mode-line-update)))
 
 ;;;###autoload
 (defun exwm-layout-toggle-mode-line ()
