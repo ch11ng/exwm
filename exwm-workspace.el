@@ -495,23 +495,12 @@ The optional FORCE option is for internal use only."
         (xcb:flush exwm--connection)))))
 
 (defun exwm-workspace--display-buffer (buffer alist)
-  "Display buffer in the current workspace frame.
-
-This functions is modified from `display-buffer-reuse-window' and
-`display-buffer-pop-up-window'."
+  "Display BUFFER as if the current workspace is selected."
+  ;; Only when the floating minibuffer frame is selected.
+  ;; This also protect this functions from being recursively called.
   (when (eq (selected-frame) exwm-workspace--minibuffer)
-    (setq buffer (get-buffer buffer))   ;convert string to buffer.
-    (let (window)
-      (if (setq window (get-buffer-window buffer exwm-workspace--current))
-          (window--display-buffer buffer window 'reuse alist)
-        (when (setq window (or (window--try-to-split-window
-                                (get-largest-window exwm-workspace--current t)
-                                alist)
-                               (window--try-to-split-window
-                                (get-lru-window exwm-workspace--current t)
-                                alist)))
-          (window--display-buffer
-           buffer window 'window alist display-buffer-mark-dedicated))))))
+    (with-selected-frame exwm-workspace--current
+      (display-buffer buffer alist))))
 
 (defun exwm-workspace--show-minibuffer ()
   "Show the minibuffer frame."
