@@ -325,9 +325,7 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
     (when (xcb:+request-checked+request-check exwm--connection
               (make-instance 'xcb:GrabKey
                              :owner-events 0
-                             :grab-window
-                             (with-current-buffer (exwm--id->buffer id)
-                               exwm--container)
+                             :grab-window id
                              :modifiers xcb:ModMask:Any
                              :key xcb:Grab:Any
                              :pointer-mode xcb:GrabMode:Async
@@ -342,9 +340,7 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
     (when (xcb:+request-checked+request-check exwm--connection
               (make-instance 'xcb:UngrabKey
                              :key xcb:Grab:Any
-                             :grab-window
-                             (with-current-buffer (exwm--id->buffer id)
-                               exwm--container)
+                             :grab-window id
                              :modifiers xcb:ModMask:Any))
       (exwm--log "Failed to release keyboard for #x%x" id))
     (setq exwm--on-KeyPress #'exwm-input--on-KeyPress-char-mode)))
