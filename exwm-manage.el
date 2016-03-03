@@ -334,56 +334,57 @@ corresponding buffer.")
       (xcb:flush exwm--connection)
       ;; Wait for DestroyNotify event.
       (throw 'return nil))
-    ;; Try to close the X window with WM_DELETE_WINDOW client message.
-    (xcb:+request exwm--connection
-        (make-instance 'xcb:icccm:SendEvent
-                       :destination exwm--id
-                       :event (xcb:marshal
-                               (make-instance 'xcb:icccm:WM_DELETE_WINDOW
-                                              :window exwm--id)
-                               exwm--connection)))
-    (xcb:flush exwm--connection)
-    ;;
-    (unless (memq xcb:Atom:_NET_WM_PING exwm--protocols)
-      ;; The window does not support _NET_WM_PING.  To make sure it'll die,
-      ;; kill it after the time runs out.
-      ;; Hide the container to prevent flickering.
+    (let ((id exwm--id))
+      ;; Try to close the X window with WM_DELETE_WINDOW client message.
       (xcb:+request exwm--connection
-          (make-instance 'xcb:UnmapWindow :window exwm--container))
+	  (make-instance 'xcb:icccm:SendEvent
+			 :destination id
+			 :event (xcb:marshal
+				 (make-instance 'xcb:icccm:WM_DELETE_WINDOW
+						:window id)
+				 exwm--connection)))
       (xcb:flush exwm--connection)
-      (run-with-timer exwm-manage-ping-timeout nil
-                      `(lambda () (exwm-manage--kill-client ,exwm--id)))
-      ;; Wait for DestroyNotify event.
-      (throw 'return nil))
-    ;; Try to determine if the X window is dead with _NET_WM_PING.
-    (setq exwm-manage--ping-lock t)
-    (xcb:+request exwm--connection
-        (make-instance 'xcb:SendEvent
-                       :propagate 0
-                       :destination exwm--id
-                       :event-mask xcb:EventMask:NoEvent
-                       :event (xcb:marshal
-                               (make-instance 'xcb:ewmh:_NET_WM_PING
-                                              :window exwm--id
-                                              :timestamp 0
-                                              :client-window exwm--id)
-                               exwm--connection)))
-    (xcb:flush exwm--connection)
-    (with-timeout (exwm-manage-ping-timeout
-                   (if (yes-or-no-p (format "'%s' is not responding. \
+      ;;
+      (unless (memq xcb:Atom:_NET_WM_PING exwm--protocols)
+	;; The window does not support _NET_WM_PING.  To make sure it'll die,
+	;; kill it after the time runs out.
+	;; Hide the container to prevent flickering.
+	(xcb:+request exwm--connection
+	    (make-instance 'xcb:UnmapWindow :window exwm--container))
+	(xcb:flush exwm--connection)
+	(run-with-timer exwm-manage-ping-timeout nil
+			`(lambda () (exwm-manage--kill-client ,id)))
+	;; Wait for DestroyNotify event.
+	(throw 'return nil))
+      ;; Try to determine if the X window is dead with _NET_WM_PING.
+      (setq exwm-manage--ping-lock t)
+      (xcb:+request exwm--connection
+	  (make-instance 'xcb:SendEvent
+			 :propagate 0
+			 :destination id
+			 :event-mask xcb:EventMask:NoEvent
+			 :event (xcb:marshal
+				 (make-instance 'xcb:ewmh:_NET_WM_PING
+						:window id
+						:timestamp 0
+						:client-window id)
+				 exwm--connection)))
+      (xcb:flush exwm--connection)
+      (with-timeout (exwm-manage-ping-timeout
+		     (if (yes-or-no-p (format "'%s' is not responding. \
 Would you like to kill it? "
-                                            (buffer-name)))
-                       (progn (exwm-manage--kill-client exwm--id)
-                              ;; Kill the unresponsive X window and
-                              ;; wait for DestroyNotify event.
-                              (throw 'return nil))
-                     ;; Give up.
-                     (throw 'return nil)))
-      (while (and exwm-manage--ping-lock
-                  (exwm--id->buffer exwm--id)) ;may have been destroyed.
-        (accept-process-output nil 0.1))
-      ;; Give up.
-      (throw 'return nil))))
+					      (buffer-name)))
+			 (progn (exwm-manage--kill-client id)
+				;; Kill the unresponsive X window and
+				;; wait for DestroyNotify event.
+				(throw 'return nil))
+		       ;; Give up.
+		       (throw 'return nil)))
+	(while (and exwm-manage--ping-lock
+		    (exwm--id->buffer id)) ;may have been destroyed.
+	  (accept-process-output nil 0.1))
+	;; Give up.
+	(throw 'return nil)))))
 
 (defun exwm-manage--kill-client (&optional id)
   "Kill an X client."

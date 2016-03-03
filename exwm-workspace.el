@@ -513,7 +513,15 @@ The optional FORCE option is for internal use only."
       (make-instance 'xcb:MapWindow
                      :window (frame-parameter exwm-workspace--minibuffer
                                               'exwm-container)))
-  (xcb:flush exwm--connection))
+  (xcb:flush exwm--connection)
+  ;; Unfortunately we need the following lines to workaround a cursor
+  ;; flickering issue for line-mode floating X windows.  They just make the
+  ;; minibuffer appear to be focused.
+  (with-current-buffer (window-buffer (minibuffer-window
+                                       exwm-workspace--minibuffer))
+    (setq cursor-in-non-selected-windows
+          (frame-parameter exwm-workspace--minibuffer 'cursor-type))))
+
 
 (defun exwm-workspace--hide-minibuffer ()
   "Hide the minibuffer frame."
