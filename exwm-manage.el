@@ -419,7 +419,9 @@ Would you like to kill it? "
 border-width: %d; sibling: #x%x; stack-mode: %d"
                  window value-mask width height x y
                  border-width sibling stack-mode)
-      (if (setq buffer (exwm--id->buffer window))
+      (if (and (setq buffer (exwm--id->buffer window))
+               (with-current-buffer buffer
+                 (or exwm--fullscreen (not exwm--floating-frame))))
           ;; Send client message for managed windows
           (with-current-buffer buffer
             (setq edges
@@ -444,16 +446,29 @@ border-width: %d; sibling: #x%x; stack-mode: %d"
                                         :height (- (elt edges 3) (elt edges 1))
                                         :border-width 0 :override-redirect 0)
                                        exwm--connection))))
-        (exwm--log "ConfigureWindow (preserve geometry)")
-        ;; Configure the unmanaged window.
-        (xcb:+request exwm--connection
-            (make-instance 'xcb:ConfigureWindow
-                           :window window
-                           :value-mask value-mask
-                           :x x :y y :width width :height height
-                           :border-width border-width
-                           :sibling sibling
-                           :stack-mode stack-mode)))))
+        (if buffer
+            (with-current-buffer buffer
+              (exwm--log "ConfigureWindow (resize floating X window)")
+              (setq edges
+                    (window-inside-pixel-edges (get-buffer-window buffer t)))
+              (set-frame-size exwm--floating-frame
+                              (+ width
+                                 (- (frame-pixel-width exwm--floating-frame)
+                                    (- (elt edges 2) (elt edges 0))))
+                              (+ height
+                                 (- (frame-pixel-height exwm--floating-frame)
+                                    (- (elt edges 3) (elt edges 1))))
+                              t))
+          (exwm--log "ConfigureWindow (preserve geometry)")
+          ;; Configure the unmanaged window.
+          (xcb:+request exwm--connection
+              (make-instance 'xcb:ConfigureWindow
+                             :window window
+                             :value-mask value-mask
+                             :x x :y y :width width :height height
+                             :border-width border-width
+                             :sibling sibling
+                             :stack-mode stack-mode))))))
   (xcb:flush exwm--connection))
 
 (defun exwm-manage--on-MapRequest (data _synthetic)
