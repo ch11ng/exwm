@@ -326,14 +326,14 @@
                    (= action xcb:ewmh:_NET_WM_STATE_ADD))
           (dolist (f exwm-workspace--list)
             (when (equal (frame-parameter f 'exwm-outer-id) id)
-	      (exwm-layout--set-frame-fullscreen f)
-	      (xcb:+request
+              (exwm-layout--set-frame-fullscreen f)
+              (xcb:+request
                   exwm--connection
                   (make-instance 'xcb:ewmh:set-_NET_WM_STATE
                                  :window id
                                  :data (vector
                                         xcb:Atom:_NET_WM_STATE_FULLSCREEN)))
-	      (xcb:flush exwm--connection))))
+              (xcb:flush exwm--connection))))
         (when buffer                    ;ensure it's managed
           (with-current-buffer buffer
             ;; _NET_WM_STATE_MODAL

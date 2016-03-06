@@ -313,10 +313,10 @@
   (let ((buffer-or-id (or (exwm--id->buffer id) id))
         frame container-or-id x y width height cursor)
     (if (bufferp buffer-or-id)
-	;; Managed.
-	(with-current-buffer buffer-or-id
-	  (setq frame exwm--floating-frame
-		container-or-id exwm--container))
+        ;; Managed.
+        (with-current-buffer buffer-or-id
+          (setq frame exwm--floating-frame
+                container-or-id exwm--container))
       ;; Unmanaged.
       (setq container-or-id id))
     (when (and container-or-id
@@ -326,7 +326,7 @@
                    (xcb:+request-unchecked+reply exwm--connection
                        (make-instance 'xcb:GrabPointer
                                       :owner-events 0
-				      :grab-window container-or-id
+                                      :grab-window container-or-id
                                       :event-mask xcb:EventMask:NoEvent
                                       :pointer-mode xcb:GrabMode:Async
                                       :keyboard-mode xcb:GrabMode:Async
@@ -337,36 +337,36 @@
       (with-slots (root-x root-y win-x win-y)
           (xcb:+request-unchecked+reply exwm--connection
               (make-instance 'xcb:QueryPointer :window id))
-	(if (not (bufferp buffer-or-id))
-	    ;; Unmanaged.
-	    (unless (eq type xcb:ewmh:_NET_WM_MOVERESIZE_MOVE)
-	      (with-slots ((width* width)
-			   (height* height))
-		  (xcb:+request-unchecked+reply exwm--connection
-		      (make-instance 'xcb:GetGeometry :drawable id))
-		(setq width width*
-		      height height*)))
-	  ;; Managed.
-	  (select-window (frame-first-window frame)) ;transfer input focus
-	  (setq width (frame-pixel-width frame)
-		height (frame-pixel-height frame))
-	  (unless type
-	    ;; Determine the resize type according to the pointer position
-	    ;; Clicking the center 1/3 part to resize has not effect
-	    (setq x (/ (* 3 win-x) (float width))
-		  y (/ (* 3 win-y) (float height))
-		  type (cond ((and (< x 1) (< y 1))
-			      xcb:ewmh:_NET_WM_MOVERESIZE_SIZE_TOPLEFT)
-			     ((and (> x 2) (< y 1))
-			      xcb:ewmh:_NET_WM_MOVERESIZE_SIZE_TOPRIGHT)
-			     ((and (> x 2) (> y 2))
-			      xcb:ewmh:_NET_WM_MOVERESIZE_SIZE_BOTTOMRIGHT)
-			     ((and (< x 1) (> y 2))
-			      xcb:ewmh:_NET_WM_MOVERESIZE_SIZE_BOTTOMLEFT)
-			     ((> x 2) xcb:ewmh:_NET_WM_MOVERESIZE_SIZE_RIGHT)
-			     ((> y 2) xcb:ewmh:_NET_WM_MOVERESIZE_SIZE_BOTTOM)
-			     ((< x 1) xcb:ewmh:_NET_WM_MOVERESIZE_SIZE_LEFT)
-			     ((< y 1) xcb:ewmh:_NET_WM_MOVERESIZE_SIZE_TOP)))))
+        (if (not (bufferp buffer-or-id))
+            ;; Unmanaged.
+            (unless (eq type xcb:ewmh:_NET_WM_MOVERESIZE_MOVE)
+              (with-slots ((width* width)
+                           (height* height))
+                  (xcb:+request-unchecked+reply exwm--connection
+                      (make-instance 'xcb:GetGeometry :drawable id))
+                (setq width width*
+                      height height*)))
+          ;; Managed.
+          (select-window (frame-first-window frame)) ;transfer input focus
+          (setq width (frame-pixel-width frame)
+                height (frame-pixel-height frame))
+          (unless type
+            ;; Determine the resize type according to the pointer position
+            ;; Clicking the center 1/3 part to resize has not effect
+            (setq x (/ (* 3 win-x) (float width))
+                  y (/ (* 3 win-y) (float height))
+                  type (cond ((and (< x 1) (< y 1))
+                              xcb:ewmh:_NET_WM_MOVERESIZE_SIZE_TOPLEFT)
+                             ((and (> x 2) (< y 1))
+                              xcb:ewmh:_NET_WM_MOVERESIZE_SIZE_TOPRIGHT)
+                             ((and (> x 2) (> y 2))
+                              xcb:ewmh:_NET_WM_MOVERESIZE_SIZE_BOTTOMRIGHT)
+                             ((and (< x 1) (> y 2))
+                              xcb:ewmh:_NET_WM_MOVERESIZE_SIZE_BOTTOMLEFT)
+                             ((> x 2) xcb:ewmh:_NET_WM_MOVERESIZE_SIZE_RIGHT)
+                             ((> y 2) xcb:ewmh:_NET_WM_MOVERESIZE_SIZE_BOTTOM)
+                             ((< x 1) xcb:ewmh:_NET_WM_MOVERESIZE_SIZE_LEFT)
+                             ((< y 1) xcb:ewmh:_NET_WM_MOVERESIZE_SIZE_TOP)))))
         (if (not type)
             (exwm-floating--stop-moveresize)
           (cond ((= type xcb:ewmh:_NET_WM_MOVERESIZE_MOVE)
@@ -416,7 +416,7 @@
                        exwm-floating--moveresize-calculate
                        `(lambda (x y)
                           (vector ,buffer-or-id
-				  ,xcb:ConfigWindow:Width
+                                  ,xcb:ConfigWindow:Width
                                   0 0 (- x ,(- root-x width)) 0))))
                 ((= type xcb:ewmh:_NET_WM_MOVERESIZE_SIZE_BOTTOMRIGHT)
                  (setq cursor exwm-floating--cursor-bottom-right
@@ -476,8 +476,8 @@
       (make-instance 'xcb:UngrabPointer :time xcb:Time:CurrentTime))
   ;; Inform the X window that its absolute position is changed
   (when (and exwm-floating--moveresize-calculate
-	     ;; Unmanaged.
-	     (eq major-mode 'exwm-mode))
+             ;; Unmanaged.
+             (eq major-mode 'exwm-mode))
     (let ((edges (window-inside-absolute-pixel-edges (frame-selected-window)))
           (id (with-current-buffer (window-buffer (frame-selected-window))
                 exwm--id)))
@@ -523,36 +523,36 @@
             height (aref result 5))
       (setq buffer-or-id (aref result 0))
       (setq container-or-id
-	    (if (bufferp buffer-or-id)
-		;; Managed.
-		(with-current-buffer buffer-or-id exwm--container)
-	      ;; Unmanaged.
-	      buffer-or-id))
+            (if (bufferp buffer-or-id)
+                ;; Managed.
+                (with-current-buffer buffer-or-id exwm--container)
+              ;; Unmanaged.
+              buffer-or-id))
       (xcb:+request exwm--connection
-	  (make-instance 'xcb:ConfigureWindow
-			 :window container-or-id
-			 :value-mask (aref result 1)
-			 :x (- (aref result 2) frame-x)
-			 :y (- (aref result 3) frame-y)
-			 :width width
-			 :height height))
+          (make-instance 'xcb:ConfigureWindow
+                         :window container-or-id
+                         :value-mask (aref result 1)
+                         :x (- (aref result 2) frame-x)
+                         :y (- (aref result 3) frame-y)
+                         :width width
+                         :height height))
       (when (bufferp buffer-or-id)
-	;; Managed.
-	(with-current-buffer buffer-or-id
-	  (xcb:+request exwm--connection
-	      (make-instance 'xcb:ConfigureWindow
-			     :window (frame-parameter exwm--floating-frame
-						      'exwm-container)
-			     :value-mask value-mask
-			     :width width
-			     :height height))
-	  (xcb:+request exwm--connection
-	      (make-instance 'xcb:ConfigureWindow
-			     :window (frame-parameter exwm--floating-frame
-						      'exwm-outer-id)
-			     :value-mask value-mask
-			     :width width
-			     :height height))))
+        ;; Managed.
+        (with-current-buffer buffer-or-id
+          (xcb:+request exwm--connection
+              (make-instance 'xcb:ConfigureWindow
+                             :window (frame-parameter exwm--floating-frame
+                                                      'exwm-container)
+                             :value-mask value-mask
+                             :width width
+                             :height height))
+          (xcb:+request exwm--connection
+              (make-instance 'xcb:ConfigureWindow
+                             :window (frame-parameter exwm--floating-frame
+                                                      'exwm-outer-id)
+                             :value-mask value-mask
+                             :width width
+                             :height height))))
       (xcb:flush exwm--connection))))
 
 (defun exwm-floating-move (&optional delta-x delta-y)
