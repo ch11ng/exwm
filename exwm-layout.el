@@ -165,6 +165,12 @@
     (exwm-layout--resize-container exwm--id exwm--container 0 0
                                    (exwm-workspace--current-width)
                                    (exwm-workspace--current-height))
+    ;; Raise the X window.
+    (xcb:+request exwm--connection
+        (make-instance 'xcb:ConfigureWindow
+                       :window exwm--container
+                       :value-mask xcb:ConfigWindow:StackMode
+                       :stack-mode xcb:StackMode:Above))
     (xcb:+request exwm--connection
         (make-instance 'xcb:ewmh:set-_NET_WM_STATE
                        :window exwm--id
@@ -180,16 +186,25 @@
   (with-current-buffer (if id (exwm--id->buffer id) (window-buffer))
     (unless exwm--fullscreen
       (user-error "Not in full-screen mode."))
-    ;; Restore the floating frame if the client is floating
-    (when exwm--floating-frame
+    (if exwm--floating-frame
+        ;; Restore the floating frame.
+        (xcb:+request exwm--connection
+            (make-instance 'xcb:ConfigureWindow
+                           :window exwm--container
+                           :value-mask (eval-when-compile
+                                         (logior xcb:ConfigWindow:X
+                                                 xcb:ConfigWindow:Y))
+                           :x (elt exwm--floating-frame-position 0)
+                           :y (elt exwm--floating-frame-position 1)))
+      ;; Put the X window just above the Emacs frame.
       (xcb:+request exwm--connection
           (make-instance 'xcb:ConfigureWindow
                          :window exwm--container
-                         :value-mask (eval-when-compile
-                                       (logior xcb:ConfigWindow:X
-                                               xcb:ConfigWindow:Y))
-                         :x (elt exwm--floating-frame-position 0)
-                         :y (elt exwm--floating-frame-position 1))))
+                         :value-mask (logior xcb:ConfigWindow:Sibling
+                                             xcb:ConfigWindow:StackMode)
+                         :sibling (frame-parameter exwm-workspace--current
+                                                   'exwm-container)
+                         :stack-mode xcb:StackMode:Above)))
     (exwm-layout--show exwm--id)
     (xcb:+request exwm--connection
         (make-instance 'xcb:ewmh:set-_NET_WM_STATE :window exwm--id :data []))
