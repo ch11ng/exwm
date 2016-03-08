@@ -318,6 +318,34 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
                      :time xcb:Time:CurrentTime))
   (xcb:flush exwm--connection))
 
+(defun exwm-input--update-mode-line (id)
+  "Update the propertized `mode-line-process' for window ID."
+  (let (help-echo cmd mode)
+    (cl-case exwm--on-KeyPress
+      ((exwm-input--on-KeyPress-line-mode)
+       (setq mode "line"
+             help-echo "mouse-1: Switch to char-mode"
+             cmd `(lambda ()
+                    (interactive)
+                    (exwm-input-release-keyboard ,id))))
+      ((exwm-input--on-KeyPress-char-mode)
+       (setq mode "char"
+             help-echo "mouse-1: Switch to line-mode"
+             cmd `(lambda ()
+                    (interactive)
+                    (exwm-input-grab-keyboard ,id)))))
+    (with-current-buffer (exwm--id->buffer id)
+      (setq mode-line-process
+            `(": "
+              (:propertize ,mode
+                           help-echo ,help-echo
+                           mouse-face mode-line-highlight
+                           local-map
+                           (keymap
+                            (mode-line
+                             keymap
+                             (down-mouse-1 . ,cmd)))))))))
+
 (defun exwm-input--grab-keyboard (&optional id)
   "Grab all key events on window ID."
   (unless id (setq id (exwm--buffer->id (window-buffer))))
@@ -331,7 +359,8 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
                              :pointer-mode xcb:GrabMode:Async
                              :keyboard-mode xcb:GrabMode:Sync))
       (exwm--log "Failed to grab keyboard for #x%x" id))
-    (setq exwm--on-KeyPress #'exwm-input--on-KeyPress-line-mode)))
+    (with-current-buffer (exwm--id->buffer id)
+      (setq exwm--on-KeyPress #'exwm-input--on-KeyPress-line-mode))))
 
 (defun exwm-input--release-keyboard (&optional id)
   "Ungrab all key events on window ID."
@@ -343,41 +372,28 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
                              :grab-window id
                              :modifiers xcb:ModMask:Any))
       (exwm--log "Failed to release keyboard for #x%x" id))
-    (setq exwm--on-KeyPress #'exwm-input--on-KeyPress-char-mode)))
+    (with-current-buffer (exwm--id->buffer id)
+      (setq exwm--on-KeyPress #'exwm-input--on-KeyPress-char-mode))))
 
 ;;;###autoload
 (defun exwm-input-grab-keyboard (&optional id)
   "Switch to line-mode."
-  (interactive)
-  (exwm-input--grab-keyboard id)
-  (setq mode-line-process
-        '(": "
-          (:propertize "line"
-                       help-echo "mouse-1: Switch to char-mode"
-                       mouse-face mode-line-highlight
-                       local-map
-                       (keymap
-                        (mode-line
-                         keymap
-                         (down-mouse-1 . exwm-input-release-keyboard))))))
-  (force-mode-line-update))
+  (interactive (list (exwm--buffer->id (window-buffer))))
+  (when id
+    (with-current-buffer (exwm--id->buffer id)
+      (exwm-input--grab-keyboard id)
+      (exwm-input--update-mode-line id)
+      (force-mode-line-update))))
 
 ;;;###autoload
 (defun exwm-input-release-keyboard (&optional id)
   "Switch to char-mode."
-  (interactive)
-  (exwm-input--release-keyboard id)
-  (setq mode-line-process
-        '(": "
-          (:propertize "char"
-                       help-echo "mouse-1: Switch to line-mode"
-                       mouse-face mode-line-highlight
-                       local-map
-                       (keymap
-                        (mode-line
-                         keymap
-                         (down-mouse-1 . exwm-input-grab-keyboard))))))
-  (force-mode-line-update))
+  (interactive (list (exwm--buffer->id (window-buffer))))
+  (when id
+    (with-current-buffer (exwm--id->buffer id)
+      (exwm-input--release-keyboard id)
+      (exwm-input--update-mode-line id)
+      (force-mode-line-update))))
 
 (defun exwm-input--fake-key (event)
   "Fake a key event equivalent to Emacs event EVENT."
