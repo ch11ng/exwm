@@ -321,7 +321,7 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
 (defun exwm-input--update-mode-line (id)
   "Update the propertized `mode-line-process' for window ID."
   (let (help-echo cmd mode)
-    (case exwm--on-KeyPress
+    (cl-case exwm--on-KeyPress
       ((exwm-input--on-KeyPress-line-mode)
        (setq mode "line"
              help-echo "mouse-1: Switch to char-mode"
