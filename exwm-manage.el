@@ -407,10 +407,14 @@ Would you like to kill it? "
                          (xcb:+request exwm--connection ,request))))
     (xcb:flush exwm--connection)))
 
+;; FIXME: Make the following values as small as possible.
+(defconst exwm-manage--width-delta-min 5)
+(defconst exwm-manage--height-delta-min 5)
+
 (defun exwm-manage--on-ConfigureRequest (data _synthetic)
   "Handle ConfigureRequest event."
   (let ((obj (make-instance 'xcb:ConfigureRequest))
-        buffer edges)
+        buffer edges width-delta height-delta)
     (xcb:unmarshal obj data)
     (with-slots (window x y width height
                         border-width sibling stack-mode value-mask)
@@ -421,7 +425,29 @@ border-width: %d; sibling: #x%x; stack-mode: %d"
                  border-width sibling stack-mode)
       (if (and (setq buffer (exwm--id->buffer window))
                (with-current-buffer buffer
-                 (or exwm--fullscreen (not exwm--floating-frame))))
+                 (or exwm--fullscreen
+                     ;; Make sure it's a floating X window wanting to resize
+                     ;; itself.
+                     (or (not exwm--floating-frame)
+                         (progn
+                           (setq edges
+                                 (window-inside-pixel-edges
+                                  (get-buffer-window buffer t))
+                                 width-delta (- width (- (elt edges 2)
+                                                         (elt edges 0)))
+                                 height-delta (- height (- (elt edges 3)
+                                                           (elt edges 1))))
+                           ;; We cannot do resizing precisely for now.
+                           (and (if (= 0 (logand value-mask
+                                                 xcb:ConfigWindow:Width))
+                                    t
+                                  (< (abs width-delta)
+                                     exwm-manage--width-delta-min))
+                                (if (= 0 (logand value-mask
+                                                  xcb:ConfigWindow:Height))
+                                    t
+                                  (< (abs height-delta)
+                                     exwm-manage--height-delta-min))))))))
           ;; Send client message for managed windows
           (with-current-buffer buffer
             (setq edges
@@ -449,16 +475,18 @@ border-width: %d; sibling: #x%x; stack-mode: %d"
         (if buffer
             (with-current-buffer buffer
               (exwm--log "ConfigureWindow (resize floating X window)")
-              (setq edges
-                    (window-inside-pixel-edges (get-buffer-window buffer t)))
-              (set-frame-size exwm--floating-frame
-                              (+ width
-                                 (- (frame-pixel-width exwm--floating-frame)
-                                    (- (elt edges 2) (elt edges 0))))
-                              (+ height
-                                 (- (frame-pixel-height exwm--floating-frame)
-                                    (- (elt edges 3) (elt edges 1))))
-                              t))
+              (when (and (/= 0 (logand value-mask xcb:ConfigWindow:Width))
+                         (>= (abs width-delta) exwm-manage--width-delta-min))
+                (set-frame-width exwm--floating-frame
+                                 (+ (frame-pixel-width exwm--floating-frame)
+                                    width-delta)
+                                 nil t))
+              (when (and (/= 0 (logand value-mask xcb:ConfigWindow:Height))
+                         (>= (abs height-delta) exwm-manage--height-delta-min))
+                (set-frame-height exwm--floating-frame
+                                  (+ (frame-pixel-height exwm--floating-frame)
+                                     height-delta)
+                                  nil t)))
           (exwm--log "ConfigureWindow (preserve geometry)")
           ;; Configure the unmanaged window.
           (xcb:+request exwm--connection
