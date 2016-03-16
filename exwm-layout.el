@@ -258,8 +258,10 @@
             (when (eq major-mode 'exwm-mode)
               (let ((window (frame-first-window frame)))
                 (with-current-buffer (window-buffer window)
-                  (exwm--log "Refresh floating window #x%x" exwm--id)
-                  (exwm-layout--show exwm--id window))))
+                  ;; It may be a buffer waiting to be killed.
+                  (when (exwm--id->buffer exwm--id)
+                    (exwm--log "Refresh floating window #x%x" exwm--id)
+                    (exwm-layout--show exwm--id window)))))
           ;; Other frames (e.g. terminal/graphical frame of emacsclient)
           ;; We shall bury all `exwm-mode' buffers in this case
           (setq windows (window-list frame 0)) ;exclude minibuffer
