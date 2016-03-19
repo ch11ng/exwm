@@ -235,6 +235,7 @@ The optional FORCE option is for internal use only."
 (declare-function exwm-layout--show "exwm-layout.el" (id &optional window))
 (declare-function exwm-layout--hide "exwm-layout.el" (id))
 (declare-function exwm-layout--refresh "exwm-layout.el")
+(declare-function exwm-layout--other-buffer-predicate "exwm-layout.el" (buffer))
 
 ;;;###autoload
 (defun exwm-workspace-move-window (index &optional id)
@@ -684,6 +685,9 @@ The optional FORCE option is for internal use only."
     ;; The default behavior of `display-buffer' (indirectly called by
     ;; `minibuffer-completion-help') is not correct here.
     (cl-pushnew '(exwm-workspace--display-buffer) display-buffer-alist))
+  ;; Prevent `other-buffer' from selecting already displayed EXWM buffers.
+  (modify-all-frames-parameters
+   '((buffer-predicate . exwm-layout--other-buffer-predicate)))
   ;; Configure workspaces
   (dolist (i exwm-workspace--list)
     (let ((outer-id (string-to-number (frame-parameter i 'outer-window-id)))

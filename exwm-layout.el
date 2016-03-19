@@ -240,6 +240,17 @@
       (xcb:flush exwm--connection)))
   (cl-incf exwm-layout--fullscreen-frame-count))
 
+(defun exwm-layout--other-buffer-predicate (buffer)
+  "Return non-nil when the BUFFER may be displayed in selected frame.
+
+Prevents EXWM-mode buffers already being displayed on some other window from
+being selected.
+
+Should be set as `buffer-predicate' frame parameter for all
+frames.  Used by `other-buffer'."
+  (not (and (eq 'exwm-mode (buffer-local-value 'major-mode buffer))
+            (get-buffer-window buffer t))))
+
 (defvar exwm-layout-show-all-buffers nil
   "Non-nil to allow switching to buffers on other workspaces.")
 
