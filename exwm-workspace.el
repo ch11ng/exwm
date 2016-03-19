@@ -347,11 +347,7 @@ The optional FORCE option is for internal use only."
           ;; Move the X window container.
           (if (= index exwm-workspace-current-index)
               (set-window-buffer (get-buffer-window (current-buffer) t)
-                                 (or (get-buffer "*scratch*")
-                                     (progn
-                                       (set-buffer-major-mode
-                                        (get-buffer-create "*scratch*"))
-                                       (get-buffer "*scratch*"))))
+                                 (other-buffer))
             (bury-buffer)
             ;; Clear the 'exwm-selected-window' frame parameter.
             (set-frame-parameter frame 'exwm-selected-window nil))
