@@ -282,11 +282,11 @@
             (if (not windows)
                 (when (eq frame exwm--frame) ;for exwm-layout-show-all-buffers
                   (exwm-layout--hide exwm--id))
-              (if (eq frame exwm--frame)
-                  (exwm-layout--show exwm--id (car windows))
-                (exwm-workspace-move-window
-                 (cl-position frame exwm-workspace--list) exwm--id))
               (let ((window (car windows)))
+                (if (eq frame exwm--frame)
+                    (exwm-layout--show exwm--id window)
+                  (exwm-workspace-move-window
+                   (cl-position frame exwm-workspace--list) exwm--id))
                 ;; Make sure this buffer is not displayed elsewhere
                 (dolist (i (get-buffer-window-list (current-buffer) 0 t))
                   (unless (eq i window)
