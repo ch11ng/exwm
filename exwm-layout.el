@@ -240,35 +240,60 @@
       (xcb:flush exwm--connection)))
   (cl-incf exwm-layout--fullscreen-frame-count))
 
+(defvar exwm-layout--other-buffer-exclude-exwm-mode-buffers nil
+  "When non-nil, prevent EXWM buffers from being selected by `other-buffer'.")
+
+(defvar exwm-layout--other-buffer-exclude-buffers nil
+  "List of buffers that should not be selected by `other-buffer'.")
+
+(defun exwm-layout--other-buffer-predicate (buffer)
+  "Return non-nil when the BUFFER may be displayed in selected frame.
+
+Prevents EXWM-mode buffers already being displayed on some other window from
+being selected.
+
+Should be set as `buffer-predicate' frame parameter for all
+frames.  Used by `other-buffer'.
+
+When variable `exwm-layout--other-buffer-exclude-exwm-mode-buffers'
+is t EXWM buffers are never selected by `other-buffer'.
+
+When variable `exwm-layout--other-buffer-exclude-buffers' is a
+list of buffers, EXWM buffers belonging to that list are never
+selected by `other-buffer'."
+  (or (not (eq 'exwm-mode (buffer-local-value 'major-mode buffer)))
+      (and (not exwm-layout--other-buffer-exclude-exwm-mode-buffers)
+           (not (memq buffer exwm-layout--other-buffer-exclude-buffers))
+           ;; Do not select if already shown in some window.
+           (not (get-buffer-window buffer t)))))
+
 (defvar exwm-layout-show-all-buffers nil
   "Non-nil to allow switching to buffers on other workspaces.")
 
 (defun exwm-layout--refresh ()
   "Refresh layout."
   (let ((frame (selected-frame))
-        (placeholder (or (get-buffer "*scratch*")
-                         (progn
-                           (set-buffer-major-mode
-                            (get-buffer-create "*scratch*"))
-                           (get-buffer "*scratch*"))))
+        covered-buffers             ;EXWM-buffers covered by a new X window.
+        vacated-windows             ;Windows previously displaying EXWM-buffers.
         windows)
     (if (not (memq frame exwm-workspace--list))
         (if (frame-parameter frame 'exwm-outer-id)
             ;; Refresh a floating frame
-            (when (eq major-mode 'exwm-mode)
-              (let ((window (frame-first-window frame)))
-                (with-current-buffer (window-buffer window)
-                  ;; It may be a buffer waiting to be killed.
-                  (when (exwm--id->buffer exwm--id)
-                    (exwm--log "Refresh floating window #x%x" exwm--id)
-                    (exwm-layout--show exwm--id window)))))
+            (let ((window (frame-first-window frame)))
+              (with-current-buffer (window-buffer window)
+                (when (and (eq major-mode 'exwm-mode)
+                           ;; It may be a buffer waiting to be killed.
+                           (exwm--id->buffer exwm--id))
+                  (exwm--log "Refresh floating window #x%x" exwm--id)
+                  (exwm-layout--show exwm--id window))))
           ;; Other frames (e.g. terminal/graphical frame of emacsclient)
           ;; We shall bury all `exwm-mode' buffers in this case
           (setq windows (window-list frame 0)) ;exclude minibuffer
-          (dolist (window windows)
-            (with-current-buffer (window-buffer window)
-              (when (eq major-mode 'exwm-mode)
-                (set-window-buffer window placeholder)))))
+          (let ((exwm-layout--other-buffer-exclude-exwm-mode-buffers t))
+            (dolist (window windows)
+              (with-current-buffer (window-buffer window)
+                (when (eq major-mode 'exwm-mode)
+                  (switch-to-prev-buffer window))))))
       ;; Refresh the whole workspace
       ;; Workspaces other than the active one can also be refreshed (RandR)
       (exwm--log "Refresh workspace %s" frame)
@@ -282,21 +307,36 @@
             (if (not windows)
                 (when (eq frame exwm--frame) ;for exwm-layout-show-all-buffers
                   (exwm-layout--hide exwm--id))
-              (if (eq frame exwm--frame)
-                  (exwm-layout--show exwm--id (car windows))
-                (exwm-workspace-move-window
-                 (cl-position frame exwm-workspace--list) exwm--id))
               (let ((window (car windows)))
-                ;; Make sure this buffer is not displayed elsewhere
-                (dolist (i (get-buffer-window-list (current-buffer) 0 t))
-                  (unless (eq i window)
-                    (set-window-buffer i placeholder))))))))
+                (if (eq frame exwm--frame)
+                    (exwm-layout--show exwm--id window)
+                  (exwm-workspace-move-window
+                   (cl-position frame exwm-workspace--list) exwm--id))
+                ;; Make sure this buffer is not displayed elsewhere.  Note down
+                ;; windows displaying an EXWM-buffer now displayed elsewhere; we
+                ;; need to display with some other buffer there.
+                (setq vacated-windows
+                      (append vacated-windows (cdr (get-buffer-window-list
+                                                    (current-buffer) 0 t))))
+                ;; Note down when an EXWM-buffer is being covered by this
+                ;; buffer; we don't want it to reappear in some vacated window.
+                (let ((prev-buffer (car-safe
+                                    (car-safe (window-prev-buffers window)))))
+                  (and
+                   prev-buffer
+                   (eq 'exwm-mode (buffer-local-value 'major-mode prev-buffer))
+                   (push prev-buffer covered-buffers))))))))
+      ;; Set some sensible buffer to vacated windows.
+      (let ((exwm-layout--other-buffer-exclude-buffers covered-buffers))
+        (dolist (window vacated-windows)
+          (switch-to-prev-buffer window)))
       ;; Make sure windows floating / on other workspaces are excluded
-      (dolist (window (window-list frame 0))
-        (with-current-buffer (window-buffer window)
-          (when (and (eq major-mode 'exwm-mode)
-                     (or exwm--floating-frame (not (eq frame exwm--frame))))
-            (set-window-buffer window placeholder))))
+      (let ((exwm-layout--other-buffer-exclude-exwm-mode-buffers t))
+        (dolist (window (window-list frame 0))
+          (with-current-buffer (window-buffer window)
+            (when (and (eq major-mode 'exwm-mode)
+                       (or exwm--floating-frame (not (eq frame exwm--frame))))
+              (switch-to-prev-buffer window)))))
       ;; Update _NET_CLIENT_LIST_STACKING
       (xcb:+request exwm--connection
           (make-instance 'xcb:ewmh:set-_NET_CLIENT_LIST_STACKING
