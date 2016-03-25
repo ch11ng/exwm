@@ -557,7 +557,7 @@
           (start-process exwm--server-name
                          nil
                          (car command-line-args) ;The executable file
-                         "-d" x-display-name
+                         "-d" (frame-parameter nil 'display)
                          "-Q"
                          (concat "--daemon=" exwm--server-name)
                          "--eval"

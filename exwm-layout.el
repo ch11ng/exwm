@@ -353,16 +353,19 @@ selected by `other-buffer'."
 
 (defun exwm-layout--on-minibuffer-setup ()
   "Refresh layout when minibuffer grows."
-  (run-with-idle-timer 0.01 nil         ;FIXME
-                       (lambda ()
-                         (when (< 1 (window-height (minibuffer-window)))
-                           (exwm-layout--refresh))))
-  ;; Set input focus on the Emacs frame
-  (x-focus-frame (window-frame (minibuffer-selected-window))))
+  (when (frame-parameter nil 'exwm-outer-id)
+    (run-with-idle-timer 0.01 nil         ;FIXME
+                         (lambda ()
+                           (when (< 1 (window-height (minibuffer-window)))
+                             (exwm-layout--refresh))))
+    ;; Set input focus on the Emacs frame
+    (x-focus-frame (window-frame (minibuffer-selected-window)))))
 
 (defun exwm-layout--on-echo-area-change (&optional dirty)
   "Run when message arrives or in `echo-area-clear-hook' to refresh layout."
   (when (and (current-message)
+             ;; Exclude non-graphical frames.
+             (frame-parameter nil 'exwm-outer-id)
              (or (cl-position ?\n (current-message))
                  (> (length (current-message))
                     (frame-width exwm-workspace--current))))

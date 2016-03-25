@@ -531,7 +531,9 @@ The optional FORCE option is for internal use only."
 
 (defun exwm-workspace--on-minibuffer-setup ()
   "Run in minibuffer-setup-hook to show the minibuffer and its container."
-  (unless (> -1 (minibuffer-depth))
+  (when (and (= 1 (minibuffer-depth))
+             ;; Exclude non-graphical frames.
+             (frame-parameter nil 'exwm-outer-id))
     (add-hook 'post-command-hook #'exwm-workspace--update-minibuffer)
     (exwm-workspace--show-minibuffer)
     ;; Set input focus on the Emacs frame
@@ -539,7 +541,9 @@ The optional FORCE option is for internal use only."
 
 (defun exwm-workspace--on-minibuffer-exit ()
   "Run in minibuffer-exit-hook to hide the minibuffer container."
-  (unless (> -1 (minibuffer-depth))
+  (when (and (= 1 (minibuffer-depth))
+             ;; Exclude non-graphical frames.
+             (frame-parameter nil 'exwm-outer-id))
     (remove-hook 'post-command-hook #'exwm-workspace--update-minibuffer)
     (exwm-workspace--hide-minibuffer)))
 
@@ -548,6 +552,8 @@ The optional FORCE option is for internal use only."
 (defun exwm-workspace--on-echo-area-dirty ()
   "Run when new message arrives to show the echo area and its container."
   (when (and (not (active-minibuffer-window))
+             ;; Exclude non-graphical frames.
+             (frame-parameter nil 'exwm-outer-id)
              (or (current-message)
                  cursor-in-echo-area))
     (exwm-workspace--update-minibuffer t)
@@ -561,11 +567,12 @@ The optional FORCE option is for internal use only."
 
 (defun exwm-workspace--on-echo-area-clear ()
   "Run in echo-area-clear-hook to hide echo area container."
-  (unless (active-minibuffer-window)
-    (exwm-workspace--hide-minibuffer))
-  (when exwm-workspace--display-echo-area-timer
-    (cancel-timer exwm-workspace--display-echo-area-timer)
-    (setq exwm-workspace--display-echo-area-timer nil)))
+  (when (frame-parameter nil 'exwm-outer-id) ;Exclude non-graphical frames.
+    (unless (active-minibuffer-window)
+      (exwm-workspace--hide-minibuffer))
+    (when exwm-workspace--display-echo-area-timer
+      (cancel-timer exwm-workspace--display-echo-area-timer)
+      (setq exwm-workspace--display-echo-area-timer nil))))
 
 (declare-function exwm-manage--unmanage-window "exwm-manage.el")
 
