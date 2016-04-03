@@ -80,7 +80,7 @@
       (when exwm--fullscreen (exwm-layout-unset-fullscreen))
       ;; Force refresh
       (exwm-layout--refresh)
-      (exwm-input-grab-keyboard))))
+      (call-interactively #'exwm-input-grab-keyboard))))
 
 (defun exwm--update-window-type (id &optional force)
   "Update _NET_WM_WINDOW_TYPE."

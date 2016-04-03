@@ -177,7 +177,7 @@
                        :data (vector xcb:Atom:_NET_WM_STATE_FULLSCREEN)))
     (xcb:flush exwm--connection)
     (setq exwm--fullscreen t)
-    (exwm-input-release-keyboard)))
+    (call-interactively #'exwm-input-release-keyboard)))
 
 ;;;###autoload
 (defun exwm-layout-unset-fullscreen (&optional id)
@@ -210,7 +210,7 @@
         (make-instance 'xcb:ewmh:set-_NET_WM_STATE :window exwm--id :data []))
     (xcb:flush exwm--connection)
     (setq exwm--fullscreen nil)
-    (exwm-input-grab-keyboard)))
+    (call-interactively #'exwm-input-grab-keyboard)))
 
 (defvar exwm-layout--fullscreen-frame-count 0
   "Count the fullscreen workspace frames.")
@@ -516,7 +516,7 @@ See also `exwm-layout-enlarge-window'."
                            (window-mode-line-height (frame-root-window
                                                      exwm--floating-frame)))
                         nil t)
-      (exwm-input-grab-keyboard))
+      (call-interactively #'exwm-input-grab-keyboard))
     (force-mode-line-update)))
 
 ;;;###autoload
