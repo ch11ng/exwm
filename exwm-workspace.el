@@ -229,6 +229,16 @@ The optional FORCE option is for internal use only."
         (xcb:flush exwm--connection))
       (run-hooks 'exwm-workspace-switch-hook))))
 
+(defun exwm-workspace--on-focus-in ()
+  "Handle unexpected frame switch."
+  ;; `focus-in-hook' is run by `handle-switch-frame'.
+  (unless (eq this-command #'handle-switch-frame)
+    (let ((index (cl-position (selected-frame) exwm-workspace--list)))
+      (exwm--log "Focus on workspace %s" index)
+      (when (and index (/= index exwm-workspace-current-index))
+        (exwm--log "Workspace was switched unexpectedly")
+        (exwm-workspace-switch index)))))
+
 (defvar exwm-floating-border-width)
 (defvar exwm-floating-border-color)
 
@@ -679,6 +689,8 @@ The optional FORCE option is for internal use only."
     (add-hook 'minibuffer-exit-hook #'exwm-workspace--on-minibuffer-exit)
     (run-with-idle-timer 0 t #'exwm-workspace--on-echo-area-dirty)
     (add-hook 'echo-area-clear-hook #'exwm-workspace--on-echo-area-clear)
+    ;; Handle unexpected frame switch.
+    (add-hook 'focus-in-hook #'exwm-workspace--on-focus-in)
     ;; Create workspace frames.
     (dotimes (_ exwm-workspace-number)
       (push (make-frame `((window-system . x)

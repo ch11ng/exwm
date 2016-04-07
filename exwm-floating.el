@@ -91,7 +91,9 @@
          (frame-geometry (frame-parameter original-frame 'exwm-geometry)))
     (exwm--log "Floating geometry (original, absolute): %dx%d%+d%+d"
                width height x y)
-    (when frame-geometry
+    (when (and frame-geometry
+               (/= x 0)
+               (/= y 0))
       (setq x (- x (slot-value frame-geometry 'x))
             y (- y (slot-value frame-geometry 'y))))
     (exwm--log "Floating geometry (original, relative): %dx%d%+d%+d"
