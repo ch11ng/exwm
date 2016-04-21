@@ -30,6 +30,7 @@
 
 ;;; Code:
 
+(require 'xcb-icccm)
 (require 'xcb-xembed)
 (require 'xcb-systemtray)
 (require 'exwm-core)
@@ -39,6 +40,15 @@
    (height :initarg :height)
    (visible :initarg :visible))
   :documentation "Attributes of a system tray icon.")
+
+(defclass xcb:systemtray:-ClientMessage
+  (xcb:icccm:--ClientMessage xcb:ClientMessage)
+  ((format :initform 32)
+   (type :initform xcb:Atom:MANAGER)
+   (time :initarg :time :type xcb:TIMESTAMP)      ;new slot
+   (selection :initarg :selection :type xcb:ATOM) ;new slot
+   (owner :initarg :owner :type xcb:WINDOW))      ;new slot
+  :documentation "A systemtray client message.")
 
 ;; GTK icons require at least 16 pixels to show normally.
 (defconst exwm-systemtray--icon-min-size 16 "Minimum icon size.")
@@ -325,6 +335,20 @@ You shall use the default value if using auto-hide minibuffer.")
                        :owner id
                        :selection xcb:Atom:_NET_SYSTEM_TRAY_S0
                        :time xcb:Time:CurrentTime))
+    ;; Send a client message to announce the selection.
+    (xcb:+request exwm-systemtray--connection
+        (make-instance 'xcb:SendEvent
+                       :propagate 0
+                       :destination exwm--root
+                       :event-mask xcb:EventMask:StructureNotify
+                       :event (xcb:marshal
+                               (make-instance 'xcb:systemtray:-ClientMessage
+                                              :window exwm--root
+                                              :time xcb:Time:CurrentTime
+                                              :selection
+                                              xcb:Atom:_NET_SYSTEM_TRAY_S0
+                                              :owner id)
+                               exwm-systemtray--connection)))
     ;; Set _NET_WM_NAME.
     (xcb:+request exwm-systemtray--connection
         (make-instance 'xcb:ewmh:set-_NET_WM_NAME
