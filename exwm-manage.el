@@ -126,12 +126,20 @@ corresponding buffer.")
                             exwm-window-type)
                       (memq xcb:Atom:_NET_WM_WINDOW_TYPE_DOCK
                             exwm-window-type))
-            (xcb:+request exwm--connection
-                (make-instance 'xcb:ReparentWindow
-                               :window id
-                               :parent (frame-parameter exwm-workspace--current
-                                                        'exwm-workspace)
-                               :x x :y y)))
+            (let ((frame-geometry (frame-parameter exwm-workspace--current
+                                                   'exwm-geometry))
+                  (workspace (frame-parameter exwm-workspace--current
+                                              'exwm-workspace)))
+              (when (and frame-geometry
+                         (/= x 0)
+                         (/= y 0))
+                (setq x (- x (slot-value frame-geometry 'x))
+                      y (- y (slot-value frame-geometry 'y))))
+              (xcb:+request exwm--connection
+                  (make-instance 'xcb:ReparentWindow
+                                 :window id
+                                 :parent workspace
+                                 :x x :y y))))
           ;; Center window of type _NET_WM_WINDOW_TYPE_SPLASH
           (when (memq xcb:Atom:_NET_WM_WINDOW_TYPE_SPLASH exwm-window-type)
             (xcb:+request exwm--connection
