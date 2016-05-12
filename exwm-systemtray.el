@@ -306,7 +306,7 @@ You shall use the default value if using auto-hide minibuffer.")
     (setq exwm-systemtray-height (max exwm-systemtray--icon-min-size
                                       (line-pixel-height))))
   ;; Create a new connection.
-  (setq exwm-systemtray--connection (xcb:connect-to-socket))
+  (setq exwm-systemtray--connection (xcb:connect))
   (set-process-query-on-exit-flag (slot-value exwm-systemtray--connection
                                               'process)
                                   nil)

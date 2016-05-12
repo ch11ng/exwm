@@ -481,7 +481,7 @@
       (exwm--log "Not running under X environment")
     (unless exwm--connection
       (exwm-enable 'undo)               ;never initialize again
-      (setq exwm--connection (xcb:connect-to-socket))
+      (setq exwm--connection (xcb:connect))
       (set-process-query-on-exit-flag (slot-value exwm--connection 'process)
                                       nil) ;prevent query message on exit
       (setq exwm--root
