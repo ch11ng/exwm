@@ -689,8 +689,6 @@ The optional FORCE option is for internal use only."
     (add-hook 'minibuffer-exit-hook #'exwm-workspace--on-minibuffer-exit)
     (run-with-idle-timer 0 t #'exwm-workspace--on-echo-area-dirty)
     (add-hook 'echo-area-clear-hook #'exwm-workspace--on-echo-area-clear)
-    ;; Handle unexpected frame switch.
-    (add-hook 'focus-in-hook #'exwm-workspace--on-focus-in)
     ;; Create workspace frames.
     (dotimes (_ exwm-workspace-number)
       (push (make-frame `((window-system . x)
@@ -700,6 +698,8 @@ The optional FORCE option is for internal use only."
     ;; The default behavior of `display-buffer' (indirectly called by
     ;; `minibuffer-completion-help') is not correct here.
     (cl-pushnew '(exwm-workspace--display-buffer) display-buffer-alist))
+  ;; Handle unexpected frame switch.
+  (add-hook 'focus-in-hook #'exwm-workspace--on-focus-in)
   ;; Prevent `other-buffer' from selecting already displayed EXWM buffers.
   (modify-all-frames-parameters
    '((buffer-predicate . exwm-layout--other-buffer-predicate)))
