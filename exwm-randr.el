@@ -164,9 +164,13 @@
                            ))
         (xcb:flush exwm--connection)))))
 
+(defun exwm-randr--exit ()
+  "Exit the RandR module.")
+
 (defun exwm-randr-enable ()
   "Enable RandR support for EXWM."
-  (add-hook 'exwm-init-hook #'exwm-randr--init))
+  (add-hook 'exwm-init-hook #'exwm-randr--init)
+  (add-hook 'exwm-exit-hook #'exwm-randr--exit))
 
 
 

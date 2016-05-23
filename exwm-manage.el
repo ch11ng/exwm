@@ -555,6 +555,10 @@ border-width: %d; sibling: #x%x; stack-mode: %d"
   (xcb:+event exwm--connection 'xcb:DestroyNotify
               #'exwm-manage--on-DestroyNotify))
 
+(defun exwm-manage--exit ()
+  "Exit the manage module."
+  (setq exwm-manage--_MOTIF_WM_HINTS nil))
+
 
 
 (provide 'exwm-manage)

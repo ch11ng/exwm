@@ -584,7 +584,11 @@ The optional FORCE option is for internal use only."
       (cancel-timer exwm-workspace--display-echo-area-timer)
       (setq exwm-workspace--display-echo-area-timer nil))))
 
+(defvar exwm-workspace--client nil
+  "The 'client' frame parameter of emacsclient frames.")
+
 (declare-function exwm-manage--unmanage-window "exwm-manage.el")
+(declare-function exwm--exit "exwm.el")
 
 (defun exwm-workspace--confirm-kill-emacs (prompt)
   "Confirm before exiting Emacs."
@@ -615,9 +619,26 @@ The optional FORCE option is for internal use only."
                          :x 0
                          :y 0)))
     (xcb:flush exwm--connection)
-    ;; Destroy all resources created by this connection.
-    (xcb:disconnect exwm--connection)
-    t))
+    (if (not exwm-workspace--client)
+        (progn
+          ;; Destroy all resources created by this connection.
+          (xcb:disconnect exwm--connection)
+          t)
+      ;; Extra cleanups for emacsclient.
+      (dolist (f exwm-workspace--list)
+        (set-frame-parameter f 'client exwm-workspace--client))
+      (when (exwm-workspace--minibuffer-own-frame-p)
+        (set-frame-parameter exwm-workspace--minibuffer 'client
+                             exwm-workspace--client))
+      (let ((connection exwm--connection))
+        (exwm--exit)
+        ;; Destroy all resources created by this connection.
+        (xcb:disconnect connection))
+      ;; Kill the client.
+      (server-save-buffers-kill-terminal nil)
+      nil)))
+
+(defvar exwm-workspace--timer nil "Timer used to track echo area changes.")
 
 (defun exwm-workspace--init ()
   "Initialize workspace module."
@@ -629,11 +650,13 @@ The optional FORCE option is for internal use only."
       (progn
         (setq exwm-workspace--list (frame-list))
         (when (< 1 (length exwm-workspace--list))
-          ;; Emacs client creates an extra (but unusable) frame.
+          ;; Exclude the initial frame.
           (dolist (i exwm-workspace--list)
             (unless (frame-parameter i 'window-id)
               (setq exwm-workspace--list (delq i exwm-workspace--list))))
           (cl-assert (= 1 (length exwm-workspace--list)))
+          (setq exwm-workspace--client
+                (frame-parameter (car exwm-workspace--list) 'client))
           ;; Prevent user from deleting this frame by accident.
           (set-frame-parameter (car exwm-workspace--list) 'client nil))
         ;; Create remaining frames.
@@ -645,12 +668,17 @@ The optional FORCE option is for internal use only."
       (setq exwm-workspace--minibuffer
             (make-frame '((window-system . x) (minibuffer . only)
                           (left . 10000) (right . 10000)
-                          (width . 0) (height . 0))))
+                          (width . 0) (height . 0)
+                          (client . nil))))
       ;; Remove/hide existing frames.
       (dolist (f old-frames)
         (if (frame-parameter f 'client)
-            (make-frame-invisible f)
-          (delete-frame f))))
+            (progn
+              (unless exwm-workspace--client
+                (setq exwm-workspace--client (frame-parameter f 'client)))
+              (make-frame-invisible f))
+          (when (eq 'x (framep f))   ;do not delete the initial frame.
+            (delete-frame f)))))
     ;; This is the only usable minibuffer frame.
     (setq default-minibuffer-frame exwm-workspace--minibuffer)
     (let ((outer-id (string-to-number
@@ -687,17 +715,20 @@ The optional FORCE option is for internal use only."
     ;; Show/hide minibuffer / echo area when they're active/inactive.
     (add-hook 'minibuffer-setup-hook #'exwm-workspace--on-minibuffer-setup)
     (add-hook 'minibuffer-exit-hook #'exwm-workspace--on-minibuffer-exit)
-    (run-with-idle-timer 0 t #'exwm-workspace--on-echo-area-dirty)
+    (setq exwm-workspace--timer
+          (run-with-idle-timer 0 t #'exwm-workspace--on-echo-area-dirty))
     (add-hook 'echo-area-clear-hook #'exwm-workspace--on-echo-area-clear)
     ;; Create workspace frames.
     (dotimes (_ exwm-workspace-number)
       (push (make-frame `((window-system . x)
                           (minibuffer . ,(minibuffer-window
-                                          exwm-workspace--minibuffer))))
+                                          exwm-workspace--minibuffer))
+                          (client . nil)))
             exwm-workspace--list))
     ;; The default behavior of `display-buffer' (indirectly called by
     ;; `minibuffer-completion-help') is not correct here.
-    (cl-pushnew '(exwm-workspace--display-buffer) display-buffer-alist))
+    (cl-pushnew '(exwm-workspace--display-buffer) display-buffer-alist
+                :test #'equal))
   ;; Handle unexpected frame switch.
   (add-hook 'focus-in-hook #'exwm-workspace--on-focus-in)
   ;; Prevent `other-buffer' from selecting already displayed EXWM buffers.
@@ -767,6 +798,25 @@ The optional FORCE option is for internal use only."
                                      exwm-workspace--list))))
   ;; Switch to the first workspace
   (exwm-workspace-switch 0 t))
+
+(defun exwm-workspace--exit ()
+  "Exit the workspace module."
+  (setq confirm-kill-emacs nil
+        exwm-workspace--list nil
+        exwm-workspace--client nil
+        exwm-workspace--minibuffer nil
+        default-minibuffer-frame nil)
+  (remove-hook 'minibuffer-setup-hook #'exwm-workspace--on-minibuffer-setup)
+  (remove-hook 'minibuffer-exit-hook #'exwm-workspace--on-minibuffer-exit)
+  (when exwm-workspace--timer
+    (cancel-timer exwm-workspace--timer)
+    (setq exwm-workspace--timer nil))
+  (remove-hook 'echo-area-clear-hook #'exwm-workspace--on-echo-area-clear)
+  (setq display-buffer-alist
+        (cl-delete '(exwm-workspace--display-buffer) display-buffer-alist
+                   :test #'equal))
+  (remove-hook 'focus-in-hook #'exwm-workspace--on-focus-in)
+  (advice-remove 'x-create-frame #'exwm-workspace--x-create-frame))
 
 (defvar exwm-layout--fullscreen-frame-count)
 

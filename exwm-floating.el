@@ -622,6 +622,9 @@ Both DELTA-X and DELTA-Y default to 1.  This command should be bound locally."
         exwm-floating--cursor-left
         (xcb:cursor:load-cursor exwm--connection "left_side")))
 
+(defun exwm-floating--exit ()
+  "Exit the floating module.")
+
 
 
 (provide 'exwm-floating)

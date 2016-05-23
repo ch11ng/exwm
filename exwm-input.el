@@ -476,6 +476,14 @@ SIMULATION-KEYS is an alist of the form (original-key . simulated-key)."
         (dolist (j pair)
           (exwm-input--fake-key j))))))
 
+(defun exwm-input--on-pre-command ()
+  "Run in `pre-command-hook'."
+  (setq exwm-input--during-command t))
+
+(defun exwm-input--on-post-command ()
+  "Run in `post-command-hook'."
+  (setq exwm-input--during-command nil))
+
 (declare-function exwm-floating--stop-moveresize "exwm-floating.el"
                   (&rest _args))
 (declare-function exwm-floating--do-moveresize "exwm-floating.el"
@@ -510,13 +518,19 @@ SIMULATION-KEYS is an alist of the form (original-key . simulated-key)."
   ;; `pre-command-hook' marks the end of a key sequence (existing or not)
   (add-hook 'pre-command-hook #'exwm-input--finish-key-sequence)
   ;; Control `exwm-input--during-command'
-  (add-hook 'pre-command-hook (lambda () (setq exwm-input--during-command t)))
-  (add-hook 'post-command-hook
-            (lambda () (setq exwm-input--during-command nil)))
+  (add-hook 'pre-command-hook #'exwm-input--on-pre-command)
+  (add-hook 'post-command-hook #'exwm-input--on-post-command)
   ;; Update focus when buffer list updates
   (add-hook 'buffer-list-update-hook #'exwm-input--on-buffer-list-update)
   ;; Update prefix keys for global keys
   (exwm-input--update-global-prefix-keys))
+
+(defun exwm-input--exit ()
+  "Exit the input module."
+  (remove-hook 'pre-command-hook #'exwm-input--finish-key-sequence)
+  (remove-hook 'pre-command-hook #'exwm-input--on-pre-command)
+  (remove-hook 'post-command-hook #'exwm-input--on-post-command)
+  (remove-hook 'buffer-list-update-hook #'exwm-input--on-buffer-list-update))
 
 
 

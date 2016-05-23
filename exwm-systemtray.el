@@ -311,8 +311,8 @@ You shall use the default value if using auto-hide minibuffer.")
                                               'process)
                                   nil)
   ;; Initialize XELB modules.
-  (xcb:xembed:init exwm-systemtray--connection)
-  (xcb:systemtray:init exwm-systemtray--connection)
+  (xcb:xembed:init exwm-systemtray--connection t)
+  (xcb:systemtray:init exwm-systemtray--connection t)
   ;; Acquire the manager selection _NET_SYSTEM_TRAY_S0.
   (with-slots (owner)
       (xcb:+request-unchecked+reply exwm-systemtray--connection
@@ -399,11 +399,27 @@ You shall use the default value if using auto-hide minibuffer.")
               #'exwm-systemtray--on-ClientMessage)
   ;; Add hook to move/reparent the embedder.
   (add-hook 'exwm-workspace-switch-hook #'exwm-systemtray--on-workspace-switch)
-  (add-hook 'exwm-randr-refresh-hook #'exwm-systemtray--on-randr-refresh))
+  (when (boundp 'exwm-randr-refresh-hook)
+    (add-hook 'exwm-randr-refresh-hook #'exwm-systemtray--on-randr-refresh)))
+
+(defun exwm-systemtray--exit ()
+  "Exit the systemtray module."
+  (when exwm-systemtray--connection
+    (xcb:disconnect exwm-systemtray--connection)
+    (setq exwm-systemtray--connection nil
+          exwm-systemtray--list nil
+          exwm-systemtray--selection-owner-window nil
+          exwm-systemtray--embedder nil)
+    (remove-hook 'exwm-workspace-switch-hook
+                 #'exwm-systemtray--on-workspace-switch)
+    (when (boundp 'exwm-randr-refresh-hook)
+      (remove-hook 'exwm-randr-refresh-hook
+                   #'exwm-systemtray--on-randr-refresh))))
 
 (defun exwm-systemtray-enable ()
   "Enable system tray support for EXWM."
-  (add-hook 'exwm-init-hook #'exwm-systemtray--init))
+  (add-hook 'exwm-init-hook #'exwm-systemtray--init)
+  (add-hook 'exwm-exit-hook #'exwm-systemtray--exit))
 
 
 

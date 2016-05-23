@@ -477,7 +477,11 @@
 
 (defun exwm-init (&optional frame)
   "Initialize EXWM."
-  (if (not (eq 'x (framep (or frame (selected-frame)))))
+  (if frame
+      ;; The frame might not be selected if it's created by emacslicnet.
+      (select-frame-set-input-focus frame)
+    (setq frame (selected-frame)))
+  (if (not (eq 'x (framep frame)))
       (exwm--log "Not running under X environment")
     (unless exwm--connection
       (exwm-enable 'undo)               ;never initialize again
@@ -499,8 +503,8 @@
         ;; Disable some features not working well with EXWM
         (setq use-dialog-box nil)
         ;; Initialize ICCCM/EWMH support
-        ;; (xcb:icccm:init exwm--connection)
-        (xcb:ewmh:init exwm--connection)
+        (xcb:icccm:init exwm--connection t)
+        (xcb:ewmh:init exwm--connection t)
         (exwm--lock)
         (exwm--init-icccm-ewmh)
         (exwm-layout--init)
@@ -513,6 +517,26 @@
         ;; Manage existing windows
         (exwm-manage--scan)
         (run-hooks 'exwm-init-hook)))))
+
+(defvar exwm-exit-hook nil
+  "Normal hook run just before EXWM is about to exit.
+
+This hook is only run when EXWM is started with emacsclient.")
+
+(defun exwm--exit ()
+  "Exit EXWM."
+  (run-hooks 'exwm-exit-hook)
+  ;; Exit modules.
+  (exwm-input--exit)
+  (exwm-workspace--exit)
+  (exwm-manage--exit)
+  (exwm-floating--exit)
+  (exwm-layout--exit)
+  ;; Reset several import variables.
+  (setq exwm--connection nil
+        exwm--root nil
+        exwm--id-buffer-alist nil)
+  (exwm-enable))
 
 (defvar exwm-blocking-subrs '(x-file-dialog x-popup-dialog x-select-font)
   "Subrs (primitives) that would normally block EXWM.")

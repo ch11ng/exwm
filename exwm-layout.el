@@ -528,6 +528,8 @@ See also `exwm-layout-enlarge-window'."
         (exwm-layout-hide-mode-line)
       (exwm-layout-show-mode-line))))
 
+(defvar exwm-layout--timer nil "Timer used to track echo area changes.")
+
 (defun exwm-layout--init ()
   "Initialize layout module."
   ;; Auto refresh layout
@@ -535,8 +537,18 @@ See also `exwm-layout-enlarge-window'."
   (unless (exwm-workspace--minibuffer-own-frame-p)
     ;; Refresh when minibuffer grows
     (add-hook 'minibuffer-setup-hook #'exwm-layout--on-minibuffer-setup t)
-    (run-with-idle-timer 0 t #'exwm-layout--on-echo-area-change t)
+    (setq exwm-layout--timer
+          (run-with-idle-timer 0 t #'exwm-layout--on-echo-area-change t))
     (add-hook 'echo-area-clear-hook #'exwm-layout--on-echo-area-change)))
+
+(defun exwm-layout--exit ()
+  "Exit the layout module."
+  (remove-hook 'window-configuration-change-hook #'exwm-layout--refresh)
+  (remove-hook 'minibuffer-setup-hook #'exwm-layout--on-minibuffer-setup)
+  (when exwm-layout--timer
+    (cancel-timer exwm-layout--timer)
+    (setq exwm-layout--timer nil))
+  (remove-hook 'echo-area-clear-hook #'exwm-layout--on-echo-area-change))
 
 
 
