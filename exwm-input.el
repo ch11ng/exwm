@@ -101,7 +101,9 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
 
 (defun exwm-input--update-focus ()
   "Update input focus."
-  (when (window-live-p exwm-input--focus-window)
+  (when (and (window-live-p exwm-input--focus-window)
+             ;; Do not update input focus when there's an active minibuffer.
+             (not (active-minibuffer-window)))
     (with-current-buffer (window-buffer exwm-input--focus-window)
       (if (eq major-mode 'exwm-mode)
           (if (not (eq exwm--frame exwm-workspace--current))
@@ -308,6 +310,10 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
                  (setq event (xcb:keysyms:keysym->event exwm--connection
                                                         keysym state)))
         (when (eq major-mode 'exwm-mode)
+          ;; FIXME: This functionality seems not working, e.g. when this
+          ;;        command would activate the minibuffer, the temporary
+          ;;        line-mode would actually quit before the minibuffer
+          ;;        becomes active.
           (setq exwm-input--temp-line-mode t
                 exwm-input--during-key-sequence t)
           (exwm-input--grab-keyboard))  ;grab keyboard temporarily
