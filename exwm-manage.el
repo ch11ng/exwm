@@ -48,7 +48,7 @@ corresponding buffer.")
 (defun exwm-manage--update-mwm-hints (id &optional force)
   "Update _MOTIF_WM_HINTS."
   (with-current-buffer (exwm--id->buffer id)
-    (unless (and exwm--mwm-hints (not force))
+    (unless (and (not exwm--mwm-hints-decorations) (not force))
       (let ((reply (xcb:+request-unchecked+reply exwm--connection
                        (make-instance 'xcb:icccm:-GetProperty
                                       :window id
@@ -56,7 +56,17 @@ corresponding buffer.")
                                       :type exwm-manage--_MOTIF_WM_HINTS
                                       :long-length 5))))
         (when reply
-          (setq exwm--mwm-hints (append (slot-value reply 'value) nil)))))))
+          ;; Check MotifWmHints.decorations.
+          (with-slots (value) reply
+            (setq value (append value nil))
+            (when (and value
+                       ;; See <Xm/MwmUtil.h> for fields definitions.
+                       (/= 0 (logand
+                              (elt value 0) ;MotifWmHints.flags
+                              2))           ;MWM_HINTS_DECORATIONS
+                       (= 0
+                          (elt value 2))) ;MotifWmHints.decorations
+              (setq exwm--mwm-hints-decorations nil))))))))
 
 (defvar exwm-workspace--current)
 (defvar exwm-workspace--switch-history-outdated)
@@ -90,6 +100,7 @@ corresponding buffer.")
       (exwm--update-class id)
       (exwm--update-transient-for id)
       (exwm--update-normal-hints id)
+      (exwm--update-hints id)
       (exwm-manage--update-geometry id)
       (exwm-manage--update-mwm-hints id)
       ;; No need to manage (please check OverrideRedirect outside)
@@ -100,11 +111,8 @@ corresponding buffer.")
                   (memq xcb:Atom:_NET_WM_WINDOW_TYPE_DIALOG exwm-window-type)
                   (memq xcb:Atom:_NET_WM_WINDOW_TYPE_NORMAL exwm-window-type)))
              ;; Check the _MOTIF_WM_HINTS property.
-             (and exwm--mwm-hints
-                  ;; See <Xm/MwmUtil.h> for fields definitions.
-                  (/= 0 (logand (elt exwm--mwm-hints 0) ;MotifWmHints.flags
-                                2))             ;MWM_HINTS_DECORATIONS
-                  (= 0 (elt exwm--mwm-hints 2)) ;MotifWmHints.decorations
+             (and (not exwm--mwm-hints-decorations)
+                  (not exwm--hints-input)
                   ;; Floating windows only
                   (or exwm-transient-for exwm--fixed-size
                       (memq xcb:Atom:_NET_WM_WINDOW_TYPE_UTILITY
@@ -202,7 +210,6 @@ corresponding buffer.")
                          :data (vconcat (mapcar #'car exwm--id-buffer-alist))))
       (xcb:flush exwm--connection)
       (exwm--update-title id)
-      (exwm--update-hints id)
       (exwm--update-protocols id)
       (exwm--update-state id)
       (if (or exwm-transient-for exwm--fixed-size

@@ -116,7 +116,7 @@
 (defvar-local exwm--hints-input nil)
 (defvar-local exwm--hints-urgency nil)
 ;; _MOTIF_WM_HINTS
-(defvar-local exwm--mwm-hints nil)
+(defvar-local exwm--mwm-hints-decorations t)
 
 (defvar exwm-mode-map
   (let ((map (make-sparse-keymap)))

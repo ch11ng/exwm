@@ -159,6 +159,12 @@
                                     (- (elt edges 2) (elt edges 0)))))
            (frame-height (+ height (- (frame-pixel-height frame)
                                       (- (elt edges 3) (elt edges 1))))))
+      ;; Check `exwm--mwm-hints-decorations'.
+      (unless exwm--mwm-hints-decorations
+        (setq frame-height (- frame-height (window-mode-line-height
+                                            (frame-root-window frame)))
+              exwm--mode-line-format mode-line-format
+              mode-line-format nil))
       (set-frame-size frame frame-width frame-height t)
       ;; Create the frame container as the parent of the frame and
       ;; a child of the X window container.
