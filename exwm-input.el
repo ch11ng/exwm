@@ -453,11 +453,16 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
 ;;   (unless (listp last-input-event)      ;not a key event
 ;;     (exwm-input--fake-key last-input-event)))
 
+(defvar exwm-input--local-simulation-keys nil
+  "Whether simulation keys are local.")
+
 (defun exwm-input--update-simulation-prefix-keys ()
   "Update the list of prefix keys of simulation keys."
   (setq exwm-input--simulation-prefix-keys nil)
   (dolist (i exwm-input--simulation-keys)
-    (define-key exwm-mode-map (car i) #'exwm-input-send-simulation-key)
+    (if exwm-input--local-simulation-keys
+        (local-set-key (car i) #'exwm-input-send-simulation-key)
+      (define-key exwm-mode-map (car i) #'exwm-input-send-simulation-key))
     (cl-pushnew (elt (car i) 0) exwm-input--simulation-prefix-keys)))
 
 (defun exwm-input-set-simulation-keys (simulation-keys)
@@ -468,6 +473,16 @@ SIMULATION-KEYS is an alist of the form (original-key . simulated-key)."
   (dolist (i simulation-keys)
     (cl-pushnew `(,(vconcat (car i)) . ,(cdr i)) exwm-input--simulation-keys))
   (exwm-input--update-simulation-prefix-keys))
+
+(defun exwm-input-set-local-simulation-keys (simulation-keys)
+  "Set buffer-local simulation keys.
+
+Its usage is the same with `exwm-input-set-simulation-keys'."
+  (make-local-variable 'exwm-input--simulation-keys)
+  (make-local-variable 'exwm-input--simulation-prefix-keys)
+  (use-local-map (copy-keymap exwm-mode-map))
+  (let ((exwm-input--local-simulation-keys t))
+    (exwm-input-set-simulation-keys simulation-keys)))
 
 ;;;###autoload
 (defun exwm-input-send-simulation-key (times)
