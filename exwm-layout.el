@@ -60,11 +60,12 @@
     (with-current-buffer (exwm--id->buffer id)
       (if (not exwm--floating-frame)
           (let ((relative-edges (window-inside-pixel-edges window)))
-            (exwm-layout--resize-container id exwm--container
-                                           (elt relative-edges 0)
-                                           (elt relative-edges 1)
-                                           width height
-                                           (active-minibuffer-window)))
+            (exwm-layout--resize-container
+             id exwm--container
+             (elt relative-edges 0) (elt relative-edges 1) width height
+             ;; Do not resize the X window if the minibuffer resizes itself.
+             (and (active-minibuffer-window)
+                  (< 1 (window-height (active-minibuffer-window))))))
         ;; A floating X window is of the same size as the Emacs window,
         ;; whereas its container is of the same size as the Emacs frame.
         (setq frame-width (frame-pixel-width exwm--floating-frame)
