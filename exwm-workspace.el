@@ -128,6 +128,50 @@ Value nil means to use the default position which is fixed at bottom, while
   "Reports whether the minibuffer is displayed in its own frame."
   (memq exwm-workspace-minibuffer-position '(top bottom)))
 
+;; FIXME: RandR and multiple docks.
+(defvar exwm-workspace--strut nil "Areas occupied by struts.")
+(defvar exwm-workspace--strut-is-partial nil
+  "Whether the struts are from _NET_WM_STRUT_PARTIAL.")
+
+(defvar exwm-workspace--fullscreen-frame-count 0
+  "Count the fullscreen workspace frames.")
+
+(declare-function exwm-layout--resize-container "exwm-layout.el"
+                  (id container x y width height &optional container-only))
+
+(defun exwm-workspace--set-fullscreen (frame)
+  "Make frame FRAME fullscreen, with regard to its RandR output if applicable."
+  (let ((geometry (or (frame-parameter frame 'exwm-geometry)
+                      (xcb:+request-unchecked+reply exwm--connection
+                          (make-instance 'xcb:GetGeometry
+                                         :drawable exwm--root))
+                      (make-instance 'xcb:RECTANGLE :x 0 :y 0
+                                     :width (x-display-pixel-width)
+                                     :height (x-display-pixel-height))))
+        (id (frame-parameter frame 'exwm-outer-id))
+        (container (frame-parameter frame 'exwm-container))
+        (workspace (frame-parameter frame 'exwm-workspace))
+        x* y* width* height*)
+    (with-slots (x y width height) geometry
+      (if exwm-workspace--strut
+          (setq x* (+ x (aref exwm-workspace--strut 0))
+                y* (+ y (aref exwm-workspace--strut 2))
+                width* (- width (aref exwm-workspace--strut 0)
+                          (aref exwm-workspace--strut 1))
+                height* (- height (aref exwm-workspace--strut 2)
+                           (aref exwm-workspace--strut 3)))
+        (setq x* x
+              y* y
+              width* width
+              height* height))
+      (when (and (eq frame exwm-workspace--current)
+                 (exwm-workspace--minibuffer-own-frame-p))
+        (exwm-workspace--resize-minibuffer-frame width* height*))
+      (exwm-layout--resize-container id container 0 0 width* height*)
+      (exwm-layout--resize-container nil workspace x* y* width* height* t)
+      (xcb:flush exwm--connection)))
+  (cl-incf exwm-workspace--fullscreen-frame-count))
+
 ;;;###autoload
 (defun exwm-workspace--resize-minibuffer-frame (&optional width height)
   "Resize minibuffer (and its container) to fit the size of workspace.
@@ -138,10 +182,19 @@ workspace frame."
   (let ((y (if (eq exwm-workspace-minibuffer-position 'top)
                0
              (- (or height (exwm-workspace--current-height))
+                (if exwm-workspace--strut
+                    (+ (aref exwm-workspace--strut 2)
+                       (aref exwm-workspace--strut 3))
+                  0)
                 (frame-pixel-height exwm-workspace--minibuffer))))
-        (width (or width (exwm-workspace--current-width)))
         (container (frame-parameter exwm-workspace--minibuffer
                                     'exwm-container)))
+    (unless width
+      (setq width (exwm-workspace--current-width)))
+    (when exwm-workspace--strut
+      (setq width (- width
+                     (aref exwm-workspace--strut 0)
+                     (aref exwm-workspace--strut 1))))
     (xcb:+request exwm--connection
         (make-instance 'xcb:ConfigureWindow
                        :window container
@@ -491,7 +544,12 @@ The optional FORCE option is for internal use only."
             (setq value-mask xcb:ConfigWindow:Height
                   y 0)
           (setq value-mask (logior xcb:ConfigWindow:Y xcb:ConfigWindow:Height)
-                y (- (exwm-workspace--current-height) height)))
+                y (- (exwm-workspace--current-height)
+                     (if exwm-workspace--strut
+                         (+ (aref exwm-workspace--strut 2)
+                            (aref exwm-workspace--strut 3))
+                       0)
+                     height)))
         (xcb:+request exwm--connection
             (make-instance 'xcb:ConfigureWindow
                            :window (frame-parameter exwm-workspace--minibuffer
@@ -637,6 +695,38 @@ The optional FORCE option is for internal use only."
       ;; Kill the client.
       (server-save-buffers-kill-terminal nil)
       nil)))
+
+(defun exwm-workspace--update-workareas (&optional workareas)
+  "Update _NET_WORKAREA."
+  ;; Calculate workareas if not present.
+  (unless workareas
+    (if (frame-parameter (car exwm-workspace--list) 'exwm-geometry)
+        ;; Use the 'exwm-geometry' frame parameter if possible.
+        (dolist (f exwm-workspace--list)
+          (with-slots (x y width height) (frame-parameter f 'exwm-geometry)
+            (setq workareas (vconcat workareas (vector x y width height)))))
+      (let ((workarea (vector 0 0 (x-display-pixel-width)
+                              (x-display-pixel-height))))
+        (dotimes (_ exwm-workspace-number)
+          (setq workareas (vconcat workareas workarea))))))
+  ;; Exclude areas occupied by struts.
+  ;; FIXME: RandR.
+  (when exwm-workspace--strut
+    (let ((dx (aref exwm-workspace--strut 0))
+          (dy (aref exwm-workspace--strut 2))
+          (dw (- (+ (aref exwm-workspace--strut 0)
+                    (aref exwm-workspace--strut 1))))
+          (dh (- (+ (aref exwm-workspace--strut 2)
+                    (aref exwm-workspace--strut 3)))))
+      (dotimes (i exwm-workspace-number)
+        (cl-incf (aref workareas (* i 4)) dx)
+        (cl-incf (aref workareas (+ (* i 4))) dy)
+        (cl-incf (aref workareas (+ (* i 4) 2)) dw)
+        (cl-incf (aref workareas (+ (* i 4) 3)) dh))))
+  (xcb:+request exwm--connection
+      (make-instance 'xcb:ewmh:set-_NET_WORKAREA
+                     :window exwm--root :data workareas))
+  (xcb:flush exwm--connection))
 
 (defvar exwm-workspace--timer nil "Timer used to track echo area changes.")
 
@@ -794,6 +884,8 @@ The optional FORCE option is for internal use only."
   (xcb:flush exwm--connection)
   ;; We have to advice `x-create-frame' or every call to it would hang EXWM
   (advice-add 'x-create-frame :around #'exwm-workspace--x-create-frame)
+  ;; Set _NET_WORKAREA.
+  (exwm-workspace--update-workareas)
   ;; Set _NET_VIRTUAL_ROOTS
   (xcb:+request exwm--connection
       (make-instance 'xcb:ewmh:set-_NET_VIRTUAL_ROOTS
@@ -824,8 +916,6 @@ The optional FORCE option is for internal use only."
   (remove-hook 'focus-in-hook #'exwm-workspace--on-focus-in)
   (advice-remove 'x-create-frame #'exwm-workspace--x-create-frame))
 
-(defvar exwm-layout--fullscreen-frame-count)
-
 (defun exwm-workspace--post-init ()
   "The second stage in the initialization of the workspace module."
   ;; Make the workspaces fullscreen.
@@ -833,7 +923,7 @@ The optional FORCE option is for internal use only."
     (set-frame-parameter i 'fullscreen 'fullboth))
   ;; Wait until all workspace frames are resized.
   (with-timeout (1)
-    (while (< exwm-layout--fullscreen-frame-count exwm-workspace-number)
+    (while (< exwm-workspace--fullscreen-frame-count exwm-workspace-number)
       (accept-process-output nil 0.1))))
 
 

@@ -236,6 +236,46 @@
                                ;; Default to normal state
                                xcb:icccm:WM_STATE:NormalState)))))))
 
+(defun exwm--update-strut-legacy (id)
+  "Update _NET_WM_STRUT."
+  (unless exwm-workspace--strut-is-partial
+    (let ((reply (xcb:+request-unchecked+reply exwm--connection
+                     (make-instance 'xcb:ewmh:get-_NET_WM_STRUT
+                                    :window id))))
+      (setq exwm-workspace--strut (when reply (slot-value reply 'value)))
+      ;; Update workspaces.
+      (dolist (f exwm-workspace--list)
+        (exwm-workspace--set-fullscreen f))
+      ;; Resize the minibuffer frame.
+      (when (exwm-workspace--minibuffer-own-frame-p)
+        (exwm-workspace--resize-minibuffer-frame))
+      ;; Update _NET_WORKAREA.
+      (exwm-workspace--update-workareas))))
+
+(defun exwm--update-strut-partial (id)
+  "Update _NET_WM_STRUT_PARTIAL."
+  (let ((reply (xcb:+request-unchecked+reply exwm--connection
+                   (make-instance 'xcb:ewmh:get-_NET_WM_STRUT_PARTIAL
+                                  :window id))))
+    (setq exwm-workspace--strut (when reply (slot-value reply 'value)))
+    (if (not exwm-workspace--strut)
+        (setq exwm-workspace--strut-is-partial nil)
+      (setq exwm-workspace--strut (substring exwm-workspace--strut 0 4))
+      (setq exwm-workspace--strut-is-partial t))
+    ;; Update workspaces.
+    (dolist (f exwm-workspace--list)
+      (exwm-workspace--set-fullscreen f))
+    ;; Resize the minibuffer frame.
+    (when (exwm-workspace--minibuffer-own-frame-p)
+      (exwm-workspace--resize-minibuffer-frame))
+    ;; Update _NET_WORKAREA.
+    (exwm-workspace--update-workareas)))
+
+(defun exwm--update-strut (id)
+  "Update _NET_WM_STRUT_PARTIAL or _NET_WM_STRUT."
+  (exwm--update-strut-partial id)
+  (exwm--update-strut-legacy id))
+
 (defun exwm--on-PropertyNotify (data _synthetic)
   "Handle PropertyNotify event."
   (let ((obj (make-instance 'xcb:PropertyNotify))
@@ -245,7 +285,12 @@
           atom (slot-value obj 'atom)
           exwm-input--timestamp (slot-value obj 'time))
     (setq buffer (exwm--id->buffer id))
-    (when (buffer-live-p buffer)
+    (if (not (buffer-live-p buffer))
+        ;; Properties of unmanaged X windows.
+        (cond ((= atom xcb:Atom:_NET_WM_STRUT)
+               (exwm--update-strut-legacy id))
+              ((= atom xcb:Atom:_NET_WM_STRUT_PARTIAL)
+               (exwm--update-strut-partial id)))
       (with-current-buffer buffer
         (cond ((= atom xcb:Atom:_NET_WM_WINDOW_TYPE)
                (exwm--update-window-type id t))
@@ -326,7 +371,7 @@
                    (= action xcb:ewmh:_NET_WM_STATE_ADD))
           (dolist (f exwm-workspace--list)
             (when (equal (frame-parameter f 'exwm-outer-id) id)
-              (exwm-layout--set-frame-fullscreen f)
+              (exwm-workspace--set-fullscreen f)
               (xcb:+request
                   exwm--connection
                   (make-instance 'xcb:ewmh:set-_NET_WM_STATE
@@ -410,6 +455,8 @@
                                    xcb:Atom:_NET_REQUEST_FRAME_EXTENTS
                                    xcb:Atom:_NET_FRAME_EXTENTS
                                    xcb:Atom:_NET_WM_NAME
+                                   xcb:Atom:_NET_WM_STRUT
+                                   xcb:Atom:_NET_WM_STRUT_PARTIAL
                                    ;;
                                    xcb:Atom:_NET_WM_WINDOW_TYPE
                                    xcb:Atom:_NET_WM_WINDOW_TYPE_TOOLBAR
@@ -458,18 +505,6 @@
       (make-instance 'xcb:ewmh:set-_NET_DESKTOP_VIEWPORT
                      :window exwm--root
                      :data (make-vector (* 2 exwm-workspace-number) 0)))
-  ;; Set _NET_WORKAREA (with minibuffer excluded)
-  (let* ((workareas
-          (vector 0 0 (x-display-pixel-width)
-                  (- (x-display-pixel-height)
-                     (if (exwm-workspace--minibuffer-own-frame-p)
-                         0
-                       (window-pixel-height (minibuffer-window))))))
-         (workareas (mapconcat (lambda (_) workareas)
-                               (make-list exwm-workspace-number 0) [])))
-    (xcb:+request exwm--connection
-        (make-instance 'xcb:ewmh:set-_NET_WORKAREA
-                       :window exwm--root :data workareas)))
   (xcb:flush exwm--connection))
 
 (defvar exwm-init-hook nil

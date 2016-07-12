@@ -213,34 +213,6 @@
     (setq exwm--fullscreen nil)
     (call-interactively #'exwm-input-grab-keyboard)))
 
-(defvar exwm-layout--fullscreen-frame-count 0
-  "Count the fullscreen workspace frames.")
-
-;; This function is superficially similar to `exwm-layout-set-fullscreen', but
-;; they do very different things: `exwm-layout--set-frame-fullscreen' resizes a
-;; frame to the actual monitor size, `exwm-layout-set-fullscreen' resizes an X
-;; window to the frame size.
-(defun exwm-layout--set-frame-fullscreen (frame)
-  "Make frame FRAME fullscreen, with regard to its RandR output if applicable."
-  (let ((geometry (or (frame-parameter frame 'exwm-geometry)
-                      (xcb:+request-unchecked+reply exwm--connection
-                          (make-instance 'xcb:GetGeometry
-                                         :drawable exwm--root))
-                      (make-instance 'xcb:RECTANGLE :x 0 :y 0
-                                     :width (x-display-pixel-width)
-                                     :height (x-display-pixel-height))))
-        (id (frame-parameter frame 'exwm-outer-id))
-        (container (frame-parameter frame 'exwm-container))
-        (workspace (frame-parameter frame 'exwm-workspace)))
-    (with-slots (x y width height) geometry
-      (when (and (eq frame exwm-workspace--current)
-                 (exwm-workspace--minibuffer-own-frame-p))
-        (exwm-workspace--resize-minibuffer-frame width height))
-      (exwm-layout--resize-container id container 0 0 width height)
-      (exwm-layout--resize-container nil workspace x y width height t)
-      (xcb:flush exwm--connection)))
-  (cl-incf exwm-layout--fullscreen-frame-count))
-
 (defvar exwm-layout--other-buffer-exclude-exwm-mode-buffers nil
   "When non-nil, prevent EXWM buffers from being selected by `other-buffer'.")
 

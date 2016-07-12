@@ -79,6 +79,7 @@ corresponding buffer.")
 (declare-function exwm--update-hints "exwm.el" (id &optional force))
 (declare-function exwm--update-protocols "exwm.el" (id &optional force))
 (declare-function exwm--update-state "exwm.el" (id &optional force))
+(declare-function exwm--update-strut "exwm.el" (id))
 (declare-function exwm-floating--set-floating "exwm-floating.el" (id))
 (declare-function exwm-floating--unset-floating "exwm-floating.el" (id))
 
@@ -120,11 +121,19 @@ corresponding buffer.")
                       (memq xcb:Atom:_NET_WM_WINDOW_TYPE_DIALOG
                             exwm-window-type))))
         (exwm--log "No need to manage #x%x" id)
+        ;; Update struts.
+        (when (memq xcb:Atom:_NET_WM_WINDOW_TYPE_DOCK exwm-window-type)
+          (exwm--update-strut id))
         ;; Remove all events
         (xcb:+request exwm--connection
             (make-instance 'xcb:ChangeWindowAttributes
                            :window id :value-mask xcb:CW:EventMask
-                           :event-mask xcb:EventMask:NoEvent))
+                           :event-mask
+                           (if (memq xcb:Atom:_NET_WM_WINDOW_TYPE_DOCK
+                                     exwm-window-type)
+                               ;; Listen for change of struts property of dock.
+                               xcb:EventMask:PropertyChange
+                             xcb:EventMask:NoEvent)))
         ;; The window needs to be mapped
         (xcb:+request exwm--connection
             (make-instance 'xcb:MapWindow :window id))

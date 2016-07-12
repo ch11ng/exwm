@@ -54,16 +54,18 @@
 (defvar exwm-randr-refresh-hook nil
   "Normal hook run when the RandR module just refreshed.")
 
-(defvar exwm-layout--fullscreen-frame-count)
+(defvar exwm-workspace--fullscreen-frame-count)
 (defvar exwm-workspace-number)
 (defvar exwm-workspace--list)
 
-(declare-function exwm-layout--set-frame-fullscreen "exwm-layout.el" (frame))
+(declare-function exwm-workspace--set-fullscreen "exwm-workspace.el" (frame))
+(declare-function exwm-workspace--update-workareas "exwm-workspace.el"
+                  (&optional workareas))
 
 (defun exwm-randr--refresh ()
   "Refresh workspaces according to the updated RandR info."
   (let (output-name geometry output-plist default-geometry workareas
-                    workarea-offset viewports)
+                    viewports)
     ;; Query all outputs
     (with-slots (config-timestamp outputs)
         (xcb:+request-unchecked+reply exwm--connection
@@ -93,10 +95,7 @@
                 (setq default-geometry geometry)))))))
     (exwm--log "(randr) outputs: %s" output-plist)
     (when output-plist
-      (setq workarea-offset (if (exwm-workspace--minibuffer-own-frame-p)
-                                0
-                              (window-pixel-height (minibuffer-window))))
-      (setq exwm-layout--fullscreen-frame-count 0)
+      (setq exwm-workspace--fullscreen-frame-count 0)
       (dotimes (i exwm-workspace-number)
         (let* ((output (plist-get exwm-randr-workspace-output-plist i))
                (geometry (lax-plist-get output-plist output))
@@ -106,16 +105,13 @@
                   output nil))
           (set-frame-parameter frame 'exwm-randr-output output)
           (set-frame-parameter frame 'exwm-geometry geometry)
-          (exwm-layout--set-frame-fullscreen frame)
+          (exwm-workspace--set-fullscreen frame)
           (with-slots (x y width height) geometry
             (setq workareas
-                  (nconc workareas (list x y width (- height
-                                                      workarea-offset)))
+                  (nconc workareas (list x y width height))
                   viewports (nconc viewports (list x y))))))
       ;; Update _NET_WORKAREA
-      (xcb:+request exwm--connection
-          (make-instance 'xcb:ewmh:set-_NET_WORKAREA
-                         :window exwm--root :data (vconcat workareas)))
+      (exwm-workspace--update-workareas (vconcat workareas))
       ;; Update _NET_DESKTOP_VIEWPORT
       (xcb:+request exwm--connection
           (make-instance 'xcb:ewmh:set-_NET_DESKTOP_VIEWPORT
