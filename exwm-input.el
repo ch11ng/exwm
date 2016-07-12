@@ -319,9 +319,7 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
           (setq exwm-input--temp-line-mode t
                 exwm-input--during-key-sequence t)
           (exwm-input--grab-keyboard))  ;grab keyboard temporarily
-        ;; Feed this event to command loop.  Also force it to be added to
-        ;; `this-command-keys'.
-        (push (cons t event) unread-command-events))))
+        (push event unread-command-events))))
   (xcb:+request exwm--connection
       (make-instance 'xcb:AllowEvents
                      :mode xcb:Allow:AsyncKeyboard
