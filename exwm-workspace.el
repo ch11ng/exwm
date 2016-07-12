@@ -657,18 +657,23 @@ The optional FORCE option is for internal use only."
           (cl-assert (= 1 (length exwm-workspace--list)))
           (setq exwm-workspace--client
                 (frame-parameter (car exwm-workspace--list) 'client))
-          ;; Prevent user from deleting this frame by accident.
-          (set-frame-parameter (car exwm-workspace--list) 'client nil))
+          (let ((f (car exwm-workspace--list)))
+            ;; Remove the possible internal border.
+            (set-frame-parameter f 'internal-border-width 0)
+            ;; Prevent user from deleting this frame by accident.
+            (set-frame-parameter f 'client nil))
         ;; Create remaining frames.
         (dotimes (_ (1- exwm-workspace-number))
           (nconc exwm-workspace--list
-                 (list (make-frame '((window-system . x)))))))
+                 (list (make-frame '((window-system . x)
+                                     (internal-border-width . 0))))))))
     ;; Initialize workspaces without minibuffers.
     (let ((old-frames (frame-list)))
       (setq exwm-workspace--minibuffer
             (make-frame '((window-system . x) (minibuffer . only)
                           (left . 10000) (right . 10000)
                           (width . 0) (height . 0)
+                          (internal-border-width . 0)
                           (client . nil))))
       ;; Remove/hide existing frames.
       (dolist (f old-frames)
@@ -723,6 +728,7 @@ The optional FORCE option is for internal use only."
       (push (make-frame `((window-system . x)
                           (minibuffer . ,(minibuffer-window
                                           exwm-workspace--minibuffer))
+                          (internal-border-width . 0)
                           (client . nil)))
             exwm-workspace--list))
     ;; The default behavior of `display-buffer' (indirectly called by
