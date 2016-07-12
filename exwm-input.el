@@ -294,7 +294,9 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
                      (memq event exwm-input--simulation-prefix-keys)))
         (setq mode xcb:Allow:AsyncKeyboard)
         (unless minibuffer-window (setq exwm-input--during-key-sequence t))
-        (push event unread-command-events))
+        ;; Feed this event to command loop.  Also force it to be added to
+        ;; `this-command-keys'.
+        (push (cons t event) unread-command-events))
       (xcb:+request exwm--connection
           (make-instance 'xcb:AllowEvents
                          :mode (or mode xcb:Allow:ReplayKeyboard)
@@ -317,7 +319,9 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
           (setq exwm-input--temp-line-mode t
                 exwm-input--during-key-sequence t)
           (exwm-input--grab-keyboard))  ;grab keyboard temporarily
-        (push event unread-command-events))))
+        ;; Feed this event to command loop.  Also force it to be added to
+        ;; `this-command-keys'.
+        (push (cons t event) unread-command-events))))
   (xcb:+request exwm--connection
       (make-instance 'xcb:AllowEvents
                      :mode xcb:Allow:AsyncKeyboard
@@ -443,6 +447,8 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
           (setq key (read-key (format "Send key: %s (%d/%d)"
                                       (key-description keys)
                                       (1+ i) times)))
+          (when (and (listp key) (eq (car key) t))
+            (setq key (cdr key)))
           (unless (listp key) (throw 'break nil))))
       (setq exwm-input--during-key-sequence nil)
       (setq keys (vconcat keys (vector key)))
