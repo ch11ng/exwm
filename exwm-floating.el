@@ -49,13 +49,31 @@
 (defvar exwm-floating--cursor-bottom-left nil)
 (defvar exwm-floating--cursor-left nil)
 
+(defun exwm-floating--set-allowed-actions (id tilling)
+  "Set _NET_WM_ALLOWED_ACTIONS."
+  (xcb:+request exwm--connection
+      (make-instance 'xcb:ewmh:set-_NET_WM_ALLOWED_ACTIONS
+                     :window id
+                     :data (if tilling
+                               (vector xcb:Atom:_NET_WM_ACTION_MINIMIZE
+                                       xcb:Atom:_NET_WM_ACTION_FULLSCREEN
+                                       xcb:Atom:_NET_WM_ACTION_CHANGE_DESKTOP
+                                       xcb:Atom:_NET_WM_ACTION_CLOSE)
+                             (vector xcb:Atom:_NET_WM_ACTION_MOVE
+                                     xcb:Atom:_NET_WM_ACTION_RESIZE
+                                     xcb:Atom:_NET_WM_ACTION_MINIMIZE
+                                     xcb:Atom:_NET_WM_ACTION_FULLSCREEN
+                                     xcb:Atom:_NET_WM_ACTION_CHANGE_DESKTOP
+                                     xcb:Atom:_NET_WM_ACTION_CLOSE)))))
+
 (defvar exwm-workspace--current)
 (defvar exwm-workspace--list)
 (defvar exwm-workspace-current-index)
 (defvar exwm-workspace--switch-history-outdated)
 
-(declare-function exwm-layout--refresh "exwm-layout.el")
-(declare-function exwm-layout--show "exwm-layout.el")
+(declare-function exwm-layout--refresh "exwm-layout.el" ())
+(declare-function exwm-layout--show "exwm-layout.el" (id &optional window))
+(declare-function exwm-layout--iconic-state-p "exwm-layout.el" (&optional id))
 
 (defun exwm-floating--set-floating (id)
   "Make window ID floating."
@@ -205,6 +223,7 @@
                                              xcb:ConfigWindow:Y))
                        :x (- x exwm-floating-border-width)
                        :y (- y exwm-floating-border-width)))
+    (exwm-floating--set-allowed-actions id nil)
     (xcb:flush exwm--connection)
     ;; Set window/buffer
     (with-current-buffer (exwm--id->buffer id)
@@ -217,9 +236,13 @@
       (add-hook 'window-configuration-change-hook #'exwm-layout--refresh)
       (set-window-dedicated-p window t)
       (exwm-layout--show id window))
-    (with-selected-frame exwm-workspace--current
-      (exwm-layout--refresh))
-    (select-frame-set-input-focus frame))
+    (if (exwm-layout--iconic-state-p id)
+        ;; Hide iconic floating X windows.
+        (with-current-buffer (exwm--id->buffer id)
+          (exwm-floating-hide))
+      (with-selected-frame exwm-workspace--current
+        (exwm-layout--refresh))
+      (select-frame-set-input-focus frame)))
   (run-hooks 'exwm-floating-setup-hook)
   ;; Redraw the frame.
   (redisplay))
@@ -269,6 +292,7 @@
                          :sibling (frame-parameter exwm-workspace--current
                                                    'exwm-container)
                          :stack-mode xcb:StackMode:Above)))
+    (exwm-floating--set-allowed-actions id t)
     (xcb:flush exwm--connection)
     (with-current-buffer buffer
       (when exwm--floating-frame        ;from floating to non-floating
@@ -278,9 +302,11 @@
       (setq window-size-fixed nil
             exwm--floating-frame nil
             exwm--frame exwm-workspace--current))
-    (let ((window (frame-selected-window exwm-workspace--current)))
-      (set-window-buffer window buffer)
-      (select-window window)))
+    (unless (exwm-layout--iconic-state-p)
+      ;; Only show X windows in normal state.
+      (let ((window (frame-selected-window exwm-workspace--current)))
+        (set-window-buffer window buffer)
+        (select-window window))))
   (run-hooks 'exwm-floating-exit-hook))
 
 ;;;###autoload
@@ -291,6 +317,8 @@
     (if exwm--floating-frame
         (exwm-floating--unset-floating exwm--id)
       (exwm-floating--set-floating exwm--id))))
+
+(declare-function exwm-layout--set-state "exwm-layout.el" (id state))
 
 ;;;###autoload
 (defun exwm-floating-hide ()
@@ -304,7 +332,7 @@
                        :window exwm--container
                        :value-mask xcb:ConfigWindow:StackMode
                        :stack-mode xcb:StackMode:Below))
-    ;; FIXME: Should it be put into iconic state?
+    (exwm-layout--set-state exwm--id xcb:icccm:WM_STATE:IconicState)
     (xcb:flush exwm--connection)
     (select-frame-set-input-focus exwm-workspace--current)))
 

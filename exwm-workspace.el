@@ -166,7 +166,7 @@ Value nil means to use the default position which is fixed at bottom, while
               height* height))
       (when (and (eq frame exwm-workspace--current)
                  (exwm-workspace--minibuffer-own-frame-p))
-        (exwm-workspace--resize-minibuffer-frame width* height*))
+        (exwm-workspace--resize-minibuffer-frame width height))
       (exwm-layout--resize-container id container 0 0 width* height*)
       (exwm-layout--resize-container nil workspace x* y* width* height* t)
       (xcb:flush exwm--connection)))
@@ -275,7 +275,7 @@ The optional FORCE option is for internal use only."
         (set-frame-parameter frame 'exwm--urgency nil)
         ;; Update switch workspace history
         (setq exwm-workspace--switch-history-outdated t)
-        ;; Update _NET_CURRENT_DESKTOP
+        ;; Set _NET_CURRENT_DESKTOP.
         (xcb:+request exwm--connection
             (make-instance 'xcb:ewmh:set-_NET_CURRENT_DESKTOP
                            :window exwm--root :data index))
@@ -291,6 +291,14 @@ The optional FORCE option is for internal use only."
       (when (and index (/= index exwm-workspace-current-index))
         (exwm--log "Workspace was switched unexpectedly")
         (exwm-workspace-switch index)))))
+
+(defun exwm-workspace--set-desktop (id)
+  "Set _NET_WM_DESKTOP for X window ID."
+  (with-current-buffer (exwm--id->buffer id)
+    (xcb:+request exwm--connection
+        (make-instance 'xcb:ewmh:set-_NET_WM_DESKTOP
+                       :window id
+                       :data (cl-position exwm--frame exwm-workspace--list)))))
 
 (defvar exwm-floating-border-width)
 (defvar exwm-floating-border-color)
@@ -433,7 +441,10 @@ The optional FORCE option is for internal use only."
                                :stack-mode xcb:StackMode:Above)))
           (xcb:flush exwm--connection)
           (set-window-buffer (frame-selected-window frame)
-                             (exwm--id->buffer id)))))
+                             (exwm--id->buffer id)))
+        ;; Set _NET_WM_DESKTOP.
+        (exwm-workspace--set-desktop id)
+        (xcb:flush exwm--connection)))
     (setq exwm-workspace--switch-history-outdated t)))
 
 ;;;###autoload
@@ -696,8 +707,17 @@ The optional FORCE option is for internal use only."
       (server-save-buffers-kill-terminal nil)
       nil)))
 
-(defun exwm-workspace--update-workareas (&optional workareas)
-  "Update _NET_WORKAREA."
+(defun exwm-workspace--set-desktop-geometry ()
+  "Set _NET_DESKTOP_GEOMETRY."
+  ;; We don't support large desktop so it's the same with screen size.
+  (xcb:+request exwm--connection
+      (make-instance 'xcb:ewmh:set-_NET_DESKTOP_GEOMETRY
+                     :window exwm--root
+                     :width (x-display-pixel-width)
+                     :height (x-display-pixel-height))))
+
+(defun exwm-workspace--set-workareas (&optional workareas)
+  "Set _NET_WORKAREA."
   ;; Calculate workareas if not present.
   (unless workareas
     (if (frame-parameter (car exwm-workspace--list) 'exwm-geometry)
@@ -884,9 +904,20 @@ The optional FORCE option is for internal use only."
   (xcb:flush exwm--connection)
   ;; We have to advice `x-create-frame' or every call to it would hang EXWM
   (advice-add 'x-create-frame :around #'exwm-workspace--x-create-frame)
+  ;; Set _NET_NUMBER_OF_DESKTOPS (it's currently fixed).
+  (xcb:+request exwm--connection
+      (make-instance 'xcb:ewmh:set-_NET_NUMBER_OF_DESKTOPS
+                     :window exwm--root :data exwm-workspace-number))
+  ;; Set _NET_DESKTOP_GEOMETRY.
+  (exwm-workspace--set-desktop-geometry)
+  ;; Set _NET_DESKTOP_VIEWPORT (we don't support large desktop).
+  (xcb:+request exwm--connection
+      (make-instance 'xcb:ewmh:set-_NET_DESKTOP_VIEWPORT
+                     :window exwm--root
+                     :data (make-vector (* 2 exwm-workspace-number) 0)))
   ;; Set _NET_WORKAREA.
-  (exwm-workspace--update-workareas)
-  ;; Set _NET_VIRTUAL_ROOTS
+  (exwm-workspace--set-workareas)
+  ;; Set _NET_VIRTUAL_ROOTS (it's currently fixed.)
   (xcb:+request exwm--connection
       (make-instance 'xcb:ewmh:set-_NET_VIRTUAL_ROOTS
                      :window exwm--root

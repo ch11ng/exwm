@@ -68,8 +68,16 @@ corresponding buffer.")
                           (elt value 2))) ;MotifWmHints.decorations
               (setq exwm--mwm-hints-decorations nil))))))))
 
+(defun exwm-manage--set-client-list ()
+  "Set _NET_CLIENT_LIST."
+  (xcb:+request exwm--connection
+      (make-instance 'xcb:ewmh:set-_NET_CLIENT_LIST
+                     :window exwm--root
+                     :data (vconcat (mapcar #'car exwm--id-buffer-alist)))))
+
 (defvar exwm-workspace--current)
 (defvar exwm-workspace--switch-history-outdated)
+(defvar exwm-workspace-current-index)
 
 (declare-function exwm--update-window-type "exwm.el" (id &optional force))
 (declare-function exwm--update-class "exwm.el" (id &optional force))
@@ -78,10 +86,10 @@ corresponding buffer.")
 (declare-function exwm--update-title "exwm.el" (id))
 (declare-function exwm--update-hints "exwm.el" (id &optional force))
 (declare-function exwm--update-protocols "exwm.el" (id &optional force))
-(declare-function exwm--update-state "exwm.el" (id &optional force))
 (declare-function exwm--update-strut "exwm.el" (id))
 (declare-function exwm-floating--set-floating "exwm-floating.el" (id))
 (declare-function exwm-floating--unset-floating "exwm-floating.el" (id))
+(declare-function exwm-workspace--set-desktop "exwm-workspace.el" (id))
 
 (defun exwm-manage--manage-window (id)
   "Manage window ID."
@@ -94,7 +102,9 @@ corresponding buffer.")
                              :event-mask exwm--client-event-mask))
       (throw 'return 'dead))
     (with-current-buffer (generate-new-buffer "*EXWM*")
-      (push `(,id . ,(current-buffer)) exwm--id-buffer-alist)
+      ;; Keep the oldest X window first.
+      (setq exwm--id-buffer-alist
+            (nconc exwm--id-buffer-alist `((,id . ,(current-buffer)))))
       (exwm-mode)
       (setq exwm--id id)
       (exwm--update-window-type id)
@@ -213,14 +223,10 @@ corresponding buffer.")
                            :keyboard-mode xcb:GrabMode:Async
                            :confine-to xcb:Window:None :cursor xcb:Cursor:None
                            :button button :modifiers xcb:ModMask:Any)))
-      (xcb:+request exwm--connection    ;update _NET_CLIENT_LIST
-          (make-instance 'xcb:ewmh:set-_NET_CLIENT_LIST
-                         :window exwm--root
-                         :data (vconcat (mapcar #'car exwm--id-buffer-alist))))
+      (exwm-manage--set-client-list)
       (xcb:flush exwm--connection)
       (exwm--update-title id)
       (exwm--update-protocols id)
-      (exwm--update-state id)
       (if (or exwm-transient-for exwm--fixed-size
               (memq xcb:Atom:_NET_WM_WINDOW_TYPE_UTILITY exwm-window-type)
               (memq xcb:Atom:_NET_WM_WINDOW_TYPE_DIALOG exwm-window-type))
@@ -228,6 +234,16 @@ corresponding buffer.")
         (exwm-floating--unset-floating id))
       (exwm-input-grab-keyboard id)
       (setq exwm-workspace--switch-history-outdated t)
+      ;; Set _NET_WM_DESKTOP or move window.
+      (let ((reply (xcb:+request-unchecked+reply exwm--connection
+                       (make-instance 'xcb:ewmh:get-_NET_WM_DESKTOP
+                                      :window id)))
+            desktop)
+        (when reply
+          (setq desktop (slot-value reply 'value)))
+        (if (and desktop (/= desktop exwm-workspace-current-index))
+            (exwm-workspace-move-window desktop id)
+          (exwm-workspace--set-desktop id)))
       (with-current-buffer (exwm--id->buffer id)
         (run-hooks 'exwm-manage-finish-hook)))))
 
@@ -297,10 +313,7 @@ corresponding buffer.")
           (when floating
             (select-window
              (frame-selected-window exwm-workspace--current)))))
-      (xcb:+request exwm--connection    ;update _NET_CLIENT_LIST
-          (make-instance 'xcb:ewmh:set-_NET_CLIENT_LIST
-                         :window exwm--root
-                         :data (vconcat (mapcar #'car exwm--id-buffer-alist))))
+      (exwm-manage--set-client-list)
       (xcb:flush exwm--connection))))
 
 (defun exwm-manage--scan ()
@@ -523,13 +536,22 @@ border-width: %d; sibling: #x%x; stack-mode: %d"
                              :stack-mode stack-mode))))))
   (xcb:flush exwm--connection))
 
+(declare-function exwm-layout--iconic-state-p "exwm-layout.el" (&optional id))
+
 (defun exwm-manage--on-MapRequest (data _synthetic)
   "Handle MapRequest event."
   (let ((obj (make-instance 'xcb:MapRequest)))
     (xcb:unmarshal obj data)
     (with-slots (parent window) obj
       (if (assoc window exwm--id-buffer-alist)
-          (exwm--log "#x%x is already managed" window)
+          (with-current-buffer (exwm--id->buffer window)
+            (if (exwm-layout--iconic-state-p)
+                ;; State change: iconic => normal.
+                (when (eq exwm--frame exwm-workspace--current)
+                  (set-window-buffer (frame-selected-window exwm--frame)
+                                     (current-buffer))
+                  (select-window (frame-selected-window exwm--frame)))
+              (exwm--log "#x%x is already managed" window)))
         (if (/= exwm--root parent)
             (progn (xcb:+request exwm--connection
                        (make-instance 'xcb:MapWindow :window window))

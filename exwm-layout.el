@@ -50,6 +50,20 @@
                                              xcb:ConfigWindow:Height))
                        :width width :height height))))
 
+(defun exwm-layout--set-state (id state)
+  "Set WM_STATE."
+  (xcb:+request exwm--connection
+      (make-instance 'xcb:icccm:set-WM_STATE
+                     :window id :state state :icon xcb:Window:None))
+  (with-current-buffer (exwm--id->buffer id)
+    (setq exwm-state state)))
+
+(defun exwm-layout--iconic-state-p (&optional id)
+  (= xcb:icccm:WM_STATE:IconicState
+     (if id
+         (buffer-local-value 'exwm-state (exwm--id->buffer id))
+       exwm-state)))
+
 (defun exwm-layout--show (id &optional window)
   "Show window ID exactly fit in the Emacs window WINDOW."
   (exwm--log "Show #x%x in %s" id window)
@@ -101,11 +115,7 @@
       (xcb:+request exwm--connection (make-instance 'xcb:MapWindow :window id))
       (xcb:+request exwm--connection
           (make-instance 'xcb:MapWindow :window exwm--container))
-      (xcb:+request exwm--connection
-          (make-instance 'xcb:icccm:set-WM_STATE
-                         :window id :state xcb:icccm:WM_STATE:NormalState
-                         :icon xcb:Window:None))
-      (setq exwm-state xcb:icccm:WM_STATE:NormalState))
+      (exwm-layout--set-state id xcb:icccm:WM_STATE:NormalState))
     (xcb:+request exwm--connection
         (make-instance 'xcb:SendEvent
                        :propagate 0 :destination id
@@ -125,25 +135,21 @@
 (defun exwm-layout--hide (id)
   "Hide window ID."
   (with-current-buffer (exwm--id->buffer id)
-    (unless (eq xcb:icccm:WM_STATE:IconicState exwm-state) ;already hidden
+    (unless (exwm-layout--iconic-state-p) ;already hidden
       (exwm--log "Hide #x%x" id)
       (xcb:+request exwm--connection
           (make-instance 'xcb:ChangeWindowAttributes
                          :window id :value-mask xcb:CW:EventMask
                          :event-mask xcb:EventMask:NoEvent))
-      (xcb:+request exwm--connection (make-instance 'xcb:UnmapWindow :window id))
+      (xcb:+request exwm--connection
+          (make-instance 'xcb:UnmapWindow :window id))
       (xcb:+request exwm--connection
           (make-instance 'xcb:ChangeWindowAttributes
                          :window id :value-mask xcb:CW:EventMask
                          :event-mask exwm--client-event-mask))
       (xcb:+request exwm--connection
           (make-instance 'xcb:UnmapWindow :window exwm--container))
-      (xcb:+request exwm--connection
-          (make-instance 'xcb:icccm:set-WM_STATE
-                         :window id
-                         :state xcb:icccm:WM_STATE:IconicState
-                         :icon xcb:Window:None))
-      (setq exwm-state xcb:icccm:WM_STATE:IconicState)
+      (exwm-layout--set-state id xcb:icccm:WM_STATE:IconicState)
       (xcb:flush exwm--connection))))
 
 (defvar exwm-workspace--current)
@@ -243,6 +249,29 @@ selected by `other-buffer'."
 (defvar exwm-layout-show-all-buffers nil
   "Non-nil to allow switching to buffers on other workspaces.")
 
+(defun exwm-layout--set-client-list-stacking ()
+  "Set _NET_CLIENT_LIST_STACKING."
+  (let (id clients-floating clients clients-iconic clients-other)
+    (dolist (pair exwm--id-buffer-alist)
+      (setq id (car pair))
+      (with-current-buffer (cdr pair)
+        (if (eq exwm--frame exwm-workspace--current)
+            (if exwm--floating-frame
+                ;; A floating X window on the current workspace.
+                (setq clients-floating (cons id clients-floating))
+              (if (get-buffer-window (cdr pair) exwm-workspace--current)
+                  ;; A normal tilling X window on the current workspace.
+                  (setq clients (cons id clients))
+                ;; An iconic tilling X window on the current workspace.
+                (setq clients-iconic (cons id clients-iconic))))
+          ;; X window on other workspaces.
+          (setq clients-other (cons id clients-other)))))
+    (xcb:+request exwm--connection
+        (make-instance 'xcb:ewmh:set-_NET_CLIENT_LIST_STACKING
+                       :window exwm--root
+                       :data (vconcat (append clients-other clients-iconic
+                                             clients clients-floating))))))
+
 (defun exwm-layout--refresh ()
   "Refresh layout."
   (let ((frame (selected-frame))
@@ -310,18 +339,7 @@ selected by `other-buffer'."
             (when (and (eq major-mode 'exwm-mode)
                        (or exwm--floating-frame (not (eq frame exwm--frame))))
               (switch-to-prev-buffer window)))))
-      ;; Update _NET_CLIENT_LIST_STACKING
-      (xcb:+request exwm--connection
-          (make-instance 'xcb:ewmh:set-_NET_CLIENT_LIST_STACKING
-                         :window exwm--root
-                         :data (vconcat
-                                (delq nil
-                                      (mapcar
-                                       (lambda (buffer)
-                                         (with-current-buffer buffer
-                                           (when (eq major-mode 'exwm-mode)
-                                             exwm--id)))
-                                       (buffer-list))))))
+      (exwm-layout--set-client-list-stacking)
       (xcb:flush exwm--connection))))
 
 (defun exwm-layout--on-minibuffer-setup ()

@@ -203,10 +203,12 @@
       (let ((reply (xcb:+request-unchecked+reply exwm--connection
                        (make-instance 'xcb:icccm:get-WM_HINTS :window id))))
         (when (and reply (slot-value reply 'flags)) ;nil when destroyed
-          (with-slots (flags input) reply
+          (with-slots (flags input initial-state) reply
             (when flags
               (unless (= 0 (logand flags xcb:icccm:WM_HINTS:InputHint))
                 (setq exwm--hints-input (when input (= 1 input))))
+              (unless (= 0 (logand flags xcb:icccm:WM_HINTS:StateHint))
+                (setq exwm-state initial-state))
               (unless (= 0 (logand flags xcb:icccm:WM_HINTS:UrgencyHint))
                 (setq exwm--hints-urgency t))))
           (when (and exwm--hints-urgency
@@ -225,17 +227,6 @@
         (when reply                     ;nil when destroyed
           (setq exwm--protocols (append (slot-value reply 'value) nil)))))))
 
-(defun exwm--update-state (id &optional force)
-  "Update WM_STATE."
-  (with-current-buffer (exwm--id->buffer id)
-    (unless (and exwm-state (not force))
-      (let ((reply (xcb:+request-unchecked+reply exwm--connection
-                       (make-instance 'xcb:icccm:get-WM_STATE :window id))))
-        (when reply                     ;nil when destroyed
-          (setq exwm-state (or (slot-value reply 'state)
-                               ;; Default to normal state
-                               xcb:icccm:WM_STATE:NormalState)))))))
-
 (defun exwm--update-strut-legacy (id)
   "Update _NET_WM_STRUT."
   (unless exwm-workspace--strut-is-partial
@@ -250,7 +241,7 @@
       (when (exwm-workspace--minibuffer-own-frame-p)
         (exwm-workspace--resize-minibuffer-frame))
       ;; Update _NET_WORKAREA.
-      (exwm-workspace--update-workareas))))
+      (exwm-workspace--set-workareas))))
 
 (defun exwm--update-strut-partial (id)
   "Update _NET_WM_STRUT_PARTIAL."
@@ -269,7 +260,7 @@
     (when (exwm-workspace--minibuffer-own-frame-p)
       (exwm-workspace--resize-minibuffer-frame))
     ;; Update _NET_WORKAREA.
-    (exwm-workspace--update-workareas)))
+    (exwm-workspace--set-workareas)))
 
 (defun exwm--update-strut (id)
   "Update _NET_WM_STRUT_PARTIAL or _NET_WM_STRUT."
@@ -308,8 +299,6 @@
                (exwm--update-hints id t))
               ((= atom xcb:Atom:WM_PROTOCOLS)
                (exwm--update-protocols id t))
-              ((= atom xcb:Atom:WM_STATE)
-               (exwm--update-state id t))
               ((= atom xcb:Atom:_NET_WM_USER_TIME)) ;ignored
               (t (exwm--log "Unhandled PropertyNotify: %s(%d)"
                             (x-get-atom-name atom exwm-workspace--current)
@@ -324,6 +313,26 @@
           id (slot-value obj 'window)
           data (slot-value (slot-value obj 'data) 'data32))
     (cond
+     ;; _NET_CURRENT_DESKTOP.
+     ((= type xcb:Atom:_NET_CURRENT_DESKTOP)
+      (exwm-workspace-switch (elt data 0)))
+     ;; _NET_ACTIVE_WINDOW.
+     ((= type xcb:Atom:_NET_ACTIVE_WINDOW)
+      (let ((buffer (exwm--id->buffer id)))
+        (when (buffer-live-p buffer)
+          (with-current-buffer buffer
+            (when (eq exwm--frame exwm-workspace--current)
+              (when (exwm-layout--iconic-state-p)
+                ;; State change: iconic => normal.
+                (set-window-buffer (frame-selected-window exwm--frame)
+                                   (current-buffer)))
+              ;; Focus transfer.
+              (select-window (get-buffer-window)))))))
+     ;; _NET_CLOSE_WINDOW.
+     ((= type xcb:Atom:_NET_CLOSE_WINDOW)
+      (let ((buffer (exwm--id->buffer id)))
+        (when (buffer-live-p buffer)
+          (kill-buffer buffer))))
      ;; _NET_WM_MOVERESIZE
      ((= type xcb:Atom:_NET_WM_MOVERESIZE)
       (let ((direction (elt data 2))
@@ -359,6 +368,11 @@
                            :window id :left left :right right
                            :top top :bottom btm)))
       (xcb:flush exwm--connection))
+     ;; _NET_WM_DESKTOP.
+     ((= type xcb:Atom:_NET_WM_DESKTOP)
+      (let ((buffer (exwm--id->buffer id)))
+        (when (buffer-live-p buffer)
+          (exwm-workspace-move-window (elt data 0) id))))
      ;; _NET_WM_STATE
      ((= type xcb:Atom:_NET_WM_STATE)
       (let ((action (elt data 0))
@@ -428,6 +442,12 @@
         (cond ((= type xcb:Atom:_NET_WM_PING)
                (setq exwm-manage--ping-lock nil))
               (t (exwm--log "Unhandled WM_PROTOCOLS of type: %d" type)))))
+     ((= type xcb:Atom:WM_CHANGE_STATE)
+      (let ((buffer (exwm--id->buffer id)))
+        (when (and (buffer-live-p buffer)
+                   (= (elt data 0) xcb:icccm:WM_STATE:IconicState))
+          (with-current-buffer buffer
+            (bury-buffer)))))
      (t (exwm--log "Unhandled client message: %s" obj)))))
 
 (defun exwm--init-icccm-ewmh ()
@@ -435,49 +455,106 @@
   ;; Handle PropertyNotify event
   (xcb:+event exwm--connection 'xcb:PropertyNotify #'exwm--on-PropertyNotify)
   ;; Handle relevant client messages
-  ;; FIXME: WM_STATE client messages (normal => iconic)
-  ;;        WM_COLORMAP_NOTIFY
   (xcb:+event exwm--connection 'xcb:ClientMessage #'exwm--on-ClientMessage)
   ;; Set _NET_SUPPORTED
   (xcb:+request exwm--connection
       (make-instance 'xcb:ewmh:set-_NET_SUPPORTED
                      :window exwm--root
-                     :data (vector xcb:Atom:_NET_SUPPORTED
-                                   xcb:Atom:_NET_CLIENT_LIST
-                                   xcb:Atom:_NET_CLIENT_LIST_STACKING
-                                   xcb:Atom:_NET_NUMBER_OF_DESKTOPS
-                                   xcb:Atom:_NET_DESKTOP_VIEWPORT
-                                   xcb:Atom:_NET_CURRENT_DESKTOP
-                                   xcb:Atom:_NET_WORKAREA
-                                   xcb:Atom:_NET_SUPPORTING_WM_CHECK
-                                   xcb:Atom:_NET_VIRTUAL_ROOTS
-                                   xcb:Atom:_NET_WM_MOVERESIZE
-                                   xcb:Atom:_NET_REQUEST_FRAME_EXTENTS
-                                   xcb:Atom:_NET_FRAME_EXTENTS
-                                   xcb:Atom:_NET_WM_NAME
-                                   xcb:Atom:_NET_WM_STRUT
-                                   xcb:Atom:_NET_WM_STRUT_PARTIAL
-                                   ;;
-                                   xcb:Atom:_NET_WM_WINDOW_TYPE
-                                   xcb:Atom:_NET_WM_WINDOW_TYPE_TOOLBAR
-                                   xcb:Atom:_NET_WM_WINDOW_TYPE_MENU
-                                   xcb:Atom:_NET_WM_WINDOW_TYPE_UTILITY
-                                   xcb:Atom:_NET_WM_WINDOW_TYPE_SPLASH
-                                   xcb:Atom:_NET_WM_WINDOW_TYPE_DIALOG
-                                   xcb:Atom:_NET_WM_WINDOW_TYPE_DROPDOWN_MENU
-                                   xcb:Atom:_NET_WM_WINDOW_TYPE_POPUP_MENU
-                                   xcb:Atom:_NET_WM_WINDOW_TYPE_TOOLTIP
-                                   xcb:Atom:_NET_WM_WINDOW_TYPE_NOTIFICATION
-                                   xcb:Atom:_NET_WM_WINDOW_TYPE_COMBO
-                                   xcb:Atom:_NET_WM_WINDOW_TYPE_DND
-                                   xcb:Atom:_NET_WM_WINDOW_TYPE_NORMAL
-                                   ;;
-                                   xcb:Atom:_NET_WM_STATE
-                                   xcb:Atom:_NET_WM_STATE_MODAL
-                                   xcb:Atom:_NET_WM_STATE_FULLSCREEN
-                                   xcb:Atom:_NET_WM_STATE_DEMANDS_ATTENTION
-                                   ;; FIXME: more?
-                                   )))
+                     :data (vector
+                            ;; Root windows properties.
+                            xcb:Atom:_NET_SUPPORTED
+                            xcb:Atom:_NET_CLIENT_LIST
+                            xcb:Atom:_NET_CLIENT_LIST_STACKING
+                            xcb:Atom:_NET_NUMBER_OF_DESKTOPS
+                            xcb:Atom:_NET_DESKTOP_GEOMETRY
+                            xcb:Atom:_NET_DESKTOP_VIEWPORT
+                            xcb:Atom:_NET_CURRENT_DESKTOP
+                            ;; xcb:Atom:_NET_DESKTOP_NAMES
+                            xcb:Atom:_NET_ACTIVE_WINDOW
+                            xcb:Atom:_NET_WORKAREA
+                            xcb:Atom:_NET_SUPPORTING_WM_CHECK
+                            xcb:Atom:_NET_VIRTUAL_ROOTS
+                            ;; xcb:Atom:_NET_DESKTOP_LAYOUT
+                            ;; xcb:Atom:_NET_SHOWING_DESKTOP
+
+                            ;; Other root window messages.
+                            xcb:Atom:_NET_CLOSE_WINDOW
+                            ;; xcb:Atom:_NET_MOVERESIZE_WINDOW
+                            xcb:Atom:_NET_WM_MOVERESIZE
+                            ;; xcb:Atom:_NET_RESTACK_WINDOW
+                            xcb:Atom:_NET_REQUEST_FRAME_EXTENTS
+
+                            ;; Application window properties.
+                            xcb:Atom:_NET_WM_NAME
+                            ;; xcb:Atom:_NET_WM_VISIBLE_NAME
+                            ;; xcb:Atom:_NET_WM_ICON_NAME
+                            ;; xcb:Atom:_NET_WM_VISIBLE_ICON_NAME
+                            xcb:Atom:_NET_WM_DESKTOP
+                            ;;
+                            xcb:Atom:_NET_WM_WINDOW_TYPE
+                            ;; xcb:Atom:_NET_WM_WINDOW_TYPE_DESKTOP
+                            xcb:Atom:_NET_WM_WINDOW_TYPE_DOCK
+                            xcb:Atom:_NET_WM_WINDOW_TYPE_TOOLBAR
+                            xcb:Atom:_NET_WM_WINDOW_TYPE_MENU
+                            xcb:Atom:_NET_WM_WINDOW_TYPE_UTILITY
+                            xcb:Atom:_NET_WM_WINDOW_TYPE_SPLASH
+                            xcb:Atom:_NET_WM_WINDOW_TYPE_DIALOG
+                            xcb:Atom:_NET_WM_WINDOW_TYPE_DROPDOWN_MENU
+                            xcb:Atom:_NET_WM_WINDOW_TYPE_POPUP_MENU
+                            xcb:Atom:_NET_WM_WINDOW_TYPE_TOOLTIP
+                            xcb:Atom:_NET_WM_WINDOW_TYPE_NOTIFICATION
+                            xcb:Atom:_NET_WM_WINDOW_TYPE_COMBO
+                            xcb:Atom:_NET_WM_WINDOW_TYPE_DND
+                            xcb:Atom:_NET_WM_WINDOW_TYPE_NORMAL
+                            ;;
+                            xcb:Atom:_NET_WM_STATE
+                            xcb:Atom:_NET_WM_STATE_MODAL
+                            ;; xcb:Atom:_NET_WM_STATE_STICKY
+                            ;; xcb:Atom:_NET_WM_STATE_MAXIMIZED_VERT
+                            ;; xcb:Atom:_NET_WM_STATE_MAXIMIZED_HORZ
+                            ;; xcb:Atom:_NET_WM_STATE_SHADED
+                            ;; xcb:Atom:_NET_WM_STATE_SKIP_TASKBAR
+                            ;; xcb:Atom:_NET_WM_STATE_SKIP_PAGER
+                            ;; xcb:Atom:_NET_WM_STATE_HIDDEN
+                            xcb:Atom:_NET_WM_STATE_FULLSCREEN
+                            ;; xcb:Atom:_NET_WM_STATE_ABOVE
+                            ;; xcb:Atom:_NET_WM_STATE_BELOW
+                            xcb:Atom:_NET_WM_STATE_DEMANDS_ATTENTION
+                            ;; xcb:Atom:_NET_WM_STATE_FOCUSED
+                            ;;
+                            xcb:Atom:_NET_WM_ALLOWED_ACTIONS
+                            xcb:Atom:_NET_WM_ACTION_MOVE
+                            xcb:Atom:_NET_WM_ACTION_RESIZE
+                            xcb:Atom:_NET_WM_ACTION_MINIMIZE
+                            ;; xcb:Atom:_NET_WM_ACTION_SHADE
+                            ;; xcb:Atom:_NET_WM_ACTION_STICK
+                            ;; xcb:Atom:_NET_WM_ACTION_MAXIMIZE_HORZ
+                            ;; xcb:Atom:_NET_WM_ACTION_MAXIMIZE_VERT
+                            xcb:Atom:_NET_WM_ACTION_FULLSCREEN
+                            xcb:Atom:_NET_WM_ACTION_CHANGE_DESKTOP
+                            xcb:Atom:_NET_WM_ACTION_CLOSE
+                            ;; xcb:Atom:_NET_WM_ACTION_ABOVE
+                            ;; xcb:Atom:_NET_WM_ACTION_BELOW
+                            ;;
+                            xcb:Atom:_NET_WM_STRUT
+                            xcb:Atom:_NET_WM_STRUT_PARTIAL
+                            ;; xcb:Atom:_NET_WM_ICON_GEOMETRY
+                            ;; xcb:Atom:_NET_WM_ICON
+                            xcb:Atom:_NET_WM_PID
+                            ;; xcb:Atom:_NET_WM_HANDLED_ICONS
+                            ;; xcb:Atom:_NET_WM_USER_TIME
+                            ;; xcb:Atom:_NET_WM_USER_TIME_WINDOW
+                            xcb:Atom:_NET_FRAME_EXTENTS
+                            ;; xcb:Atom:_NET_WM_OPAQUE_REGION
+                            ;; xcb:Atom:_NET_WM_BYPASS_COMPOSITOR
+
+                            ;; Window manager protocols.
+                            xcb:Atom:_NET_WM_PING
+                            ;; xcb:Atom:_NET_WM_SYNC_REQUEST
+                            ;; xcb:Atom:_NET_WM_FULLSCREEN_MONITORS
+
+                            ;; Other properties.
+                            xcb:Atom:_NET_WM_FULL_PLACEMENT)))
   ;; Create a child window for setting _NET_SUPPORTING_WM_CHECK
   (let ((new-id (xcb:generate-id exwm--connection)))
     (xcb:+request exwm--connection
@@ -496,15 +573,6 @@
       (xcb:+request exwm--connection
           (make-instance 'xcb:ewmh:set-_NET_WM_NAME
                          :window i :data "EXWM"))))
-  ;; Set _NET_NUMBER_OF_DESKTOPS
-  (xcb:+request exwm--connection
-      (make-instance 'xcb:ewmh:set-_NET_NUMBER_OF_DESKTOPS
-                     :window exwm--root :data exwm-workspace-number))
-  ;; Set _NET_DESKTOP_VIEWPORT
-  (xcb:+request exwm--connection
-      (make-instance 'xcb:ewmh:set-_NET_DESKTOP_VIEWPORT
-                     :window exwm--root
-                     :data (make-vector (* 2 exwm-workspace-number) 0)))
   (xcb:flush exwm--connection))
 
 (defvar exwm-init-hook nil

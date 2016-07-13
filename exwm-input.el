@@ -76,6 +76,7 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
                            :revert-to xcb:InputFocus:PointerRoot
                            :focus id
                            :time xcb:Time:CurrentTime)))
+      (exwm-input--set-active-window id)
       (xcb:flush exwm--connection))))
 
 (defvar exwm-input--focus-window nil "The (Emacs) window to be focused.")
@@ -98,6 +99,9 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
 (defvar exwm-workspace--switch-history-outdated)
 (defvar exwm-workspace-current-index)
 (defvar exwm-workspace--minibuffer)
+
+(declare-function exwm-layout--iconic-state-p "exwm-layout.el" (&optional id))
+(declare-function exwm-layout--set-state "exwm-layout.el" (id state))
 
 (defun exwm-input--update-focus ()
   "Update input focus."
@@ -136,12 +140,25 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
                                    :window exwm--container
                                    :value-mask xcb:ConfigWindow:StackMode
                                    :stack-mode xcb:StackMode:Above)))
+              ;; This floating X window might be hide by `exwm-floating-hide'.
+              (when (exwm-layout--iconic-state-p)
+                (exwm-layout--set-state exwm--id
+                                        xcb:icccm:WM_STATE:NormalState))
               (xcb:flush exwm--connection)))
         (when (eq (selected-window) exwm-input--focus-window)
           (exwm--log "Focus on %s" exwm-input--focus-window)
           (select-frame-set-input-focus (window-frame exwm-input--focus-window)
-                                        t)))
+                                        t)
+          (exwm-input--set-active-window)
+          (xcb:flush exwm--connection)))
       (setq exwm-input--focus-window nil))))
+
+(defun exwm-input--set-active-window (&optional id)
+  "Set _NET_ACTIVE_WINDOW."
+  (xcb:+request exwm--connection
+      (make-instance 'xcb:ewmh:set-_NET_ACTIVE_WINDOW
+                     :window exwm--root
+                     :data (or id xcb:Window:None))))
 
 (defvar exwm-input--during-key-sequence nil
   "Non-nil indicates Emacs is waiting for more keys to form a key sequence.")

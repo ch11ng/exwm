@@ -101,7 +101,7 @@
 (defvar-local exwm--title-is-utf8 nil)
 (defvar-local exwm-transient-for nil "WM_TRANSIENT_FOR.")
 (defvar-local exwm--protocols nil)
-(defvar-local exwm-state nil "WM_STATE.")
+(defvar-local exwm-state xcb:icccm:WM_STATE:NormalState "WM_STATE.")
 ;; _NET_WM_NORMAL_HINTS
 (defvar-local exwm--normal-hints-x nil)
 (defvar-local exwm--normal-hints-y nil)
