@@ -248,7 +248,11 @@ corresponding buffer.")
         (run-hooks 'exwm-manage-finish-hook)))))
 
 (defun exwm-manage--unmanage-window (id &optional withdraw-only)
-  "Unmanage window ID."
+  "Unmanage window ID.
+
+If WITHDRAW-ONLY is non-nil, the X window will be properly placed back to the
+root window.  Set WITHDRAW-ONLY to 'quit if this functions is used when window
+manager is shutting down."
   (let ((buffer (exwm--id->buffer id)))
     (exwm--log "Unmanage #x%x (buffer: %s, widthdraw: %s)"
                id buffer withdraw-only)
@@ -295,7 +299,13 @@ corresponding buffer.")
           ;; Delete WM_STATE property
           (xcb:+request exwm--connection
               (make-instance 'xcb:DeleteProperty
-                             :window id :property xcb:Atom:WM_STATE)))
+                             :window id :property xcb:Atom:WM_STATE))
+          (unless (eq withdraw-only 'quit)
+            ;; Remove _NET_WM_DESKTOP.
+            (xcb:+request exwm--connection
+                (make-instance 'xcb:DeleteProperty
+                               :window id
+                               :property xcb:Atom:_NET_WM_DESKTOP))))
         (when exwm--floating-frame
           ;; Unmap the floating frame before destroying the containers.
           (let ((window (frame-parameter exwm--floating-frame 'exwm-outer-id)))

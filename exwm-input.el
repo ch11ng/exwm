@@ -313,7 +313,8 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
         (unless minibuffer-window (setq exwm-input--during-key-sequence t))
         ;; Feed this event to command loop.  Also force it to be added to
         ;; `this-command-keys'.
-        (push (cons t event) unread-command-events))
+        (setq unread-command-events
+              (append unread-command-events `((t . ,event)))))
       (xcb:+request exwm--connection
           (make-instance 'xcb:AllowEvents
                          :mode (or mode xcb:Allow:ReplayKeyboard)
@@ -336,7 +337,8 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
           (setq exwm-input--temp-line-mode t
                 exwm-input--during-key-sequence t)
           (exwm-input--grab-keyboard))  ;grab keyboard temporarily
-        (push event unread-command-events))))
+        (setq unread-command-events
+              (append unread-command-events (list event))))))
   (xcb:+request exwm--connection
       (make-instance 'xcb:AllowEvents
                      :mode xcb:Allow:AsyncKeyboard

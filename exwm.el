@@ -327,7 +327,7 @@
                 (set-window-buffer (frame-selected-window exwm--frame)
                                    (current-buffer)))
               ;; Focus transfer.
-              (select-window (get-buffer-window)))))))
+              (select-window (get-buffer-window nil t)))))))
      ;; _NET_CLOSE_WINDOW.
      ((= type xcb:Atom:_NET_CLOSE_WINDOW)
       (let ((buffer (exwm--id->buffer id)))

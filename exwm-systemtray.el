@@ -296,7 +296,7 @@ You shall use the default value if using auto-hide minibuffer.")
 (defvar xcb:Atom:_NET_SYSTEM_TRAY_S0)
 (defvar exwm-workspace--minibuffer)
 
-(defun exwm-systemtray--init ()
+(cl-defun exwm-systemtray--init ()
   "Initialize system tray module."
   (cl-assert (not exwm-systemtray--connection))
   (cl-assert (not exwm-systemtray--list))
@@ -319,7 +319,9 @@ You shall use the default value if using auto-hide minibuffer.")
           (make-instance 'xcb:GetSelectionOwner
                          :selection xcb:Atom:_NET_SYSTEM_TRAY_S0))
     (when (/= owner xcb:Window:None)
-      (error "[EXWM] Other system tray detected")))
+      (xcb:disconnect exwm-systemtray--connection)
+      (warn "[EXWM] Other system tray detected")
+      (cl-return-from exwm-systemtray--init)))
   (let ((id (xcb:generate-id exwm-systemtray--connection)))
     (setq exwm-systemtray--selection-owner-window id)
     (xcb:+request exwm-systemtray--connection

@@ -667,7 +667,7 @@ The optional FORCE option is for internal use only."
                                   x (if (= x 1) "" "s") prompt))))
     ;; Unmanage all X windows.
     (dolist (i exwm--id-buffer-alist)
-      (exwm-manage--unmanage-window (car i) t)
+      (exwm-manage--unmanage-window (car i) 'quit)
       (xcb:+request exwm--connection
           (make-instance 'xcb:MapWindow :window (car i))))
     ;; Reparent out the minibuffer frame.
