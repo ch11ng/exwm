@@ -86,7 +86,7 @@ corresponding buffer.")
 (declare-function exwm--update-title "exwm.el" (id))
 (declare-function exwm--update-hints "exwm.el" (id &optional force))
 (declare-function exwm--update-protocols "exwm.el" (id &optional force))
-(declare-function exwm--update-strut "exwm.el" (id))
+(declare-function exwm--update-struts "exwm.el" (id))
 (declare-function exwm-floating--set-floating "exwm-floating.el" (id))
 (declare-function exwm-floating--unset-floating "exwm-floating.el" (id))
 (declare-function exwm-workspace--set-desktop "exwm-workspace.el" (id))
@@ -133,7 +133,7 @@ corresponding buffer.")
         (exwm--log "No need to manage #x%x" id)
         ;; Update struts.
         (when (memq xcb:Atom:_NET_WM_WINDOW_TYPE_DOCK exwm-window-type)
-          (exwm--update-strut id))
+          (exwm--update-struts id))
         ;; Remove all events
         (xcb:+request exwm--connection
             (make-instance 'xcb:ChangeWindowAttributes
@@ -141,8 +141,9 @@ corresponding buffer.")
                            :event-mask
                            (if (memq xcb:Atom:_NET_WM_WINDOW_TYPE_DOCK
                                      exwm-window-type)
-                               ;; Listen for change of struts property of dock.
-                               xcb:EventMask:PropertyChange
+                               ;; Listen for PropertyChange (struts) and
+                               ;; UnmapNotify/DestroyNotify event of the dock.
+                               exwm--client-event-mask
                              xcb:EventMask:NoEvent)))
         ;; The window needs to be mapped
         (xcb:+request exwm--connection
@@ -247,6 +248,15 @@ corresponding buffer.")
       (with-current-buffer (exwm--id->buffer id)
         (run-hooks 'exwm-manage-finish-hook)))))
 
+(defvar exwm-workspace--id-struts-alist)
+(defvar exwm-workspace--list)
+
+(declare-function exwm-workspace--update-struts "exwm-workspace.el" ())
+(declare-function exwm-workspace--set-fullscreen "exwm-workspace.el"
+                  (frame &optional no-struts container-only))
+(declare-function exwm-workspace--set-workareas "exwm-workspace.el"
+                  (&optional workareas))
+
 (defun exwm-manage--unmanage-window (id &optional withdraw-only)
   "Unmanage window ID.
 
@@ -257,6 +267,14 @@ manager is shutting down."
     (exwm--log "Unmanage #x%x (buffer: %s, widthdraw: %s)"
                id buffer withdraw-only)
     (setq exwm--id-buffer-alist (assq-delete-all id exwm--id-buffer-alist))
+    ;; Update workspaces when a dock is destroyed.
+    (when (assq id exwm-workspace--id-struts-alist)
+      (setq exwm-workspace--id-struts-alist
+            (assq-delete-all id exwm-workspace--id-struts-alist))
+      (exwm-workspace--update-struts)
+      (dolist (f exwm-workspace--list)
+        (exwm-workspace--set-fullscreen f))
+      (exwm-workspace--set-workareas))
     (when (buffer-live-p buffer)
       (with-current-buffer buffer
         ;; Flickering seems unavoidable here if the DestroyWindow request is
@@ -314,6 +332,9 @@ manager is shutting down."
             (xcb:+request exwm--connection
                 (make-instance 'xcb:ReparentWindow
                                :window window :parent exwm--root :x 0 :y 0))))
+        ;; Restore the workspace if this X window is currently fullscreen.
+        (when exwm--fullscreen
+          (exwm-workspace--set-fullscreen exwm--frame))
         ;; Destroy the X window container (and the frame container if any).
         (xcb:+request exwm--connection
             (make-instance 'xcb:DestroyWindow :window exwm--container))

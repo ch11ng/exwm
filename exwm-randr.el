@@ -58,7 +58,8 @@
 (defvar exwm-workspace-number)
 (defvar exwm-workspace--list)
 
-(declare-function exwm-workspace--set-fullscreen "exwm-workspace.el" (frame))
+(declare-function exwm-workspace--set-fullscreen "exwm-workspace.el"
+                  (frame &optional no-struts container-only))
 (declare-function exwm-workspace--set-workareas "exwm-workspace.el"
                   (&optional workareas))
 (declare-function exwm-workspace--set-desktop-geometry "exwm-workspace.el" ())

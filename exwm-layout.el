@@ -155,6 +155,9 @@
 (defvar exwm-workspace--current)
 (defvar exwm-workspace--list)
 
+(declare-function exwm-workspace--set-fullscreen "exwm-workspace.el"
+                  (frame &optional no-struts container-only))
+
 ;;;###autoload
 (defun exwm-layout-set-fullscreen (&optional id)
   "Make window ID fullscreen."
@@ -169,9 +172,25 @@
                                           :drawable exwm--container))))
         (setq exwm--floating-frame-position
               (vector (slot-value geometry 'x) (slot-value geometry 'y)))))
-    (exwm-layout--resize-container exwm--id exwm--container 0 0
+    ;; Expand the workspace frame & its container to fill the whole screen.
+    (exwm-workspace--set-fullscreen exwm--frame t t)
+    ;; Raise the workspace container (in case there are docks).
+    (xcb:+request exwm--connection
+        (make-instance 'xcb:ConfigureWindow
+                       :window (frame-parameter exwm--frame 'exwm-workspace)
+                       :value-mask xcb:ConfigWindow:StackMode
+                       :stack-mode xcb:StackMode:Above))
+    ;; Expand the X window and its container to fill the whole screen.
+    ;; Rationale: Floating X windows may not be positioned at (0, 0)
+    ;; due to the extra border.
+    (exwm-layout--resize-container nil exwm--container 0 0
                                    (exwm-workspace--current-width)
-                                   (exwm-workspace--current-height))
+                                   (exwm-workspace--current-height)
+                                   t)
+    (exwm-layout--resize-container nil exwm--id 0 0
+                                   (exwm-workspace--current-width)
+                                   (exwm-workspace--current-height)
+                                   t)
     ;; Raise the X window.
     (xcb:+request exwm--connection
         (make-instance 'xcb:ConfigureWindow
@@ -193,6 +212,8 @@
   (with-current-buffer (if id (exwm--id->buffer id) (window-buffer))
     (unless exwm--fullscreen
       (user-error "Not in full-screen mode."))
+    ;; Restore the size of this workspace.
+    (exwm-workspace--set-fullscreen exwm--frame)
     (if exwm--floating-frame
         ;; Restore the floating frame.
         (xcb:+request exwm--connection

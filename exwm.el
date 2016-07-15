@@ -227,45 +227,49 @@
         (when reply                     ;nil when destroyed
           (setq exwm--protocols (append (slot-value reply 'value) nil)))))))
 
-(defun exwm--update-strut-legacy (id)
+(defun exwm--update-struts-legacy (id)
   "Update _NET_WM_STRUT."
-  (unless exwm-workspace--strut-is-partial
-    (let ((reply (xcb:+request-unchecked+reply exwm--connection
-                     (make-instance 'xcb:ewmh:get-_NET_WM_STRUT
-                                    :window id))))
-      (setq exwm-workspace--strut (when reply (slot-value reply 'value)))
+  (let ((pair (assq id exwm-workspace--id-struts-alist))
+        reply struts)
+    (unless (and pair (< 4 (length (cdr pair))))
+      (setq reply (xcb:+request-unchecked+reply exwm--connection
+                      (make-instance 'xcb:ewmh:get-_NET_WM_STRUT
+                                     :window id)))
+      (when reply
+        (setq struts (slot-value reply 'value))
+        (if pair
+            (setcdr pair struts)
+          (push (cons id struts) exwm-workspace--id-struts-alist))
+        (exwm-workspace--update-struts))
       ;; Update workspaces.
       (dolist (f exwm-workspace--list)
         (exwm-workspace--set-fullscreen f))
-      ;; Resize the minibuffer frame.
-      (when (exwm-workspace--minibuffer-own-frame-p)
-        (exwm-workspace--resize-minibuffer-frame))
       ;; Update _NET_WORKAREA.
       (exwm-workspace--set-workareas))))
 
-(defun exwm--update-strut-partial (id)
+(defun exwm--update-struts-partial (id)
   "Update _NET_WM_STRUT_PARTIAL."
   (let ((reply (xcb:+request-unchecked+reply exwm--connection
                    (make-instance 'xcb:ewmh:get-_NET_WM_STRUT_PARTIAL
-                                  :window id))))
-    (setq exwm-workspace--strut (when reply (slot-value reply 'value)))
-    (if (not exwm-workspace--strut)
-        (setq exwm-workspace--strut-is-partial nil)
-      (setq exwm-workspace--strut (substring exwm-workspace--strut 0 4))
-      (setq exwm-workspace--strut-is-partial t))
+                                  :window id)))
+        struts pair)
+    (when reply
+      (setq struts (slot-value reply 'value)
+            pair (assq id exwm-workspace--id-struts-alist))
+      (if pair
+          (setcdr pair struts)
+        (push (cons id struts) exwm-workspace--id-struts-alist))
+      (exwm-workspace--update-struts))
     ;; Update workspaces.
     (dolist (f exwm-workspace--list)
       (exwm-workspace--set-fullscreen f))
-    ;; Resize the minibuffer frame.
-    (when (exwm-workspace--minibuffer-own-frame-p)
-      (exwm-workspace--resize-minibuffer-frame))
     ;; Update _NET_WORKAREA.
     (exwm-workspace--set-workareas)))
 
-(defun exwm--update-strut (id)
+(defun exwm--update-struts (id)
   "Update _NET_WM_STRUT_PARTIAL or _NET_WM_STRUT."
-  (exwm--update-strut-partial id)
-  (exwm--update-strut-legacy id))
+  (exwm--update-struts-partial id)
+  (exwm--update-struts-legacy id))
 
 (defun exwm--on-PropertyNotify (data _synthetic)
   "Handle PropertyNotify event."
@@ -279,9 +283,9 @@
     (if (not (buffer-live-p buffer))
         ;; Properties of unmanaged X windows.
         (cond ((= atom xcb:Atom:_NET_WM_STRUT)
-               (exwm--update-strut-legacy id))
+               (exwm--update-struts-legacy id))
               ((= atom xcb:Atom:_NET_WM_STRUT_PARTIAL)
-               (exwm--update-strut-partial id)))
+               (exwm--update-struts-partial id)))
       (with-current-buffer buffer
         (cond ((= atom xcb:Atom:_NET_WM_WINDOW_TYPE)
                (exwm--update-window-type id t))
