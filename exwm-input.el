@@ -287,6 +287,19 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
   (global-set-key key command)
   (cl-pushnew key exwm-input--global-keys))
 
+;; FIXME: Putting (t . EVENT) into `unread-command-events' does not really work
+;;        as documented in Emacs 24.  Since inserting a conventional EVENT does
+;;        add it into (this-command-keys) there, we use `unread-command-events'
+;;        differently on Emacs 24 and 25.
+(eval-and-compile
+  (if (< emacs-major-version 25)
+      (defsubst exwm-input--unread-event (event)
+        (setq unread-command-events
+              (append unread-command-events (list event))))
+    (defsubst exwm-input--unread-event (event)
+      (setq unread-command-events
+            (append unread-command-events `((t . ,event)))))))
+
 (defvar exwm-input-command-whitelist nil
   "A list of commands that when active all keys should be forwarded to Emacs.")
 (make-obsolete-variable 'exwm-input-command-whitelist
@@ -313,8 +326,7 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
         (unless minibuffer-window (setq exwm-input--during-key-sequence t))
         ;; Feed this event to command loop.  Also force it to be added to
         ;; `this-command-keys'.
-        (setq unread-command-events
-              (append unread-command-events `((t . ,event)))))
+        (exwm-input--unread-event event))
       (xcb:+request exwm--connection
           (make-instance 'xcb:AllowEvents
                          :mode (or mode xcb:Allow:ReplayKeyboard)
