@@ -252,10 +252,8 @@ corresponding buffer.")
 (defvar exwm-workspace--list)
 
 (declare-function exwm-workspace--update-struts "exwm-workspace.el" ())
-(declare-function exwm-workspace--set-fullscreen "exwm-workspace.el"
-                  (frame &optional no-struts container-only))
-(declare-function exwm-workspace--set-workareas "exwm-workspace.el"
-                  (&optional workareas))
+(declare-function exwm-workspace--update-workareas "exwm-workspace.el" ())
+(declare-function exwm-workspace--set-fullscreen "exwm-workspace.el" (frame))
 
 (defun exwm-manage--unmanage-window (id &optional withdraw-only)
   "Unmanage window ID.
@@ -272,9 +270,9 @@ manager is shutting down."
       (setq exwm-workspace--id-struts-alist
             (assq-delete-all id exwm-workspace--id-struts-alist))
       (exwm-workspace--update-struts)
+      (exwm-workspace--update-workareas)
       (dolist (f exwm-workspace--list)
-        (exwm-workspace--set-fullscreen f))
-      (exwm-workspace--set-workareas))
+        (exwm-workspace--set-fullscreen f)))
     (when (buffer-live-p buffer)
       (with-current-buffer buffer
         ;; Flickering seems unavoidable here if the DestroyWindow request is

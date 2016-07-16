@@ -155,8 +155,7 @@
 (defvar exwm-workspace--current)
 (defvar exwm-workspace--list)
 
-(declare-function exwm-workspace--set-fullscreen "exwm-workspace.el"
-                  (frame &optional no-struts container-only))
+(declare-function exwm-workspace--set-fullscreen "exwm-workspace.el" (frame))
 
 ;;;###autoload
 (defun exwm-layout-set-fullscreen (&optional id)
@@ -165,15 +164,20 @@
   (with-current-buffer (if id (exwm--id->buffer id) (window-buffer))
     (when exwm--fullscreen
       (user-error "Already in full-screen mode."))
-    ;; Set the floating frame fullscreen first when the client is floating
+    ;; Save the position of floating frame.
     (when exwm--floating-frame
       (let* ((geometry (xcb:+request-unchecked+reply exwm--connection
                            (make-instance 'xcb:GetGeometry
                                           :drawable exwm--container))))
         (setq exwm--floating-frame-position
               (vector (slot-value geometry 'x) (slot-value geometry 'y)))))
-    ;; Expand the workspace frame & its container to fill the whole screen.
-    (exwm-workspace--set-fullscreen exwm--frame t t)
+    ;; Expand the workspace to fill the whole screen.
+    (with-slots (x y width height) (exwm-workspace--get-geometry exwm--frame)
+      (exwm-layout--resize-container nil
+                                     (frame-parameter exwm--frame
+                                                      'exwm-workspace)
+                                     x y width height
+                                     t))
     ;; Raise the workspace container (in case there are docks).
     (xcb:+request exwm--connection
         (make-instance 'xcb:ConfigureWindow

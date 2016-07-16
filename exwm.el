@@ -237,15 +237,19 @@
                                      :window id)))
       (when reply
         (setq struts (slot-value reply 'value))
-        (if pair
-            (setcdr pair struts)
-          (push (cons id struts) exwm-workspace--id-struts-alist))
+        (if struts
+            (if pair
+                (setcdr pair struts)
+              (push (cons id struts) exwm-workspace--id-struts-alist))
+          (when pair
+            (setq exwm-workspace--id-struts-alist
+                  (assq-delete-all id exwm-workspace--id-struts-alist))))
         (exwm-workspace--update-struts))
+      ;; Update workareas and set _NET_WORKAREA.
+      (exwm-workspace--update-workareas)
       ;; Update workspaces.
       (dolist (f exwm-workspace--list)
-        (exwm-workspace--set-fullscreen f))
-      ;; Update _NET_WORKAREA.
-      (exwm-workspace--set-workareas))))
+        (exwm-workspace--set-fullscreen f)))))
 
 (defun exwm--update-struts-partial (id)
   "Update _NET_WM_STRUT_PARTIAL."
@@ -256,15 +260,19 @@
     (when reply
       (setq struts (slot-value reply 'value)
             pair (assq id exwm-workspace--id-struts-alist))
-      (if pair
-          (setcdr pair struts)
-        (push (cons id struts) exwm-workspace--id-struts-alist))
+      (if struts
+          (if pair
+              (setcdr pair struts)
+            (push (cons id struts) exwm-workspace--id-struts-alist))
+        (when pair
+          (setq exwm-workspace--id-struts-alist
+                (assq-delete-all id exwm-workspace--id-struts-alist))))
       (exwm-workspace--update-struts))
+    ;; Update workareas and set _NET_WORKAREA.
+    (exwm-workspace--update-workareas)
     ;; Update workspaces.
     (dolist (f exwm-workspace--list)
-      (exwm-workspace--set-fullscreen f))
-    ;; Update _NET_WORKAREA.
-    (exwm-workspace--set-workareas)))
+      (exwm-workspace--set-fullscreen f))))
 
 (defun exwm--update-struts (id)
   "Update _NET_WM_STRUT_PARTIAL or _NET_WM_STRUT."

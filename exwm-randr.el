@@ -58,15 +58,13 @@
 (defvar exwm-workspace-number)
 (defvar exwm-workspace--list)
 
-(declare-function exwm-workspace--set-fullscreen "exwm-workspace.el"
-                  (frame &optional no-struts container-only))
-(declare-function exwm-workspace--set-workareas "exwm-workspace.el"
-                  (&optional workareas))
+(declare-function exwm-workspace--update-workareas "exwm-workspace.el" ())
+(declare-function exwm-workspace--set-fullscreen "exwm-workspace.el" (frame))
 (declare-function exwm-workspace--set-desktop-geometry "exwm-workspace.el" ())
 
 (defun exwm-randr--refresh ()
   "Refresh workspaces according to the updated RandR info."
-  (let (output-name geometry output-plist default-geometry workareas)
+  (let (output-name geometry output-plist default-geometry)
     ;; Query all outputs
     (with-slots (config-timestamp outputs)
         (xcb:+request-unchecked+reply exwm--connection
@@ -96,7 +94,9 @@
                 (setq default-geometry geometry)))))))
     (exwm--log "(randr) outputs: %s" output-plist)
     (when output-plist
-      (setq exwm-workspace--fullscreen-frame-count 0)
+      (when exwm-workspace--fullscreen-frame-count
+        ;; Not all workspaces are fullscreen; reset this counter.
+        (setq exwm-workspace--fullscreen-frame-count 0))
       (dotimes (i exwm-workspace-number)
         (let* ((output (plist-get exwm-randr-workspace-output-plist i))
                (geometry (lax-plist-get output-plist output))
@@ -105,14 +105,14 @@
             (setq geometry default-geometry
                   output nil))
           (set-frame-parameter frame 'exwm-randr-output output)
-          (set-frame-parameter frame 'exwm-geometry geometry)
-          (exwm-workspace--set-fullscreen frame)
-          (with-slots (x y width height) geometry
-            (setq workareas (nconc workareas (list x y width height))))))
+          (set-frame-parameter frame 'exwm-geometry geometry)))
+      ;; Update workareas and set _NET_WORKAREA.
+      (exwm-workspace--update-workareas)
+      ;; Resize workspace.
+      (dolist (f exwm-workspace--list)
+        (exwm-workspace--set-fullscreen f))
       ;; Set _NET_DESKTOP_GEOMETRY.
       (exwm-workspace--set-desktop-geometry)
-      ;; Set _NET_WORKAREA.
-      (exwm-workspace--set-workareas (vconcat workareas))
       (xcb:flush exwm--connection)
       (run-hooks 'exwm-randr-refresh-hook))))
 
