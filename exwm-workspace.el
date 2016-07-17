@@ -396,7 +396,7 @@ The optional FORCE option is for internal use only."
 
 ;;;###autoload
 (defun exwm-workspace-swap-workspaces (workspace1 workspace2)
-  "Swap position of WORKSPACE1 with that of WORKSPACE2."
+  "Interchange position of WORKSPACE1 with that of WORKSPACE2."
   (interactive
    (unless (and (eq major-mode 'exwm-mode) exwm--fullscreen) ;it's invisible
      (list
@@ -415,6 +415,20 @@ The optional FORCE option is for internal use only."
             (setq exwm-workspace-current-index pos1))))
       (user-error "[EXWM] Frames are not workspaces"))))
 
+;;;###autoload
+(defun exwm-workspace-move-workspace (workspace nth)
+  "Move WORKSPACE to the NTH position.
+When called interactively, prompt for a workspace and move current one just
+before it."
+  (interactive
+   (unless (and (eq major-mode 'exwm-mode) exwm--fullscreen) ;it's invisible
+     (list exwm-workspace--current
+           (exwm-workspace--position (exwm-workspace--prompt-for-workspace)))))
+  (let ((pos (exwm-workspace--position workspace)))
+    (if (= nth pos)
+        (user-error "[EXWM] Cannot move to same position")
+      (pop (nthcdr pos exwm-workspace--list))
+      (push workspace (nthcdr nth exwm-workspace--list)))))
 
 (defun exwm-workspace--on-focus-in ()
   "Handle unexpected frame switch."
