@@ -104,7 +104,7 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
 (declare-function exwm-layout--set-state "exwm-layout.el" (id state))
 (declare-function exwm-workspace--minibuffer-own-frame-p "exwm-workspace.el")
 (declare-function exwm-workspace-switch "exwm-workspace.el"
-                  (index &optional force))
+                  (frame-or-index &optional force))
 
 (defun exwm-input--update-focus ()
   "Update input focus."
@@ -120,7 +120,7 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
                 (setq exwm-workspace--switch-history-outdated t)
                 (force-mode-line-update)
                 ;; The application may have changed its input focus
-                (exwm-workspace-switch exwm-workspace-current-index t))
+                (exwm-workspace-switch exwm-workspace--current t))
             (exwm--log "Set focus on #x%x" exwm--id)
             (exwm-input--set-focus exwm--id)
             (when exwm--floating-frame
@@ -209,15 +209,13 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
                  (unless (eq frame exwm-workspace--current)
                    (if (exwm-workspace--workspace-p frame)
                        ;; The X window is on another workspace
-                       (exwm-workspace-switch
-                        (exwm-workspace--position frame))
+                       (exwm-workspace-switch frame)
                      (with-current-buffer (window-buffer window)
                        (when (and (eq major-mode 'exwm-mode)
                                   (not (eq exwm--frame
                                            exwm-workspace--current)))
                          ;; The floating X window is on another workspace
-                         (exwm-workspace-switch
-                          (exwm-workspace--position exwm--frame))))))
+                         (exwm-workspace-switch exwm--frame)))))
                  ;; It has been reported that the `window' may have be deleted
                  (if (window-live-p window)
                      (select-window window)

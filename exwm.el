@@ -438,10 +438,9 @@
             ;; FIXME: check (may require other properties set)
             (when (memq xcb:Atom:_NET_WM_STATE_DEMANDS_ATTENTION props)
               (when (= action xcb:ewmh:_NET_WM_STATE_ADD)
-                (let ((idx (exwm-workspace--position exwm--frame)))
-                  (unless (= idx exwm-workspace-current-index)
-                    (set-frame-parameter exwm--frame 'exwm--urgency t)
-                    (setq exwm-workspace--switch-history-outdated t))))
+                (unless (eq exwm--frame exwm-workspace--current)
+                  (set-frame-parameter exwm--frame 'exwm--urgency t)
+                  (setq exwm-workspace--switch-history-outdated t)))
               ;; xcb:ewmh:_NET_WM_STATE_REMOVE?
               ;; xcb:ewmh:_NET_WM_STATE_TOGGLE?
               )

@@ -94,7 +94,7 @@ corresponding buffer.")
 (declare-function exwm-workspace--current-width  "exwm-workspace.el")
 (declare-function exwm-workspace--set-desktop "exwm-workspace.el" (id))
 (declare-function exwm-workspace-move-window "exwm-workspace.el"
-                  (index &optional id))
+                  (frame-or-index &optional id))
 
 (defun exwm-manage--manage-window (id)
   "Manage window ID."

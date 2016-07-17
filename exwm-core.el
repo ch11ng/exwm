@@ -126,7 +126,7 @@
 (declare-function exwm-layout-set-fullscreen "exwm-layout.el" (&optional id))
 (declare-function exwm-layout-toggle-mode-line "exwm-layout.el")
 (declare-function exwm-workspace-move-window "exwm-workspace.el"
-                  (index &optional id))
+                  (frame-or-index &optional id))
 
 (defvar exwm-mode-map
   (let ((map (make-sparse-keymap)))
