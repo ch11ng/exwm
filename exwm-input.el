@@ -180,6 +180,7 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
 (declare-function exwm-floating--start-moveresize "exwm-floating.el"
                   (id &optional type))
 (declare-function exwm-workspace--position "exwm-workspace.el" (frame))
+(declare-function exwm-workspace--workspace-p "exwm-workspace.el" (workspace))
 
 (defvar exwm-workspace--list)
 
@@ -206,7 +207,7 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
                (unless (eq window (selected-window))
                  (setq frame (window-frame window))
                  (unless (eq frame exwm-workspace--current)
-                   (if (memq frame exwm-workspace--list)
+                   (if (exwm-workspace--workspace-p frame)
                        ;; The X window is on another workspace
                        (exwm-workspace-switch
                         (exwm-workspace--position frame))

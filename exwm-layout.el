@@ -153,7 +153,6 @@
       (xcb:flush exwm--connection))))
 
 (defvar exwm-workspace--current)
-(defvar exwm-workspace--list)
 
 (declare-function exwm-input-grab-keyboard "exwm-input.el")
 (declare-function exwm-input-release-keyboard "exwm-input.el")
@@ -282,6 +281,8 @@ selected by `other-buffer'."
 
 (defvar exwm-layout-show-all-buffers nil
   "Non-nil to allow switching to buffers on other workspaces.")
+(declare-function exwm-workspace--workspace-p "exwm-workspace.el"
+                  (workspace))
 
 (defun exwm-layout--set-client-list-stacking ()
   "Set _NET_CLIENT_LIST_STACKING."
@@ -312,7 +313,7 @@ selected by `other-buffer'."
         covered-buffers             ;EXWM-buffers covered by a new X window.
         vacated-windows             ;Windows previously displaying EXWM-buffers.
         windows)
-    (if (not (memq frame exwm-workspace--list))
+    (if (not (exwm-workspace--workspace-p frame))
         (if (frame-parameter frame 'exwm-outer-id)
             ;; Refresh a floating frame
             (let ((window (frame-first-window frame)))

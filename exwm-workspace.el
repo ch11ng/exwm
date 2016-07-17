@@ -40,6 +40,10 @@ NIL if FRAME is not a workspace"
   "Retrieve total number of workspaces."
   (length exwm-workspace--list))
 
+(defsubst exwm-workspace--workspace-p (frame)
+  "Return t if FRAME is a workspace."
+  (memq frame exwm-workspace--list))
+
 (defvar exwm-workspace--switch-map
   (let ((map (make-sparse-keymap)))
     (define-key map [t] (lambda () (interactive)))
@@ -334,7 +338,7 @@ The optional FORCE option is for internal use only."
                                :stack-mode xcb:StackMode:Above))))
         (setq exwm-workspace--current frame
               exwm-workspace-current-index index)
-        (unless (memq (selected-frame) exwm-workspace--list)
+        (unless (exwm-workspace--workspace-p (selected-frame))
           ;; Save the floating frame window selected on the previous workspace.
           (set-frame-parameter (with-current-buffer (window-buffer)
                                  exwm--frame)
