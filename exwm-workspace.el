@@ -797,6 +797,20 @@ The optional FORCE option is for internal use only."
 
 (defvar exwm-workspace--timer nil "Timer used to track echo area changes.")
 
+(defun exwm-workspace--modify-all-x-frames-parameters (new-x-parameters)
+  "Modifies `window-system-default-frame-alist' for the X Window System.
+NEW-X-PARAMETERS is an alist of frame parameters, merged into current
+`window-system-default-frame-alist' for the X Window System.  The parameters are
+applied to all subsequently created X frames."
+  ;; The parameters are modified in place; take current
+  ;; ones or insert a new X-specific list.
+  (let ((x-parameters (or (assq 'x window-system-default-frame-alist)
+                          (let ((new-x-parameters '(x)))
+                            (push new-x-parameters window-system-default-frame-alist)
+                            new-x-parameters))))
+    (setf (cdr x-parameters)
+          (append new-x-parameters (cdr x-parameters)))))
+
 (defun exwm-workspace--init ()
   "Initialize workspace module."
   (cl-assert (and (< 0 exwm-workspace-number) (>= 10 exwm-workspace-number)))
@@ -843,6 +857,8 @@ The optional FORCE option is for internal use only."
             (delete-frame f)))))
     ;; This is the only usable minibuffer frame.
     (setq default-minibuffer-frame exwm-workspace--minibuffer)
+    (exwm-workspace--modify-all-x-frames-parameters
+     '((minibuffer . nil)))
     (let ((outer-id (string-to-number
                      (frame-parameter exwm-workspace--minibuffer
                                       'outer-window-id)))
@@ -883,8 +899,6 @@ The optional FORCE option is for internal use only."
     ;; Create workspace frames.
     (dotimes (_ exwm-workspace-number)
       (push (make-frame `((window-system . x)
-                          (minibuffer . ,(minibuffer-window
-                                          exwm-workspace--minibuffer))
                           (internal-border-width . 0)
                           (client . nil)))
             exwm-workspace--list))
