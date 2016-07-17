@@ -102,6 +102,9 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
 
 (declare-function exwm-layout--iconic-state-p "exwm-layout.el" (&optional id))
 (declare-function exwm-layout--set-state "exwm-layout.el" (id state))
+(declare-function exwm-workspace--minibuffer-own-frame-p "exwm-workspace.el")
+(declare-function exwm-workspace-switch "exwm-workspace.el"
+                  (index &optional force))
 
 (defun exwm-input--update-focus ()
   "Update input focus."

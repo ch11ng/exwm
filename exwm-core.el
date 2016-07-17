@@ -119,6 +119,15 @@
 ;; _MOTIF_WM_HINTS
 (defvar-local exwm--mwm-hints-decorations t)
 
+(declare-function exwm-floating-hide "exwm-floating.el")
+(declare-function exwm-floating-toggle-floating "exwm-floating.el")
+(declare-function exwm-input-release-keyboard "exwm-input.el")
+(declare-function exwm-input-send-next-key "exwm-input.el" (times))
+(declare-function exwm-layout-set-fullscreen "exwm-layout.el" (&optional id))
+(declare-function exwm-layout-toggle-mode-line "exwm-layout.el")
+(declare-function exwm-workspace-move-window "exwm-workspace.el"
+                  (index &optional id))
+
 (defvar exwm-mode-map
   (let ((map (make-sparse-keymap)))
     (define-key map "\C-c\C-f" #'exwm-layout-set-fullscreen)

@@ -65,6 +65,11 @@ You shall use the default value if using auto-hide minibuffer.")
   "The selection owner window.")
 (defvar exwm-systemtray--embedder nil "The embedder window.")
 
+(defvar exwm-workspace--current)
+(declare-function exwm-workspace--current-height "exwm-workspace.el")
+(declare-function exwm-workspace--current-width  "exwm-workspace.el")
+(declare-function exwm-workspace--minibuffer-own-frame-p "exwm-workspace.el")
+
 (defun exwm-systemtray--embed (icon)
   "Embed an icon."
   (exwm--log "(System Tray) Try to embed #x%x" icon)
@@ -265,8 +270,6 @@ You shall use the default value if using auto-hide minibuffer.")
                    (= opcode xcb:systemtray:opcode:CANCEL-MESSAGE)))
               (t
                (exwm--log "(System Tray) Unknown opcode message: %s" obj)))))))
-
-(defvar exwm-workspace--current)
 
 (defun exwm-systemtray--on-workspace-switch ()
   "Reparent/Refresh the system tray in `exwm-workspace-switch-hook'."

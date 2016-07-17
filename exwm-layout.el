@@ -155,7 +155,15 @@
 (defvar exwm-workspace--current)
 (defvar exwm-workspace--list)
 
+(declare-function exwm-input-grab-keyboard "exwm-input.el")
+(declare-function exwm-input-release-keyboard "exwm-input.el")
+(declare-function exwm-workspace--current-height "exwm-workspace.el")
+(declare-function exwm-workspace--current-width  "exwm-workspace.el")
+(declare-function exwm-workspace--get-geometry "exwm-workspace.el" (frame))
+(declare-function exwm-workspace--minibuffer-own-frame-p "exwm-workspace.el")
 (declare-function exwm-workspace--set-fullscreen "exwm-workspace.el" (frame))
+(declare-function exwm-workspace-move-window "exwm-workspace.el"
+                  (index &optional id))
 
 ;;;###autoload
 (defun exwm-layout-set-fullscreen (&optional id)
