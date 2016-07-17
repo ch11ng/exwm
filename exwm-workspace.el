@@ -27,7 +27,6 @@
 
 (require 'exwm-core)
 
-(defvar exwm-workspace-number 4 "Number of workspaces (1 ~ 10).")
 (defvar exwm-workspace--list nil "List of all workspaces (Emacs frames).")
 (defvar exwm-workspace--current nil "Current active workspace.")
 (defvar exwm-workspace-current-index 0 "Index of current active workspace.")
@@ -63,12 +62,7 @@ NIL if FRAME is not a workspace"
   (let ((map (make-sparse-keymap)))
     (define-key map [t] (lambda () (interactive)))
     (dotimes (i 10)
-      (define-key map (int-to-string i)
-        `(lambda ()
-           (interactive)
-           (when (< ,i (exwm-workspace--count))
-             (goto-history-element ,(1+ i))
-             (exit-minibuffer)))))
+      (define-key map (int-to-string i) #'exwm-workspace--switch-map-nth-prefix))
     (define-key map "\C-a" (lambda () (interactive) (goto-history-element 1)))
     (define-key map "\C-e" (lambda ()
                              (interactive)
@@ -317,6 +311,48 @@ Value nil means to use the default position which is fixed at bottom, while
                        :width width
                        :stack-mode xcb:StackMode:Above))
     (set-frame-width exwm-workspace--minibuffer width nil t)))
+
+(defun exwm-workspace--switch-map-nth-prefix (&optional prefix-digits)
+  "Allow selecting a workspace by number.
+
+PREFIX-DIGITS is a list of the digits introduced so far."
+  (interactive)
+  (let* ((ev (this-command-keys-vector))
+         (off (1- (length ev)))
+         (k (elt ev off))
+         ;; 0 is ASCII 48.
+         (d (- k 48))
+         ;; Convert prefix-digits to number.  For example, '(2 1) to 120.
+         (o 1)
+         (pn (apply #'+ (mapcar (lambda (x)
+                                  (setq o (* 10 o))
+                                  (* o x))
+                                prefix-digits)))
+         (n (+ pn d))
+         (num-workspaces (exwm-workspace--count)))
+    (if (= (length prefix-digits)           ; Go ahead if there are enough
+           (floor (log num-workspaces 10))) ; digits to select any workspace.
+        (exwm-workspace--switch-map-select-nth n)
+      (set-transient-map
+       (let ((map (make-sparse-keymap))
+             (cmd `(lambda ()
+                     (interactive)
+                     (exwm-workspace--switch-map-nth-prefix ',(cons d prefix-digits))
+                     )))
+         (dotimes (i 10)
+           (define-key map (int-to-string i) cmd))
+         ;; Accept
+         (define-key map [return]
+           `(lambda ()
+              (interactive)
+              (exwm-workspace--switch-map-select-nth ,n)))
+         map)))))
+
+(defun exwm-workspace--switch-map-select-nth (n)
+  "Select Nth workspace."
+  (interactive)
+  (goto-history-element (1+ n))
+  (exit-minibuffer))
 
 (defvar exwm-workspace-switch-hook nil
   "Normal hook run after switching workspace.")
@@ -854,9 +890,6 @@ before it."
 (defun exwm-workspace--add-frame-as-workspace (frame)
   "Configure frame FRAME to be treated as a workspace."
   (cond
-   ((>= (exwm-workspace--count) exwm-workspace-number)
-    (delete-frame frame)
-    (user-error "[EXWM] Too many workspaces: maximum is %d" exwm-workspace-number))
    ((exwm-workspace--workspace-p frame)
     (exwm--log "Frame `%s' is already a workspace" frame))
    ((not (display-graphic-p frame))
@@ -1010,31 +1043,23 @@ applied to all subsequently created X frames."
 
 (defun exwm-workspace--init ()
   "Initialize workspace module."
-  (cl-assert (and (< 0 exwm-workspace-number) (>= 10 exwm-workspace-number)))
   ;; Prevent unexpected exit
   (setq confirm-kill-emacs #'exwm-workspace--confirm-kill-emacs)
   (let ((initial-workspaces (frame-list)))
     (if (not (exwm-workspace--minibuffer-own-frame-p))
         ;; Initialize workspaces with minibuffers.
-        (progn
-          (when (< 1 (exwm-workspace--count))
-            ;; Exclude the initial frame.
-            (dolist (i initial-workspaces)
-              (unless (frame-parameter i 'window-id)
-                (setq initial-workspaces (delq i initial-workspaces))))
-            (cl-assert (= 1 (length initial-workspaces)))
-            (setq exwm-workspace--client
-                  (frame-parameter (car exwm-workspace--list) 'client))
-            (let ((f (car initial-workspaces)))
-              ;; Remove the possible internal border.
-              (set-frame-parameter f 'internal-border-width 0)
-              ;; Prevent user from deleting this frame by accident.
-              (set-frame-parameter f 'client nil)))
-          ;; Create remaining frames.
-          (dotimes (_ (1- exwm-workspace-number))
-            (nconc initial-workspaces
-                   (list (make-frame '((window-system . x)
-                                       (internal-border-width . 0)))))))
+        (when (< 1 (length initial-workspaces))
+          ;; Exclude the initial frame.
+          (dolist (i initial-workspaces)
+            (unless (frame-parameter i 'window-id)
+              (setq initial-workspaces (delq i initial-workspaces))))
+          (setq exwm-workspace--client
+                (frame-parameter (car exwm-workspace--list) 'client))
+          (let ((f (car initial-workspaces)))
+            ;; Remove the possible internal border.
+            (set-frame-parameter f 'internal-border-width 0)
+            ;; Prevent user from deleting the first frame by accident.
+            (set-frame-parameter f 'client nil)))
       ;; Initialize workspaces without minibuffers.
       (setq exwm-workspace--minibuffer
             (make-frame '((window-system . x) (minibuffer . only)
@@ -1092,12 +1117,14 @@ applied to all subsequently created X frames."
       (setq exwm-workspace--timer
           (run-with-idle-timer 0 t #'exwm-workspace--on-echo-area-dirty))
       (add-hook 'echo-area-clear-hook #'exwm-workspace--on-echo-area-clear)
-      ;; Create workspace frames.
-      (dotimes (_ exwm-workspace-number)
-        (push (make-frame `((window-system . x)
-                            (internal-border-width . 0)
-                            (client . nil)))
-              exwm-workspace--list))
+      ;; Recreate frames with the external minibuffer set.
+      (setq initial-workspaces
+            (mapcar
+             (lambda (_)
+               (make-frame `((window-system . x)
+                             (internal-border-width . 0)
+                             (client . nil))))
+             initial-workspaces))
       ;; The default behavior of `display-buffer' (indirectly called by
       ;; `minibuffer-completion-help') is not correct here.
       (cl-pushnew '(exwm-workspace--display-buffer) display-buffer-alist
