@@ -819,12 +819,12 @@ The optional FORCE option is for internal use only."
             ;; Remove the possible internal border.
             (set-frame-parameter f 'internal-border-width 0)
             ;; Prevent user from deleting this frame by accident.
-            (set-frame-parameter f 'client nil))
+            (set-frame-parameter f 'client nil)))
         ;; Create remaining frames.
         (dotimes (_ (1- exwm-workspace-number))
           (nconc exwm-workspace--list
                  (list (make-frame '((window-system . x)
-                                     (internal-border-width . 0))))))))
+                                     (internal-border-width . 0)))))))
     ;; Initialize workspaces without minibuffers.
     (let ((old-frames (frame-list)))
       (setq exwm-workspace--minibuffer
