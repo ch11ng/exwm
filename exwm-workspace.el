@@ -394,6 +394,28 @@ The optional FORCE option is for internal use only."
       (xcb:flush exwm--connection))
      (run-hooks 'exwm-workspace-switch-hook)))
 
+;;;###autoload
+(defun exwm-workspace-swap-workspaces (workspace1 workspace2)
+  "Swap position of WORKSPACE1 with that of WORKSPACE2."
+  (interactive
+   (unless (and (eq major-mode 'exwm-mode) exwm--fullscreen) ;it's invisible
+     (list
+      (exwm-workspace--prompt-for-workspace)
+      (exwm-workspace--prompt-for-workspace))))
+  (let ((pos1 (exwm-workspace--position workspace1))
+        (pos2 (exwm-workspace--position workspace2)))
+    (if (and pos1 pos2)
+        (progn
+          (setf (elt exwm-workspace--list pos1) workspace2)
+          (setf (elt exwm-workspace--list pos2) workspace1)
+          (cond
+           ((eq exwm-workspace--current workspace1)
+            (setq exwm-workspace-current-index pos2))
+           ((eq exwm-workspace--current workspace2)
+            (setq exwm-workspace-current-index pos1))))
+      (user-error "[EXWM] Frames are not workspaces"))))
+
+
 (defun exwm-workspace--on-focus-in ()
   "Handle unexpected frame switch."
   ;; `focus-in-hook' is run by `handle-switch-frame'.
