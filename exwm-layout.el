@@ -161,6 +161,7 @@
 (declare-function exwm-workspace--current-width  "exwm-workspace.el")
 (declare-function exwm-workspace--get-geometry "exwm-workspace.el" (frame))
 (declare-function exwm-workspace--minibuffer-own-frame-p "exwm-workspace.el")
+(declare-function exwm-workspace--position "exwm-workspace.el" (frame))
 (declare-function exwm-workspace--set-fullscreen "exwm-workspace.el" (frame))
 (declare-function exwm-workspace-move-window "exwm-workspace.el"
                   (index &optional id))
@@ -346,7 +347,7 @@ selected by `other-buffer'."
                 (if (eq frame exwm--frame)
                     (exwm-layout--show exwm--id window)
                   (exwm-workspace-move-window
-                   (cl-position frame exwm-workspace--list) exwm--id))
+                   (exwm-workspace--position frame) exwm--id))
                 ;; Make sure this buffer is not displayed elsewhere.  Note down
                 ;; windows displaying an EXWM-buffer now displayed elsewhere; we
                 ;; need to display with some other buffer there.

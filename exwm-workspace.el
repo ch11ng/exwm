@@ -29,6 +29,13 @@
 
 (defvar exwm-workspace-number 4 "Number of workspaces (1 ~ 10).")
 (defvar exwm-workspace--list nil "List of all workspaces (Emacs frames).")
+
+(defsubst exwm-workspace--position (frame)
+  "Retrieve index of given FRAME in workspace list.
+
+NIL if FRAME is not a workspace"
+  (cl-position frame exwm-workspace--list))
+
 (defvar exwm-workspace--switch-map
   (let ((map (make-sparse-keymap)))
     (define-key map [t] (lambda () (interactive)))
@@ -72,7 +79,7 @@
         (with-current-buffer (cdr i)
           (when exwm--frame
             (setf (aref not-empty
-                        (cl-position exwm--frame exwm-workspace--list))
+                        (exwm-workspace--position exwm--frame))
                   t))))
       (setq exwm-workspace--switch-history
             (mapcar
@@ -948,13 +955,13 @@ applied to all subsequently created X frames."
                           :window workspace
                           :data
                           (format "EXWM workspace %d"
-                                  (cl-position i exwm-workspace--list))))
+                                  (exwm-workspace--position i))))
        (xcb:+request exwm--connection
            (make-instance 'xcb:ewmh:set-_NET_WM_NAME
                           :window container
                           :data
                           (format "EXWM workspace %d frame container"
-                                  (cl-position i exwm-workspace--list)))))
+                                  (exwm-workspace--position i)))))
       (xcb:+request exwm--connection
           (make-instance 'xcb:ReparentWindow
                          :window outer-id :parent container :x 0 :y 0))
