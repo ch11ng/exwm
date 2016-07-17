@@ -29,6 +29,8 @@
 
 (defvar exwm-workspace-number 4 "Number of workspaces (1 ~ 10).")
 (defvar exwm-workspace--list nil "List of all workspaces (Emacs frames).")
+(defvar exwm-workspace--current nil "Current active workspace.")
+(defvar exwm-workspace-current-index 0 "Index of current active workspace.")
 
 (defsubst exwm-workspace--position (frame)
   "Retrieve index of given FRAME in workspace list.
@@ -107,8 +109,6 @@ NIL if FRAME is not a workspace"
                 sequence ""))
              sequence)))))
 
-(defvar exwm-workspace--current nil "Current active workspace.")
-(defvar exwm-workspace-current-index 0 "Index of current active workspace.")
 (defvar exwm-workspace-show-all-buffers nil
   "Non-nil to show buffers on other workspaces.")
 (defvar exwm-workspace--minibuffer nil
