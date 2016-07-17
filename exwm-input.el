@@ -285,7 +285,9 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
   "Set a global key binding."
   (interactive "KSet key globally: \nCSet key %s to command: ")
   (global-set-key key command)
-  (cl-pushnew key exwm-input--global-keys))
+  (cl-pushnew key exwm-input--global-keys)
+  (when (called-interactively-p 'any)
+    (exwm-input--update-global-prefix-keys)))
 
 ;; FIXME: Putting (t . EVENT) into `unread-command-events' does not really work
 ;;        as documented in Emacs 24.  Since inserting a conventional EVENT does
@@ -421,6 +423,7 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
   (when id
     (with-current-buffer (exwm--id->buffer id)
       (exwm-input--grab-keyboard id)
+      (setq exwm--keyboard-grabbed t)
       (exwm-input--update-mode-line id)
       (force-mode-line-update))))
 
@@ -431,6 +434,7 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
   (when id
     (with-current-buffer (exwm--id->buffer id)
       (exwm-input--release-keyboard id)
+      (setq exwm--keyboard-grabbed nil)
       (exwm-input--update-mode-line id)
       (force-mode-line-update))))
 

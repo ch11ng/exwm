@@ -90,6 +90,7 @@
 (defvar-local exwm--fullscreen nil)       ;used in fullscreen
 (defvar-local exwm--floating-frame-position nil) ;used in fullscreen
 (defvar-local exwm--fixed-size nil)              ;fixed size
+(defvar-local exwm--keyboard-grabbed nil)        ;Keyboard grabbed.
 (defvar-local exwm--on-KeyPress         ;KeyPress event handler
   #'exwm-input--on-KeyPress-line-mode)
 ;; Properties
@@ -129,6 +130,73 @@
     (define-key map "\C-c\C-t\C-m" #'exwm-layout-toggle-mode-line)
     map)
   "Keymap for `exwm-mode'.")
+
+;; This menu mainly acts as an reminder for users.  Thus it should be as
+;; detailed as possible, even some entries do not make much sense here.
+;; Also, inactive entries should be disabled rather than hidden.
+(easy-menu-define exwm-mode-menu exwm-mode-map
+  "Menu for `exwm-mode'."
+  '("EXWM"
+    "---"
+    "*General*"
+    "---"
+    ["Toggle floating" exwm-floating-toggle-floating]
+    ["Enter fullscreen" exwm-layout-set-fullscreen (not exwm--fullscreen)]
+    ["Leave fullscreen" exwm-reset exwm--fullscreen]
+    ["Hide window" exwm-floating-hide exwm--floating-frame]
+
+    "---"
+    "*Resizing*"
+    "---"
+    ["Toggle mode-line" exwm-layout-toggle-mode-line :keys "C-c C-t C-m"]
+    ["Enlarge window vertically" exwm-layout-enlarge-window]
+    ["Enlarge window horizontally" exwm-layout-enlarge-window-horizontally]
+    ["Shrink window vertically" exwm-layout-shrink-window]
+    ["Shrink window horizontally" exwm-layout-shrink-window-horizontally]
+
+    "---"
+    "*Keyboard*"
+    "---"
+    ["Capture keyboard" exwm-input-release-keyboard exwm--keyboard-grabbed]
+    ;; It's recommended to use `exwm-reset' rather than
+    ;; `exwm-input-grab-keyboard' to release keyboard (enter line-mode).
+    ["Release keyboard" exwm-reset (not exwm--keyboard-grabbed)]
+    ["Send key" exwm-input-send-next-key exwm--keyboard-grabbed]
+    ;; This is merely a reference.
+    ("Send simulation key" :filter
+     (lambda (&rest _args)
+       (mapcar (lambda (i)
+                 (let ((keys (cdr i)))
+                   (if (vectorp keys)
+                       (setq keys (append keys))
+                     (unless (sequencep keys)
+                       (setq keys (list keys))))
+                   (vector (key-description keys)
+                           `(lambda ()
+                              (interactive)
+                              (dolist (key ',keys)
+                                (exwm-input--fake-key key)))
+                           :keys (key-description (car i)))))
+               exwm-input--simulation-keys)))
+
+    ["Define global binding" exwm-input-set-key]
+
+    "---"
+    "*Workspace*"
+    "---"
+    ["Move window to" exwm-workspace-move-window :keys "C-c C-m"]
+    ["Switch to buffer" exwm-workspace-switch-to-buffer]
+    ["Switch workspace" exwm-workspace-switch]
+    ;; Place this entry at bottom to avoid selecting others by accident.
+    ("Switch to" :filter
+     (lambda (&rest _args)
+       (mapcar (lambda (i)
+                 `[,(format "workspace %d" i)
+                   (lambda ()
+                     (interactive)
+                     (exwm-workspace-switch ,i))
+                   (/= ,i exwm-workspace-current-index)])
+               (number-sequence 0 (1- exwm-workspace-number)))))))
 
 (declare-function exwm-manage--kill-buffer-query-function "exwm-manage.el")
 
