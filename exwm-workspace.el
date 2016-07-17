@@ -92,6 +92,18 @@ NIL if FRAME is not a workspace"
 (defvar exwm-workspace--switch-history-outdated nil
   "Non-nil to indicate `exwm-workspace--switch-history' is outdated.")
 
+(defun exwm-workspace--prompt-for-workspace ()
+  "Prompt for a workspace, returning the workspace frame."
+  (exwm-workspace--update-switch-history)
+  (let* ((current-idx (exwm-workspace--position exwm-workspace--current))
+         (history-add-new-input nil)  ;prevent modifying history
+         (history-idx (read-from-minibuffer
+                       "Workspace: " (elt exwm-workspace--switch-history current-idx)
+                       exwm-workspace--switch-map nil
+                       `(exwm-workspace--switch-history . ,(1+ current-idx))))
+         (workspace-idx (cl-position history-idx exwm-workspace--switch-history :test #'equal)))
+    (elt exwm-workspace--list workspace-idx)))
+
 (defun exwm-workspace--update-switch-history ()
   "Update the history for switching workspace to reflect the latest status."
   (when exwm-workspace--switch-history-outdated
@@ -317,15 +329,7 @@ The optional FORCE option is for internal use only."
   (interactive
    (list
     (unless (and (eq major-mode 'exwm-mode) exwm--fullscreen) ;it's invisible
-      (exwm-workspace--update-switch-history)
-      (let* ((current-idx (exwm-workspace--position exwm-workspace--current))
-             (history-add-new-input nil)  ;prevent modifying history
-             (history-idx (read-from-minibuffer
-                           "Workspace: " (elt exwm-workspace--switch-history current-idx)
-                           exwm-workspace--switch-map nil
-                           `(exwm-workspace--switch-history . ,(1+ current-idx))))
-             (workspace-idx (cl-position history-idx exwm-workspace--switch-history :test #'equal)))
-        (elt exwm-workspace--list workspace-idx)))))
+      (exwm-workspace--prompt-for-workspace))))
   (let* ((frame (exwm-workspace--workspace-from-frame-or-index frame-or-index))
          (index (exwm-workspace--position frame))
          (workspace (frame-parameter frame 'exwm-workspace))
@@ -419,18 +423,7 @@ The optional FORCE option is for internal use only."
 ;;;###autoload
 (defun exwm-workspace-move-window (frame-or-index &optional id)
   "Move window ID to workspace FRAME-OR-INDEX."
-  (interactive
-   (list
-    (progn
-      (exwm-workspace--update-switch-history)
-      (let* ((current-idx (exwm-workspace--position exwm-workspace--current))
-             (history-add-new-input nil)  ;prevent modifying history
-             (history-idx (read-from-minibuffer
-                           "Workspace: " (elt exwm-workspace--switch-history current-idx)
-                           exwm-workspace--switch-map nil
-                           `(exwm-workspace--switch-history . ,(1+ current-idx))))
-             (workspace-idx (cl-position history-idx exwm-workspace--switch-history :test #'equal)))
-        (elt exwm-workspace--list workspace-idx)))))
+  (interactive (list (exwm-workspace--prompt-for-workspace)))
   (let ((frame (exwm-workspace--workspace-from-frame-or-index frame-or-index)))
     (unless id (setq id (exwm--buffer->id (window-buffer))))
     (with-current-buffer (exwm--id->buffer id)
