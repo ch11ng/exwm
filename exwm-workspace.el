@@ -36,6 +36,10 @@
 NIL if FRAME is not a workspace"
   (cl-position frame exwm-workspace--list))
 
+(defsubst exwm-workspace--count ()
+  "Retrieve total number of workspaces."
+  (length exwm-workspace--list))
+
 (defvar exwm-workspace--switch-map
   (let ((map (make-sparse-keymap)))
     (define-key map [t] (lambda () (interactive)))
@@ -43,13 +47,13 @@ NIL if FRAME is not a workspace"
       (define-key map (int-to-string i)
         `(lambda ()
            (interactive)
-           (when (< ,i exwm-workspace-number)
+           (when (< ,i (exwm-workspace--count))
              (goto-history-element ,(1+ i))
              (exit-minibuffer)))))
     (define-key map "\C-a" (lambda () (interactive) (goto-history-element 1)))
     (define-key map "\C-e" (lambda ()
                              (interactive)
-                             (goto-history-element exwm-workspace-number)))
+                             (goto-history-element (exwm-workspace--count))))
     (define-key map "\C-g" #'abort-recursive-edit)
     (define-key map "\C-]" #'abort-recursive-edit)
     (define-key map "\C-j" #'exit-minibuffer)
@@ -73,8 +77,9 @@ NIL if FRAME is not a workspace"
   "Update the history for switching workspace to reflect the latest status."
   (when exwm-workspace--switch-history-outdated
     (setq exwm-workspace--switch-history-outdated nil)
-    (let ((sequence (number-sequence 0 (1- exwm-workspace-number)))
-          (not-empty (make-vector exwm-workspace-number nil)))
+    (let* ((num (exwm-workspace--count))
+           (sequence (number-sequence 0 (1- num)))
+           (not-empty (make-vector num nil)))
       (dolist (i exwm--id-buffer-alist)
         (with-current-buffer (cdr i)
           (when exwm--frame
@@ -185,7 +190,7 @@ Value nil means to use the default position which is fixed at bottom, while
                                     (list (vector x y width height))))))
       ;; Fall back to use the screen size.
       (let ((workarea (vector 0 0 root-width root-height)))
-        (setq workareas (make-list exwm-workspace-number workarea))))
+        (setq workareas (make-list (exwm-workspace--count) workarea))))
     ;; Exclude areas occupied by struts.
     (dolist (struts exwm-workspace--struts)
       (setq edge (aref struts 0)
@@ -305,7 +310,7 @@ The optional FORCE option is for internal use only."
                      . ,(1+ exwm-workspace-current-index)))))
         (cl-position idx exwm-workspace--switch-history :test #'equal)))))
   (when index
-    (unless (and (<= 0 index) (< index exwm-workspace-number))
+    (unless (and (<= 0 index) (< index (exwm-workspace--count)))
       (user-error "[EXWM] Workspace index out of range: %d" index))
     (when (or force (/= exwm-workspace-current-index index))
       (let* ((frame (elt exwm-workspace--list index))
@@ -412,7 +417,7 @@ The optional FORCE option is for internal use only."
                      . ,(1+ exwm-workspace-current-index)))))
         (cl-position idx exwm-workspace--switch-history :test #'equal)))))
   (unless id (setq id (exwm--buffer->id (window-buffer))))
-  (unless (and (<= 0 index) (< index exwm-workspace-number))
+  (unless (and (<= 0 index) (< index (exwm-workspace--count)))
     (user-error "[EXWM] Workspace index out of range: %d" index))
   (with-current-buffer (exwm--id->buffer id)
     (let ((frame (elt exwm-workspace--list index)))
@@ -827,12 +832,12 @@ applied to all subsequently created X frames."
       ;; Initialize workspaces with minibuffers.
       (progn
         (setq exwm-workspace--list (frame-list))
-        (when (< 1 (length exwm-workspace--list))
+        (when (< 1 (exwm-workspace--count))
           ;; Exclude the initial frame.
           (dolist (i exwm-workspace--list)
             (unless (frame-parameter i 'window-id)
               (setq exwm-workspace--list (delq i exwm-workspace--list))))
-          (cl-assert (= 1 (length exwm-workspace--list)))
+          (cl-assert (= 1 (exwm-workspace--count)))
           (setq exwm-workspace--client
                 (frame-parameter (car exwm-workspace--list) 'client))
           (let ((f (car exwm-workspace--list)))
@@ -975,14 +980,14 @@ applied to all subsequently created X frames."
   ;; Set _NET_NUMBER_OF_DESKTOPS (it's currently fixed).
   (xcb:+request exwm--connection
       (make-instance 'xcb:ewmh:set-_NET_NUMBER_OF_DESKTOPS
-                     :window exwm--root :data exwm-workspace-number))
+                     :window exwm--root :data (exwm-workspace--count)))
   ;; Set _NET_DESKTOP_GEOMETRY.
   (exwm-workspace--set-desktop-geometry)
   ;; Set _NET_DESKTOP_VIEWPORT (we don't support large desktop).
   (xcb:+request exwm--connection
       (make-instance 'xcb:ewmh:set-_NET_DESKTOP_VIEWPORT
                      :window exwm--root
-                     :data (make-vector (* 2 exwm-workspace-number) 0)))
+                     :data (make-vector (* 2 (exwm-workspace--count)) 0)))
   ;; Update and set _NET_WORKAREA.
   (exwm-workspace--update-workareas)
   ;; Set _NET_VIRTUAL_ROOTS (it's currently fixed.)
@@ -1022,7 +1027,7 @@ applied to all subsequently created X frames."
     (set-frame-parameter i 'fullscreen 'fullboth))
   ;; Wait until all workspace frames are resized.
   (with-timeout (1)
-    (while (< exwm-workspace--fullscreen-frame-count exwm-workspace-number)
+    (while (< exwm-workspace--fullscreen-frame-count (exwm-workspace--count))
       (accept-process-output nil 0.1)))
   (setq exwm-workspace--fullscreen-frame-count nil))
 

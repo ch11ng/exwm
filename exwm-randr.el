@@ -55,11 +55,11 @@
   "Normal hook run when the RandR module just refreshed.")
 
 (defvar exwm-workspace--fullscreen-frame-count)
-(defvar exwm-workspace-number)
 (defvar exwm-workspace--list)
 
-(declare-function exwm-workspace--update-workareas "exwm-workspace.el" ())
+(declare-function exwm-workspace--count "exwm-workspace.el")
 (declare-function exwm-workspace--set-fullscreen "exwm-workspace.el" (frame))
+(declare-function exwm-workspace--update-workareas "exwm-workspace.el" ())
 (declare-function exwm-workspace--set-desktop-geometry "exwm-workspace.el" ())
 
 (defun exwm-randr--refresh ()
@@ -97,7 +97,7 @@
       (when exwm-workspace--fullscreen-frame-count
         ;; Not all workspaces are fullscreen; reset this counter.
         (setq exwm-workspace--fullscreen-frame-count 0))
-      (dotimes (i exwm-workspace-number)
+      (dotimes (i (exwm-workspace--count))
         (let* ((output (plist-get exwm-randr-workspace-output-plist i))
                (geometry (lax-plist-get output-plist output))
                (frame (elt exwm-workspace--list i)))
