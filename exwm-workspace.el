@@ -178,8 +178,7 @@ Value nil means to use the default position which is fixed at bottom, while
                                     (list (vector x y width height))))))
       ;; Fall back to use the screen size.
       (let ((workarea (vector 0 0 root-width root-height)))
-        (dotimes (_ exwm-workspace-number)
-          (push workarea workareas))))
+        (setq workareas (make-list exwm-workspace-number workarea))))
     ;; Exclude areas occupied by struts.
     (dolist (struts exwm-workspace--struts)
       (setq edge (aref struts 0)
