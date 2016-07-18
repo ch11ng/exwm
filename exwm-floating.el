@@ -70,6 +70,7 @@
 (defvar exwm-workspace--list)
 (defvar exwm-workspace-current-index)
 (defvar exwm-workspace--switch-history-outdated)
+(defvar exwm-workspace--struts)
 
 (declare-function exwm-layout--refresh "exwm-layout.el" ())
 (declare-function exwm-layout--show "exwm-layout.el" (id &optional window))
@@ -242,7 +243,18 @@
           (exwm-floating-hide))
       (with-selected-frame exwm-workspace--current
         (exwm-layout--refresh))
-      (select-frame-set-input-focus frame)))
+      (select-frame-set-input-focus frame))
+    ;; FIXME: Strangely, the Emacs frame can move itself at this point
+    ;;        when there are left/top struts set.  Force resetting its
+    ;;        position seems working, but it'd better to figure out why.
+    (when exwm-workspace--struts
+      (xcb:+request exwm--connection
+          (make-instance 'xcb:ConfigureWindow
+                         :window outer-id
+                         :value-mask (logior xcb:ConfigWindow:X
+                                             xcb:ConfigWindow:Y)
+                         :x 0 :y 0))
+      (xcb:flush exwm--connection)))
   (run-hooks 'exwm-floating-setup-hook)
   ;; Redraw the frame.
   (redisplay))
