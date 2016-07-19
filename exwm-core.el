@@ -193,8 +193,12 @@
     "---"
     "*Workspace*"
     "---"
-    ["Move window to" exwm-workspace-move-window :keys "C-c C-m"]
-    ["Switch to buffer" exwm-workspace-switch-to-buffer]
+    ["Add workspace" exwm-workspace-add]
+    ["Delete current workspace" exwm-workspace-delete]
+    ["Move workspace to" exwm-workspace-move]
+    ["Swap workspaces" exwm-workspace-swap]
+    ["Move X window to" exwm-workspace-move-window :keys "C-c C-m"]
+    ["Move X window from" exwm-workspace-switch-to-buffer]
     ["Switch workspace" exwm-workspace-switch]
     ;; Place this entry at bottom to avoid selecting others by accident.
     ("Switch to" :filter
