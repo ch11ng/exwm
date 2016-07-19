@@ -981,7 +981,10 @@ INDEX must not exceed the current number of workspaces."
                frame
                (frame-parameter frame 'display)
                (slot-value exwm--connection 'display)))
-   ((frame-parameter frame 'exwm-floating)
+   ((frame-parameter frame 'unsplittable)
+    ;; We create floating frames with the "unsplittable" parameter set.
+    ;; Though it may not be a floating frame, we won't treat an
+    ;; unsplittable frame as a workspace anyway.
     (exwm--log "Frame `%s' is floating" frame))
    (t
     (exwm--log "Adding frame `%s' as workspace" frame)
@@ -995,12 +998,13 @@ INDEX must not exceed the current number of workspaces."
       (set-frame-parameter frame 'exwm-outer-id outer-id)
       (set-frame-parameter frame 'exwm-container container)
       (set-frame-parameter frame 'exwm-workspace workspace)
-      ;; Use same RandR output and geometry as previous workspace.
-      (let ((prev-workspace (selected-frame)))
+      ;; Copy RandR frame parameters from the first workspace to
+      ;; prevent potential problems.  The values do not matter here as
+      ;; they'll be updated by the RandR module later.
+      (let ((w (car exwm-workspace--list)))
         (dolist (param '(exwm-randr-output
                          exwm-geometry))
-          (set-frame-parameter frame param
-                               (frame-parameter prev-workspace param))))
+          (set-frame-parameter frame param (frame-parameter w param))))
       (xcb:+request exwm--connection
           (make-instance 'xcb:CreateWindow
                          :depth 0 :wid workspace :parent exwm--root
@@ -1056,10 +1060,12 @@ INDEX must not exceed the current number of workspaces."
 (defun exwm-workspace--remove-frame-as-workspace (frame)
   "Stop treating frame FRAME as a workspace."
   (cond
-   ((= 1 (exwm-workspace--count))
-    (exwm--log "Cannot remove last workspace"))
    ((not (exwm-workspace--workspace-p frame))
     (exwm--log "Frame `%s' is not a workspace" frame))
+   ((= 1 (exwm-workspace--count))
+    ;; FIXME: When using dedicated minibuffer frame, deleting the last
+    ;;        frame hangs Emacs.
+    (user-error "[EXWM] Cannot remove last workspace"))
    (t
     (exwm--log "Removing frame `%s' as workspace" frame)
     (let* ((index (exwm-workspace--position frame))
