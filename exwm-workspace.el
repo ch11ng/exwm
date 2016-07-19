@@ -449,6 +449,9 @@ The optional FORCE option is for internal use only."
       (xcb:flush exwm--connection))
     (run-hooks 'exwm-workspace-switch-hook)))
 
+(defvar exwm-workspace-list-change-hook nil
+  "Normal hook run when the workspace list is changed (workspace added,
+deleted, moved, etc).")
 
 ;;;###autoload
 (defun exwm-workspace-swap (workspace1 workspace2)
@@ -476,7 +479,8 @@ The optional FORCE option is for internal use only."
         ;; With the current workspace involved, lots of stuffs need refresh.
         (set-frame-parameter exwm-workspace--current 'exwm-selected-window
                              (selected-window))
-        (exwm-workspace-switch exwm-workspace--current t)))))
+        (exwm-workspace-switch exwm-workspace--current t))
+      (run-hooks 'exwm-workspace-list-change-hook))))
 
 ;;;###autoload
 (defun exwm-workspace-move (workspace nth)
@@ -511,7 +515,8 @@ before it."
         ;; With the current workspace involved, lots of stuffs need refresh.
         (set-frame-parameter exwm-workspace--current 'exwm-selected-window
                              (selected-window))
-        (exwm-workspace-switch exwm-workspace--current t)))))
+        (exwm-workspace-switch exwm-workspace--current t))
+      (run-hooks 'exwm-workspace-list-change-hook))))
 
 ;;;###autoload
 (defun exwm-workspace-add (&optional index)
@@ -1055,7 +1060,8 @@ INDEX must not exceed the current number of workspaces."
                                                  'fullscreen 'fullboth)))
     ;; Update EWMH properties.
     (exwm-workspace--update-ewmh-props)
-    (exwm-workspace-switch frame t))))
+    (exwm-workspace-switch frame t)
+    (run-hooks 'exwm-workspace-list-change-hook))))
 
 (defun exwm-workspace--remove-frame-as-workspace (frame)
   "Stop treating frame FRAME as a workspace."
@@ -1096,7 +1102,8 @@ INDEX must not exceed the current number of workspaces."
     ;; Update EWMH properties.
     (exwm-workspace--update-ewmh-props)
     ;; Update switch history.
-    (setq exwm-workspace--switch-history-outdated t))))
+    (setq exwm-workspace--switch-history-outdated t)
+    (run-hooks 'exwm-workspace-list-change-hook))))
 
 (defun exwm-workspace--update-ewmh-props ()
   "Update EWMH properties to match the workspace list."

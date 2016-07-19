@@ -154,10 +154,12 @@
                            ;;            xcb:randr:NotifyMask:OutputProperty
                            ;;            xcb:randr:NotifyMask:CrtcChange))
                            ))
-        (xcb:flush exwm--connection)))))
+        (xcb:flush exwm--connection)
+        (add-hook 'exwm-workspace-list-change-hook #'exwm-randr--refresh)))))
 
 (defun exwm-randr--exit ()
-  "Exit the RandR module.")
+  "Exit the RandR module."
+  (remove-hook 'exwm-workspace-list-change-hook #'exwm-randr--refresh))
 
 (defun exwm-randr-enable ()
   "Enable RandR support for EXWM."
