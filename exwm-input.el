@@ -125,24 +125,11 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
             (exwm-input--set-focus exwm--id)
             (when exwm--floating-frame
               ;; Adjust stacking orders of the floating container.
-              (if (exwm-workspace--minibuffer-own-frame-p)
-                  ;; Put this floating X window just below the minibuffer.
-                  (xcb:+request exwm--connection
-                      (make-instance 'xcb:ConfigureWindow
-                                     :window exwm--container
-                                     :value-mask
-                                     (logior xcb:ConfigWindow:Sibling
-                                             xcb:ConfigWindow:StackMode)
-                                     :sibling (frame-parameter
-                                               exwm-workspace--minibuffer
-                                               'exwm-container)
-                                     :stack-mode xcb:StackMode:Below))
-                ;; Put this floating X window at top.
-                (xcb:+request exwm--connection
-                    (make-instance 'xcb:ConfigureWindow
-                                   :window exwm--container
-                                   :value-mask xcb:ConfigWindow:StackMode
-                                   :stack-mode xcb:StackMode:Above)))
+              (xcb:+request exwm--connection
+                  (make-instance 'xcb:ConfigureWindow
+                                 :window exwm--container
+                                 :value-mask xcb:ConfigWindow:StackMode
+                                 :stack-mode xcb:StackMode:Above))
               ;; This floating X window might be hide by `exwm-floating-hide'.
               (when (exwm-layout--iconic-state-p)
                 (exwm-layout--set-state exwm--id

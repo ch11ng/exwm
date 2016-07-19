@@ -308,20 +308,32 @@ Value nil means to use the default position which is fixed at bottom, while
                                     'exwm-container))
         y width)
     (setq y (if (eq exwm-workspace-minibuffer-position 'top)
-                0
-              (- (aref workarea 3)
-                 (frame-pixel-height exwm-workspace--minibuffer)))
+                (- (aref workarea 1)
+                   exwm-workspace--attached-minibuffer-height)
+              ;; Reset the frame size.
+              (set-frame-height exwm-workspace--minibuffer 1)
+              (redisplay)               ;FIXME.
+              (+ (aref workarea 1) (aref workarea 3)
+                 (- (frame-pixel-height exwm-workspace--minibuffer))
+                 exwm-workspace--attached-minibuffer-height))
           width (aref workarea 2))
     (xcb:+request exwm--connection
         (make-instance 'xcb:ConfigureWindow
                        :window container
-                       :value-mask (logior xcb:ConfigWindow:Y
+                       :value-mask (logior xcb:ConfigWindow:X
+                                           xcb:ConfigWindow:Y
                                            xcb:ConfigWindow:Width
                                            xcb:ConfigWindow:StackMode)
+                       :x (aref workarea 0)
                        :y y
                        :width width
-                       :stack-mode xcb:StackMode:Above))
-    (set-frame-width exwm-workspace--minibuffer width nil t)))
+                       :stack-mode xcb:StackMode:Below))
+    (xcb:+request exwm--connection
+        (make-instance 'xcb:ConfigureWindow
+                       :window (frame-parameter exwm-workspace--minibuffer
+                                                'exwm-outer-id)
+                       :value-mask xcb:ConfigWindow:Width
+                       :width width))))
 
 (defun exwm-workspace--switch-map-nth-prefix (&optional prefix-digits)
   "Allow selecting a workspace by number.
@@ -428,17 +440,11 @@ The optional FORCE option is for internal use only."
                                      ;; Might be aborted by then.
                                      (when (active-minibuffer-window)
                                        (abort-recursive-edit)))))
-      (if (not (exwm-workspace--minibuffer-own-frame-p))
-          (setq default-minibuffer-frame frame)
-        ;; Resize/reposition the minibuffer frame
-        (xcb:+request exwm--connection
-            (make-instance 'xcb:ReparentWindow
-                           :window
-                           (frame-parameter exwm-workspace--minibuffer
-                                            'exwm-container)
-                           :parent (frame-parameter frame 'exwm-workspace)
-                           :x 0 :y 0))
-        (exwm-workspace--resize-minibuffer-frame))
+      (if (exwm-workspace--minibuffer-own-frame-p)
+          ;; Resize the minibuffer frame.
+          (exwm-workspace--resize-minibuffer-frame)
+        ;; Set a default minibuffer frame.
+        (setq default-minibuffer-frame frame))
       ;; Hide windows in other workspaces by preprending a space
       (unless exwm-workspace-show-all-buffers
         (dolist (i exwm--id-buffer-alist)
@@ -778,8 +784,59 @@ INDEX must not exceed the current number of workspaces."
     (xcb:flush exwm--connection)
     frame))
 
-(defun exwm-workspace--update-minibuffer (&optional echo-area)
-  "Update the minibuffer frame."
+(defsubst exwm-workspace--minibuffer-attached-p ()
+  "Return non-nil if the minibuffer is attached.
+
+Please check `exwm-workspace--minibuffer-own-frame-p' first."
+  (assq (frame-parameter exwm-workspace--minibuffer 'exwm-container)
+        exwm-workspace--id-struts-alist))
+
+(defvar exwm-workspace--attached-minibuffer-height 0
+  "Height (in pixel) of the attached minibuffer.
+
+If the minibuffer is detached, this value is 0.")
+
+(defun exwm-workspace-attach-minibuffer ()
+  "Attach the minibuffer so that it always shows."
+  (interactive)
+  (when (and (exwm-workspace--minibuffer-own-frame-p)
+             (not (exwm-workspace--minibuffer-attached-p)))
+    ;; Reset the frame size.
+    (set-frame-height exwm-workspace--minibuffer 1)
+    (redisplay)                       ;FIXME.
+    (setq exwm-workspace--attached-minibuffer-height
+          (frame-pixel-height exwm-workspace--minibuffer))
+    (let ((container (frame-parameter exwm-workspace--minibuffer
+                                      'exwm-container)))
+      (push (cons container
+                  (if (eq exwm-workspace-minibuffer-position 'top)
+                      (vector 0 0 exwm-workspace--attached-minibuffer-height 0)
+                    (vector 0 0 0 exwm-workspace--attached-minibuffer-height)))
+            exwm-workspace--id-struts-alist)
+      (exwm-workspace--update-struts)
+      (exwm-workspace--update-workareas)
+      (dolist (f exwm-workspace--list)
+        (exwm-workspace--set-fullscreen f))
+      (exwm-workspace--show-minibuffer))))
+
+(defun exwm-workspace-detach-minibuffer ()
+  "Detach the minibuffer so that it automatically hides."
+  (interactive)
+  (when (and (exwm-workspace--minibuffer-own-frame-p)
+             (exwm-workspace--minibuffer-attached-p))
+    (setq exwm-workspace--attached-minibuffer-height 0)
+    (let ((container (frame-parameter exwm-workspace--minibuffer
+                                      'exwm-container)))
+      (setq exwm-workspace--id-struts-alist
+            (assq-delete-all container exwm-workspace--id-struts-alist))
+      (exwm-workspace--update-struts)
+      (exwm-workspace--update-workareas)
+      (dolist (f exwm-workspace--list)
+        (exwm-workspace--set-fullscreen f))
+      (exwm-workspace--hide-minibuffer))))
+
+(defun exwm-workspace--update-minibuffer-height (&optional echo-area)
+  "Update the minibuffer frame height."
   (let ((height
          (with-current-buffer
              (window-buffer (minibuffer-window exwm-workspace--minibuffer))
@@ -802,7 +859,7 @@ INDEX must not exceed the current number of workspaces."
 (defun exwm-workspace--on-ConfigureNotify (data _synthetic)
   "Adjust the container to fit the minibuffer frame."
   (let ((obj (make-instance 'xcb:ConfigureNotify))
-        value-mask y)
+        workarea y)
     (xcb:unmarshal obj data)
     (with-slots (window height) obj
       (when (eq (frame-parameter exwm-workspace--minibuffer 'exwm-outer-id)
@@ -818,19 +875,19 @@ INDEX must not exceed the current number of workspaces."
                              :window window
                              :value-mask xcb:ConfigWindow:Height
                              :height height)))
-        (if (eq exwm-workspace-minibuffer-position 'top)
-            (setq value-mask xcb:ConfigWindow:Height
-                  y 0)
-          (setq value-mask (logior xcb:ConfigWindow:Y xcb:ConfigWindow:Height)
-                y (- (aref (elt exwm-workspace--workareas
-                                exwm-workspace-current-index)
-                           3)
-                     height)))
+        (setq workarea (elt exwm-workspace--workareas
+                            exwm-workspace-current-index)
+              y (if (eq exwm-workspace-minibuffer-position 'top)
+                    (- (aref workarea 1)
+                       exwm-workspace--attached-minibuffer-height)
+                  (+ (aref workarea 1) (aref workarea 3) (- height)
+                     exwm-workspace--attached-minibuffer-height)))
         (xcb:+request exwm--connection
             (make-instance 'xcb:ConfigureWindow
                            :window (frame-parameter exwm-workspace--minibuffer
                                                     'exwm-container)
-                           :value-mask value-mask
+                           :value-mask (logior xcb:ConfigWindow:Y
+                                               xcb:ConfigWindow:Height)
                            :y y
                            :height height))
         (xcb:flush exwm--connection)))))
@@ -851,26 +908,31 @@ INDEX must not exceed the current number of workspaces."
     (setq exwm-workspace--display-echo-area-timer nil))
   ;; Show the minibuffer frame.
   (xcb:+request exwm--connection
-      (make-instance 'xcb:MapWindow
+      (make-instance 'xcb:ConfigureWindow
                      :window (frame-parameter exwm-workspace--minibuffer
-                                              'exwm-container)))
+                                              'exwm-container)
+                     :value-mask xcb:ConfigWindow:StackMode
+                     :stack-mode xcb:StackMode:Above))
   (xcb:flush exwm--connection)
   ;; Unfortunately we need the following lines to workaround a cursor
   ;; flickering issue for line-mode floating X windows.  They just make the
   ;; minibuffer appear to be focused.
-  (with-current-buffer (window-buffer (minibuffer-window
-                                       exwm-workspace--minibuffer))
-    (setq cursor-in-non-selected-windows
-          (frame-parameter exwm-workspace--minibuffer 'cursor-type))))
-
+  ;; (FIXED?)
+  ;; (with-current-buffer (window-buffer (minibuffer-window
+  ;;                                      exwm-workspace--minibuffer))
+  ;;   (setq cursor-in-non-selected-windows
+  ;;         (frame-parameter exwm-workspace--minibuffer 'cursor-type)))
+  )
 
 (defun exwm-workspace--hide-minibuffer ()
   "Hide the minibuffer frame."
   ;; Hide the minibuffer frame.
   (xcb:+request exwm--connection
-      (make-instance 'xcb:UnmapWindow
+      (make-instance 'xcb:ConfigureWindow
                      :window (frame-parameter exwm-workspace--minibuffer
-                                              'exwm-container)))
+                                              'exwm-container)
+                     :value-mask xcb:ConfigWindow:StackMode
+                     :stack-mode xcb:StackMode:Below))
   (xcb:flush exwm--connection))
 
 (defun exwm-workspace--on-minibuffer-setup ()
@@ -878,7 +940,7 @@ INDEX must not exceed the current number of workspaces."
   (when (and (= 1 (minibuffer-depth))
              ;; Exclude non-graphical frames.
              (frame-parameter nil 'exwm-outer-id))
-    (add-hook 'post-command-hook #'exwm-workspace--update-minibuffer)
+    (add-hook 'post-command-hook #'exwm-workspace--update-minibuffer-height)
     (exwm-workspace--show-minibuffer)
     ;; Set input focus on the Emacs frame
     (x-focus-frame (window-frame (minibuffer-selected-window)))))
@@ -888,7 +950,7 @@ INDEX must not exceed the current number of workspaces."
   (when (and (= 1 (minibuffer-depth))
              ;; Exclude non-graphical frames.
              (frame-parameter nil 'exwm-outer-id))
-    (remove-hook 'post-command-hook #'exwm-workspace--update-minibuffer)
+    (remove-hook 'post-command-hook #'exwm-workspace--update-minibuffer-height)
     (exwm-workspace--hide-minibuffer)))
 
 (defvar exwm-input--during-command)
@@ -900,7 +962,7 @@ INDEX must not exceed the current number of workspaces."
              (frame-parameter nil 'exwm-outer-id)
              (or (current-message)
                  cursor-in-echo-area))
-    (exwm-workspace--update-minibuffer t)
+    (exwm-workspace--update-minibuffer-height t)
     (exwm-workspace--show-minibuffer)
     (unless (or (not exwm-workspace-display-echo-area-timeout)
                 exwm-input--during-command ;e.g. read-event
@@ -1217,9 +1279,14 @@ applied to all subsequently created X frames."
              (make-instance 'xcb:ewmh:set-_NET_WM_NAME
                             :window container
                             :data "Minibuffer container")))
+        ;; Reparent the minibuffer frame to the container.
         (xcb:+request exwm--connection
             (make-instance 'xcb:ReparentWindow
                            :window outer-id :parent container :x 0 :y 0))
+        ;; Map the container.
+        (xcb:+request exwm--connection
+            (make-instance 'xcb:MapWindow
+                           :window container))
         ;; Attach event listener for monitoring the frame
         (xcb:+request exwm--connection
             (make-instance 'xcb:ChangeWindowAttributes
