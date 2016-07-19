@@ -337,11 +337,17 @@ PREFIX-DIGITS is a list of the digits introduced so far."
                                   (* o x))
                                 prefix-digits)))
          (n (+ pn d))
-         (num-workspaces (exwm-workspace--count)))
-    (if (= (length prefix-digits)
-           (floor (log (1- num-workspaces) 10)))
+         prefix-length index-max index-length)
+    (if (or (= n 0)
+            (> n
+               (setq index-max (1- (exwm-workspace--count))))
+            (>= (setq prefix-length (length prefix-digits))
+                (setq index-length (floor (log index-max 10))))
+            ;; Check if it's still possible to do a match.
+            (> (* n (expt 10 (- index-length prefix-length)))
+               index-max))
         (exwm-workspace--switch-map-select-nth n)
-      ;; go ahead if there are enough digits to select any workspace.
+      ;; Go ahead if there are enough digits to select any workspace.
       (set-transient-map
        (let ((map (make-sparse-keymap))
              (cmd `(lambda ()
