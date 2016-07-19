@@ -325,6 +325,17 @@
           id (slot-value obj 'window)
           data (slot-value (slot-value obj 'data) 'data32))
     (cond
+     ;; _NET_NUMBER_OF_DESKTOPS.
+     ((= type xcb:Atom:_NET_NUMBER_OF_DESKTOPS)
+      (let ((current (exwm-workspace--count))
+            (requested (elt data 0)))
+        ;; Only allow increasing/decreasing the workspace number by 1.
+        (cond
+         ((< current requested)
+          (make-frame))
+         ((and (> current requested)
+               (> current 1))
+          (delete-frame (car (last exwm-workspace--list)))))))
      ;; _NET_CURRENT_DESKTOP.
      ((= type xcb:Atom:_NET_CURRENT_DESKTOP)
       (exwm-workspace-switch (elt data 0)))
