@@ -1234,14 +1234,10 @@ applied to all subsequently created X frames."
       (setq exwm-workspace--timer
             (run-with-idle-timer 0 t #'exwm-workspace--on-echo-area-dirty))
       (add-hook 'echo-area-clear-hook #'exwm-workspace--on-echo-area-clear)
-      ;; Recreate frames with the external minibuffer set.
-      (setq initial-workspaces
-            (mapcar
-             (lambda (_)
-               (make-frame '((window-system . x)
-                             (internal-border-width . 0)
-                             (client . nil))))
-             initial-workspaces))
+      ;; Recreate one frame with the external minibuffer set.
+      (setq initial-workspaces (list (make-frame '((window-system . x)
+                                                   (internal-border-width . 0)
+                                                   (client . nil)))))
       ;; The default behavior of `display-buffer' (indirectly called by
       ;; `minibuffer-completion-help') is not correct here.
       (cl-pushnew '(exwm-workspace--display-buffer) display-buffer-alist
