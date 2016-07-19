@@ -119,6 +119,15 @@
 ;; _MOTIF_WM_HINTS
 (defvar-local exwm--mwm-hints-decorations t)
 
+(declare-function exwm-floating-hide "exwm-floating.el")
+(declare-function exwm-floating-toggle-floating "exwm-floating.el")
+(declare-function exwm-input-release-keyboard "exwm-input.el")
+(declare-function exwm-input-send-next-key "exwm-input.el" (times))
+(declare-function exwm-layout-set-fullscreen "exwm-layout.el" (&optional id))
+(declare-function exwm-layout-toggle-mode-line "exwm-layout.el")
+(declare-function exwm-workspace-move-window "exwm-workspace.el"
+                  (frame-or-index &optional id))
+
 (defvar exwm-mode-map
   (let ((map (make-sparse-keymap)))
     (define-key map "\C-c\C-f" #'exwm-layout-set-fullscreen)
@@ -184,8 +193,12 @@
     "---"
     "*Workspace*"
     "---"
-    ["Move window to" exwm-workspace-move-window :keys "C-c C-m"]
-    ["Switch to buffer" exwm-workspace-switch-to-buffer]
+    ["Add workspace" exwm-workspace-add]
+    ["Delete current workspace" exwm-workspace-delete]
+    ["Move workspace to" exwm-workspace-move]
+    ["Swap workspaces" exwm-workspace-swap]
+    ["Move X window to" exwm-workspace-move-window :keys "C-c C-m"]
+    ["Move X window from" exwm-workspace-switch-to-buffer]
     ["Switch workspace" exwm-workspace-switch]
     ;; Place this entry at bottom to avoid selecting others by accident.
     ("Switch to" :filter
@@ -196,7 +209,7 @@
                      (interactive)
                      (exwm-workspace-switch ,i))
                    (/= ,i exwm-workspace-current-index)])
-               (number-sequence 0 (1- exwm-workspace-number)))))))
+               (number-sequence 0 (1- (exwm-workspace--count))))))))
 
 (declare-function exwm-manage--kill-buffer-query-function "exwm-manage.el")
 

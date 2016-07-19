@@ -102,6 +102,9 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
 
 (declare-function exwm-layout--iconic-state-p "exwm-layout.el" (&optional id))
 (declare-function exwm-layout--set-state "exwm-layout.el" (id state))
+(declare-function exwm-workspace--minibuffer-own-frame-p "exwm-workspace.el")
+(declare-function exwm-workspace-switch "exwm-workspace.el"
+                  (frame-or-index &optional force))
 
 (defun exwm-input--update-focus ()
   "Update input focus."
@@ -117,7 +120,7 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
                 (setq exwm-workspace--switch-history-outdated t)
                 (force-mode-line-update)
                 ;; The application may have changed its input focus
-                (exwm-workspace-switch exwm-workspace-current-index t))
+                (exwm-workspace-switch exwm-workspace--current t))
             (exwm--log "Set focus on #x%x" exwm--id)
             (exwm-input--set-focus exwm--id)
             (when exwm--floating-frame
@@ -176,6 +179,8 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
 
 (declare-function exwm-floating--start-moveresize "exwm-floating.el"
                   (id &optional type))
+(declare-function exwm-workspace--position "exwm-workspace.el" (frame))
+(declare-function exwm-workspace--workspace-p "exwm-workspace.el" (workspace))
 
 (defvar exwm-workspace--list)
 
@@ -202,17 +207,15 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
                (unless (eq window (selected-window))
                  (setq frame (window-frame window))
                  (unless (eq frame exwm-workspace--current)
-                   (if (memq frame exwm-workspace--list)
+                   (if (exwm-workspace--workspace-p frame)
                        ;; The X window is on another workspace
-                       (exwm-workspace-switch
-                        (cl-position frame exwm-workspace--list))
+                       (exwm-workspace-switch frame)
                      (with-current-buffer (window-buffer window)
                        (when (and (eq major-mode 'exwm-mode)
                                   (not (eq exwm--frame
                                            exwm-workspace--current)))
                          ;; The floating X window is on another workspace
-                         (exwm-workspace-switch
-                          (cl-position exwm--frame exwm-workspace--list))))))
+                         (exwm-workspace-switch exwm--frame)))))
                  ;; It has been reported that the `window' may have be deleted
                  (if (window-live-p window)
                      (select-window window)

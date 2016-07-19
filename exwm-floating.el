@@ -67,14 +67,11 @@
                                      xcb:Atom:_NET_WM_ACTION_CLOSE)))))
 
 (defvar exwm-workspace--current)
-(defvar exwm-workspace--list)
-(defvar exwm-workspace-current-index)
-(defvar exwm-workspace--switch-history-outdated)
-(defvar exwm-workspace--struts)
 
 (declare-function exwm-layout--refresh "exwm-layout.el" ())
 (declare-function exwm-layout--show "exwm-layout.el" (id &optional window))
 (declare-function exwm-layout--iconic-state-p "exwm-layout.el" (&optional id))
+(declare-function exwm-workspace--minibuffer-own-frame-p "exwm-workspace.el")
 
 (defun exwm-floating--set-floating (id)
   "Make window ID floating."

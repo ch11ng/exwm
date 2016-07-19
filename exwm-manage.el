@@ -89,7 +89,12 @@ corresponding buffer.")
 (declare-function exwm--update-struts "exwm.el" (id))
 (declare-function exwm-floating--set-floating "exwm-floating.el" (id))
 (declare-function exwm-floating--unset-floating "exwm-floating.el" (id))
+(declare-function exwm-input-grab-keyboard "exwm-input.el")
+(declare-function exwm-workspace--current-height "exwm-workspace.el")
+(declare-function exwm-workspace--current-width  "exwm-workspace.el")
 (declare-function exwm-workspace--set-desktop "exwm-workspace.el" (id))
+(declare-function exwm-workspace-move-window "exwm-workspace.el"
+                  (frame-or-index &optional id))
 
 (defun exwm-manage--manage-window (id)
   "Manage window ID."
@@ -510,7 +515,7 @@ border-width: %d; sibling: #x%x; stack-mode: %d"
                                   (< (abs width-delta)
                                      exwm-manage--width-delta-min))
                                 (if (= 0 (logand value-mask
-                                                  xcb:ConfigWindow:Height))
+                                                 xcb:ConfigWindow:Height))
                                     t
                                   (< (abs height-delta)
                                      exwm-manage--height-delta-min))))))))

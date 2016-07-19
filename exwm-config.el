@@ -39,7 +39,7 @@
   ;; 's-w': Switch workspace
   (exwm-input-set-key (kbd "s-w") #'exwm-workspace-switch)
   ;; 's-N': Switch to certain workspace
-  (dotimes (i exwm-workspace-number)
+  (dotimes (i 10)
     (exwm-input-set-key (kbd (format "s-%d" i))
                         `(lambda () (interactive) (exwm-workspace-switch ,i))))
   ;; 's-&': Launch application

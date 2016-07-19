@@ -153,9 +153,16 @@
       (xcb:flush exwm--connection))))
 
 (defvar exwm-workspace--current)
-(defvar exwm-workspace--list)
 
+(declare-function exwm-input-grab-keyboard "exwm-input.el")
+(declare-function exwm-input-release-keyboard "exwm-input.el")
+(declare-function exwm-workspace--current-height "exwm-workspace.el")
+(declare-function exwm-workspace--current-width  "exwm-workspace.el")
+(declare-function exwm-workspace--get-geometry "exwm-workspace.el" (frame))
+(declare-function exwm-workspace--minibuffer-own-frame-p "exwm-workspace.el")
 (declare-function exwm-workspace--set-fullscreen "exwm-workspace.el" (frame))
+(declare-function exwm-workspace-move-window "exwm-workspace.el"
+                  (frame-or-index &optional id))
 
 ;;;###autoload
 (defun exwm-layout-set-fullscreen (&optional id)
@@ -273,6 +280,8 @@ selected by `other-buffer'."
 
 (defvar exwm-layout-show-all-buffers nil
   "Non-nil to allow switching to buffers on other workspaces.")
+(declare-function exwm-workspace--workspace-p "exwm-workspace.el"
+                  (workspace))
 
 (defun exwm-layout--set-client-list-stacking ()
   "Set _NET_CLIENT_LIST_STACKING."
@@ -295,7 +304,7 @@ selected by `other-buffer'."
         (make-instance 'xcb:ewmh:set-_NET_CLIENT_LIST_STACKING
                        :window exwm--root
                        :data (vconcat (append clients-other clients-iconic
-                                             clients clients-floating))))))
+                                              clients clients-floating))))))
 
 (defun exwm-layout--refresh ()
   "Refresh layout."
@@ -303,7 +312,7 @@ selected by `other-buffer'."
         covered-buffers             ;EXWM-buffers covered by a new X window.
         vacated-windows             ;Windows previously displaying EXWM-buffers.
         windows)
-    (if (not (memq frame exwm-workspace--list))
+    (if (not (exwm-workspace--workspace-p frame))
         (if (frame-parameter frame 'exwm-outer-id)
             ;; Refresh a floating frame
             (let ((window (frame-first-window frame)))
@@ -337,8 +346,7 @@ selected by `other-buffer'."
               (let ((window (car windows)))
                 (if (eq frame exwm--frame)
                     (exwm-layout--show exwm--id window)
-                  (exwm-workspace-move-window
-                   (cl-position frame exwm-workspace--list) exwm--id))
+                  (exwm-workspace-move-window frame exwm--id))
                 ;; Make sure this buffer is not displayed elsewhere.  Note down
                 ;; windows displaying an EXWM-buffer now displayed elsewhere; we
                 ;; need to display with some other buffer there.
