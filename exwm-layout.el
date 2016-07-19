@@ -304,7 +304,7 @@ selected by `other-buffer'."
         (make-instance 'xcb:ewmh:set-_NET_CLIENT_LIST_STACKING
                        :window exwm--root
                        :data (vconcat (append clients-other clients-iconic
-                                             clients clients-floating))))))
+                                              clients clients-floating))))))
 
 (defun exwm-layout--refresh ()
   "Refresh layout."

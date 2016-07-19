@@ -205,7 +205,7 @@
                      (interactive)
                      (exwm-workspace-switch ,i))
                    (/= ,i exwm-workspace-current-index)])
-               (number-sequence 0 (1- exwm-workspace-number)))))))
+               (number-sequence 0 (1- (exwm-workspace--count))))))))
 
 (declare-function exwm-manage--kill-buffer-query-function "exwm-manage.el")
 

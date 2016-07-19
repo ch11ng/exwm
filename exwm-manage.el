@@ -515,7 +515,7 @@ border-width: %d; sibling: #x%x; stack-mode: %d"
                                   (< (abs width-delta)
                                      exwm-manage--width-delta-min))
                                 (if (= 0 (logand value-mask
-                                                  xcb:ConfigWindow:Height))
+                                                 xcb:ConfigWindow:Height))
                                     t
                                   (< (abs height-delta)
                                      exwm-manage--height-delta-min))))))))
