@@ -1164,6 +1164,17 @@ Please check `exwm-workspace--minibuffer-own-frame-p' first."
       ;; If the current workspace is deleted, switch to next one.
       (when (eq frame exwm-workspace--current)
         (exwm-workspace-switch nextw)))
+    ;; Reparent out the frame.
+    (xcb:+request exwm--connection
+        (make-instance 'xcb:ReparentWindow
+                       :window (frame-parameter frame 'exwm-outer-id)
+                       :parent exwm--root
+                       :x 0
+                       :y 0))
+    ;; Destroy the containers.
+    (xcb:+request exwm--connection
+        (make-instance 'xcb:DestroyWindow
+                       :window (frame-parameter frame 'exwm-workspace)))
     ;; Update EWMH properties.
     (exwm-workspace--update-ewmh-props)
     ;; Update switch history.
@@ -1234,7 +1245,7 @@ applied to all subsequently created X frames."
       (setq exwm-workspace--minibuffer
             (make-frame '((window-system . x) (minibuffer . only)
                           (left . 10000) (right . 10000)
-                          (width . 0) (height . 0)
+                          (width . 1) (height . 1)
                           (internal-border-width . 0)
                           (client . nil))))
       ;; Remove/hide existing frames.
@@ -1351,9 +1362,12 @@ applied to all subsequently created X frames."
 
 (defun exwm-workspace--post-init ()
   "The second stage in the initialization of the workspace module."
-  ;; Make the workspaces fullscreen.
-  (dolist (i exwm-workspace--list)
-    (set-frame-parameter i 'fullscreen 'fullboth))
+  (when exwm-workspace--client
+    ;; Reset the 'fullscreen' frame parameter to make emacsclinet frames
+    ;; fullscreen (even without the RandR module enabled).
+    (dolist (i exwm-workspace--list)
+      (set-frame-parameter i 'fullscreen nil)
+      (set-frame-parameter i 'fullscreen 'fullboth)))
   ;; Wait until all workspace frames are resized.
   (with-timeout (1)
     (while (< exwm-workspace--fullscreen-frame-count (exwm-workspace--count))

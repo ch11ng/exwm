@@ -199,6 +199,12 @@
     ["Swap workspaces" exwm-workspace-swap]
     ["Move X window to" exwm-workspace-move-window :keys "C-c C-m"]
     ["Move X window from" exwm-workspace-switch-to-buffer]
+    ["Attach minibuffer" exwm-workspace-attach-minibuffer
+     (and (exwm-workspace--minibuffer-own-frame-p)
+          (not (exwm-workspace--minibuffer-attached-p)))]
+    ["Detach minibuffer" exwm-workspace-detach-minibuffer
+     (and (exwm-workspace--minibuffer-own-frame-p)
+          (exwm-workspace--minibuffer-attached-p))]
     ["Switch workspace" exwm-workspace-switch]
     ;; Place this entry at bottom to avoid selecting others by accident.
     ("Switch to" :filter
