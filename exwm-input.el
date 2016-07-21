@@ -79,21 +79,51 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
       (exwm-input--set-active-window id)
       (xcb:flush exwm--connection))))
 
-(defvar exwm-input--focus-window nil "The (Emacs) window to be focused.")
-(defvar exwm-input--timer nil "Currently running timer.")
+(defvar exwm-input--update-focus-window nil "The (Emacs) window to be focused.
+
+This value should always be overwritten.")
 
 (defun exwm-input--on-buffer-list-update ()
-  "Run in buffer-list-update-hook to track input focus."
-  (let ((frame (selected-frame))
-        (window (selected-window))
-        (buffer (current-buffer)))
-    (when (and (not (minibufferp buffer))
-               (frame-parameter frame 'exwm-outer-id) ;e.g. emacsclient frame
-               (eq buffer (window-buffer))) ;e.g. `with-temp-buffer'
-      (when exwm-input--timer (cancel-timer exwm-input--timer))
-      (setq exwm-input--focus-window window
-            exwm-input--timer
-            (run-with-idle-timer 0.01 nil #'exwm-input--update-focus)))))
+  "Run in `buffer-list-update-hook' to track input focus."
+  (when (and (not (minibufferp)) ;Do not set input focus on minibuffer window.
+             (eq (current-buffer) (window-buffer)) ;e.g. `with-temp-buffer'.
+             (frame-parameter nil 'exwm-outer-id)) ;e.g. emacsclient frame.
+    (setq exwm-input--update-focus-window (selected-window))
+    (exwm-input--update-focus-defer)))
+
+;; Input focus update requests should be accumulated for a short time
+;; interval so that only the last one need to be processed.  This not
+;; improves the overall performance, but avoids the problem of input
+;; focus loop, which is a result of the interaction with Emacs frames.
+;;
+;; FIXME: The time interval is hard to decide and perhaps machine-dependent.
+;;        A value too small can cause redundant updates of input focus,
+;;        and even worse, dead loops.  OTOH a large value would bring
+;;        laggy experience.
+(defconst exwm-input--update-focus-interval 0.01
+  "Time interval (in seconds) for accumulating input focus update requests.")
+
+(defvar exwm-input--update-focus-lock nil
+  "Lock for solving input focus update contention.")
+(defvar exwm-input--update-focus-defer-timer nil "Timer for polling the lock.")
+(defvar exwm-input--update-focus-timer nil
+  "Timer for deferring the update of input focus.")
+
+(defun exwm-input--update-focus-defer ()
+  "Defer updating input focus."
+  (when exwm-input--update-focus-defer-timer
+    (cancel-timer exwm-input--update-focus-defer-timer))
+  (if exwm-input--update-focus-lock
+      (setq exwm-input--update-focus-defer-timer
+            (run-with-idle-timer 0 nil
+                                 #'exwm-input--update-focus-defer))
+    (setq exwm-input--update-focus-defer-timer nil)
+    (when exwm-input--update-focus-timer
+      (cancel-timer exwm-input--update-focus-timer))
+    (setq exwm-input--update-focus-timer
+          (run-with-idle-timer exwm-input--update-focus-interval nil
+                               #'exwm-input--update-focus
+                               exwm-input--update-focus-window))))
 
 (defvar exwm-workspace--current)
 (defvar exwm-workspace--switch-history-outdated)
@@ -106,21 +136,23 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
 (declare-function exwm-workspace-switch "exwm-workspace.el"
                   (frame-or-index &optional force))
 
-(defun exwm-input--update-focus ()
+(defun exwm-input--update-focus (window)
   "Update input focus."
-  (when (and (window-live-p exwm-input--focus-window)
+  (setq exwm-input--update-focus-lock t)
+  (when (and (window-live-p window)
              ;; Do not update input focus when there's an active minibuffer.
              (not (active-minibuffer-window)))
-    (with-current-buffer (window-buffer exwm-input--focus-window)
+    (with-current-buffer (window-buffer window)
       (if (eq major-mode 'exwm-mode)
           (if (not (eq exwm--frame exwm-workspace--current))
-              ;; Do not focus X windows on other workspace
+              ;; Do not focus X windows on other workspace.
               (progn
                 (set-frame-parameter exwm--frame 'exwm-urgency t)
                 (setq exwm-workspace--switch-history-outdated t)
                 (force-mode-line-update)
                 ;; The application may have changed its input focus
-                (exwm-workspace-switch exwm-workspace--current t))
+                (select-window
+                 (frame-selected-window exwm-workspace--current)))
             (exwm--log "Set focus on #x%x" exwm--id)
             (exwm-input--set-focus exwm--id)
             (when exwm--floating-frame
@@ -135,13 +167,12 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
                 (exwm-layout--set-state exwm--id
                                         xcb:icccm:WM_STATE:NormalState))
               (xcb:flush exwm--connection)))
-        (when (eq (selected-window) exwm-input--focus-window)
-          (exwm--log "Focus on %s" exwm-input--focus-window)
-          (select-frame-set-input-focus (window-frame exwm-input--focus-window)
-                                        t)
+        (when (eq (selected-window) window)
+          (exwm--log "Focus on %s" window)
+          (select-frame-set-input-focus (window-frame window) t)
           (exwm-input--set-active-window)
-          (xcb:flush exwm--connection)))
-      (setq exwm-input--focus-window nil))))
+          (xcb:flush exwm--connection)))))
+  (setq exwm-input--update-focus-lock nil))
 
 (defun exwm-input--set-active-window (&optional id)
   "Set _NET_ACTIVE_WINDOW."

@@ -381,9 +381,7 @@ selected by `other-buffer'."
     (run-with-idle-timer 0.01 nil         ;FIXME
                          (lambda ()
                            (when (< 1 (window-height (minibuffer-window)))
-                             (exwm-layout--refresh))))
-    ;; Set input focus on the Emacs frame
-    (x-focus-frame (window-frame (minibuffer-selected-window)))))
+                             (exwm-layout--refresh))))))
 
 (defun exwm-layout--on-echo-area-change (&optional dirty)
   "Run when message arrives or in `echo-area-clear-hook' to refresh layout."
