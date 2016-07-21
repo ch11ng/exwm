@@ -420,8 +420,8 @@ manager is shutting down."
         (xcb:+request exwm--connection
             (make-instance 'xcb:UnmapWindow :window exwm--container))
         (xcb:flush exwm--connection)
-        (run-with-timer exwm-manage-ping-timeout nil
-                        `(lambda () (exwm-manage--kill-client ,id)))
+        (run-with-timer exwm-manage-ping-timeout nil #'exwm-manage--kill-client
+                        id)
         ;; Wait for DestroyNotify event.
         (throw 'return nil))
       ;; Try to determine if the X window is dead with _NET_WM_PING.

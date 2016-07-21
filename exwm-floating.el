@@ -67,6 +67,7 @@
                                      xcb:Atom:_NET_WM_ACTION_CLOSE)))))
 
 (defvar exwm-workspace--current)
+(defvar exwm-workspace--struts)
 
 (declare-function exwm-layout--refresh "exwm-layout.el" ())
 (declare-function exwm-layout--show "exwm-layout.el" (id &optional window))
@@ -96,8 +97,7 @@
                      (height . ,window-min-height)
                      (unsplittable . t))))) ;and fix the size later
          (outer-id (string-to-number (frame-parameter frame 'outer-window-id)))
-         (container (with-current-buffer (exwm--id->buffer id)
-                      exwm--container))
+         (container (buffer-local-value 'exwm--container (exwm--id->buffer id)))
          (frame-container (xcb:generate-id exwm--connection))
          (window (frame-first-window frame)) ;and it's the only window
          (x (slot-value exwm--geometry 'x))
@@ -524,8 +524,8 @@
              ;; Unmanaged.
              (eq major-mode 'exwm-mode))
     (let ((edges (window-inside-absolute-pixel-edges (frame-selected-window)))
-          (id (with-current-buffer (window-buffer (frame-selected-window))
-                exwm--id)))
+          (id (buffer-local-value 'exwm--id
+                                  (window-buffer (frame-selected-window)))))
       (xcb:+request exwm--connection
           (make-instance 'xcb:SendEvent
                          :propagate 0 :destination id
@@ -570,7 +570,7 @@
       (setq container-or-id
             (if (bufferp buffer-or-id)
                 ;; Managed.
-                (with-current-buffer buffer-or-id exwm--container)
+                (buffer-local-value 'exwm--container buffer-or-id)
               ;; Unmanaged.
               buffer-or-id))
       (xcb:+request exwm--connection

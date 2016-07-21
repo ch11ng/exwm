@@ -221,8 +221,7 @@
   (setq mode-name
         '(:eval (propertize "EXWM" 'face
                             (when (cl-some (lambda (i)
-                                             (frame-parameter i
-                                                              'exwm--urgency))
+                                             (frame-parameter i 'exwm-urgency))
                                            exwm-workspace--list)
                               'font-lock-warning-face))))
   ;; Change major-mode is not allowed

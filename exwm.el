@@ -214,8 +214,8 @@
                 (setq exwm--hints-urgency t))))
           (when (and exwm--hints-urgency
                      (not (eq exwm--frame exwm-workspace--current)))
-            (unless (frame-parameter exwm--frame 'exwm--urgency)
-              (set-frame-parameter exwm--frame 'exwm--urgency t)
+            (unless (frame-parameter exwm--frame 'exwm-urgency)
+              (set-frame-parameter exwm--frame 'exwm-urgency t)
               (setq exwm-workspace--switch-history-outdated t))))))))
 
 (defun exwm--update-protocols (id &optional force)
@@ -361,8 +361,8 @@
      ((= type xcb:Atom:_NET_WM_MOVERESIZE)
       (let ((direction (elt data 2))
             (buffer (exwm--id->buffer id)))
-        (unless (and buffer (with-current-buffer buffer
-                              (not exwm--floating-frame)))
+        (unless (and buffer
+                     (not (buffer-local-value 'exwm--floating-frame buffer)))
           (cond ((= direction
                     xcb:ewmh:_NET_WM_MOVERESIZE_SIZE_KEYBOARD)
                  ;; FIXME
@@ -379,8 +379,7 @@
       (let ((buffer (exwm--id->buffer id))
             left right top btm)
         (if (or (not buffer)
-                (with-current-buffer buffer
-                  (not exwm--floating-frame)))
+                (not (buffer-local-value 'exwm--floating-frame buffer)))
             (setq left 0 right 0 top 0 btm 0)
           (setq left exwm-floating-border-width
                 right exwm-floating-border-width
@@ -451,7 +450,7 @@
             (when (memq xcb:Atom:_NET_WM_STATE_DEMANDS_ATTENTION props)
               (when (= action xcb:ewmh:_NET_WM_STATE_ADD)
                 (unless (eq exwm--frame exwm-workspace--current)
-                  (set-frame-parameter exwm--frame 'exwm--urgency t)
+                  (set-frame-parameter exwm--frame 'exwm-urgency t)
                   (setq exwm-workspace--switch-history-outdated t)))
               ;; xcb:ewmh:_NET_WM_STATE_REMOVE?
               ;; xcb:ewmh:_NET_WM_STATE_TOGGLE?

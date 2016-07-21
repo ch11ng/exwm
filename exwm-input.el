@@ -116,7 +116,7 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
           (if (not (eq exwm--frame exwm-workspace--current))
               ;; Do not focus X windows on other workspace
               (progn
-                (set-frame-parameter exwm--frame 'exwm--urgency t)
+                (set-frame-parameter exwm--frame 'exwm-urgency t)
                 (setq exwm-workspace--switch-history-outdated t)
                 (force-mode-line-update)
                 ;; The application may have changed its input focus

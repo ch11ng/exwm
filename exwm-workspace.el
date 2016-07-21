@@ -128,7 +128,7 @@ NIL if FRAME is not a workspace"
                            (int-to-string j)
                            'face
                            (cond ((frame-parameter (elt exwm-workspace--list j)
-                                                   'exwm--urgency)
+                                                   'exwm-urgency)
                                   '(:foreground "orange"))
                                  ((aref not-empty j) '(:foreground "green"))
                                  (t nil)))))
@@ -300,6 +300,11 @@ Value nil means to use the default position which is fixed at bottom, while
   (when exwm-workspace--fullscreen-frame-count
     (cl-incf exwm-workspace--fullscreen-frame-count)))
 
+(defvar exwm-workspace--attached-minibuffer-height 0
+  "Height (in pixel) of the attached minibuffer.
+
+If the minibuffer is detached, this value is 0.")
+
 (defun exwm-workspace--resize-minibuffer-frame ()
   "Resize minibuffer (and its container) to fit the size of workspace."
   (cl-assert (exwm-workspace--minibuffer-own-frame-p))
@@ -429,8 +434,7 @@ The optional FORCE option is for internal use only."
             exwm-workspace-current-index index)
       (unless (exwm-workspace--workspace-p (selected-frame))
         ;; Save the floating frame window selected on the previous workspace.
-        (set-frame-parameter (with-current-buffer (window-buffer)
-                               exwm--frame)
+        (set-frame-parameter (buffer-local-value 'exwm--frame (window-buffer))
                              'exwm-selected-window (selected-window)))
       (select-window window)
       (set-frame-parameter frame 'exwm-selected-window nil)
@@ -455,7 +459,7 @@ The optional FORCE option is for internal use only."
                                                 name
                                               (concat " " name)))))))
       ;; Update demands attention flag
-      (set-frame-parameter frame 'exwm--urgency nil)
+      (set-frame-parameter frame 'exwm-urgency nil)
       ;; Update switch workspace history
       (setq exwm-workspace--switch-history-outdated t)
       ;; Set _NET_CURRENT_DESKTOP
@@ -791,11 +795,6 @@ Please check `exwm-workspace--minibuffer-own-frame-p' first."
   (assq (frame-parameter exwm-workspace--minibuffer 'exwm-container)
         exwm-workspace--id-struts-alist))
 
-(defvar exwm-workspace--attached-minibuffer-height 0
-  "Height (in pixel) of the attached minibuffer.
-
-If the minibuffer is detached, this value is 0.")
-
 (defun exwm-workspace-attach-minibuffer ()
   "Attach the minibuffer so that it always shows."
   (interactive)
@@ -1126,10 +1125,8 @@ If the minibuffer is detached, this value is 0.")
           (make-instance 'xcb:MapWindow :window workspace)))
     (xcb:flush exwm--connection)
     ;; Delay making the workspace fullscreen until Emacs becomes idle
-    (run-with-idle-timer 0 nil
-                         `(lambda ()
-                            (set-frame-parameter ,frame
-                                                 'fullscreen 'fullboth)))
+    (run-with-idle-timer 0 nil #'set-frame-parameter
+                         frame 'fullscreen 'fullboth)
     ;; Update EWMH properties.
     (exwm-workspace--update-ewmh-props)
     (exwm-workspace-switch frame t)
@@ -1148,10 +1145,6 @@ If the minibuffer is detached, this value is 0.")
     (exwm--log "Removing frame `%s' as workspace" frame)
     (let* ((index (exwm-workspace--position frame))
            (lastp (= index (1- (exwm-workspace--count))))
-           ;; As we are removing this workspace, the one on its left is its
-           ;; natural substitutes... except when this is already the last one
-           ;; and there is none on its left.
-           ;; FIXME (ch11ng): Which direction is "left"?
            (nextw (elt exwm-workspace--list (+ index (if lastp -1 +1)))))
       ;; Need to remove the workspace from the list in order for
       ;; the correct calculation of indexes.
