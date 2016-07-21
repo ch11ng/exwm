@@ -110,14 +110,17 @@ NIL if FRAME is not a workspace"
 (defvar exwm-workspace--prompt-delete-allowed nil
   "Non-nil to allow deleting workspace from the prompt")
 (defvar exwm-workspace--create-silently nil
-  "When non-nil workspaces are created in the background (not switched to).")
+  "When non-nil workspaces are created in the background (not switched to).
+
+Please manually run the hook `exwm-workspace-list-change-hook' afterwards.")
 
 (defun exwm-workspace--prompt-add ()
   "Add workspace from the prompt."
   (interactive)
   (when exwm-workspace--prompt-add-allowed
     (let ((exwm-workspace--create-silently t))
-      (make-frame))
+      (make-frame)
+      (run-hooks 'exwm-workspace-list-change-hook))
     (exwm-workspace--update-switch-history)
     (goto-history-element minibuffer-history-position)))
 
@@ -507,7 +510,8 @@ each time.")
       (dotimes (_ (min exwm-workspace-switch-create-limit
                        (1+ (- frame-or-index
                               (exwm-workspace--count)))))
-        (make-frame)))
+        (make-frame))
+      (run-hooks 'exwm-workspace-list-change-hook))
     (exwm-workspace-switch (car (last exwm-workspace--list)))))
 
 (defvar exwm-workspace-list-change-hook nil
@@ -1174,8 +1178,8 @@ Please check `exwm-workspace--minibuffer-own-frame-p' first."
     (exwm-workspace--update-ewmh-props)
     (if exwm-workspace--create-silently
         (setq exwm-workspace--switch-history-outdated t)
-      (exwm-workspace-switch frame t))
-    (run-hooks 'exwm-workspace-list-change-hook))))
+      (exwm-workspace-switch frame t)
+      (run-hooks 'exwm-workspace-list-change-hook)))))
 
 (defun exwm-workspace--remove-frame-as-workspace (frame)
   "Stop treating frame FRAME as a workspace."
