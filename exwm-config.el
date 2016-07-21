@@ -30,6 +30,8 @@
 
 (defun exwm-config-default ()
   "Default configuration of EXWM."
+  ;; Set the initial workspace number.
+  (setq exwm-workspace-number 4)
   ;; Make class name the buffer name
   (add-hook 'exwm-update-class-hook
             (lambda ()
@@ -41,7 +43,9 @@
   ;; 's-N': Switch to certain workspace
   (dotimes (i 10)
     (exwm-input-set-key (kbd (format "s-%d" i))
-                        `(lambda () (interactive) (exwm-workspace-switch ,i))))
+                        `(lambda ()
+                           (interactive)
+                           (exwm-workspace-switch-create ,i))))
   ;; 's-&': Launch application
   (exwm-input-set-key (kbd "s-&")
                       (lambda (command)

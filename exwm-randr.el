@@ -60,6 +60,7 @@
 (declare-function exwm-workspace--count "exwm-workspace.el")
 (declare-function exwm-workspace--set-fullscreen "exwm-workspace.el" (frame))
 (declare-function exwm-workspace--update-workareas "exwm-workspace.el" ())
+(declare-function exwm-workspace--show-minibuffer "exwm-workspace.el" ())
 (declare-function exwm-workspace--set-desktop-geometry "exwm-workspace.el" ())
 
 (defun exwm-randr--refresh ()
@@ -111,6 +112,10 @@
       ;; Resize workspace.
       (dolist (f exwm-workspace--list)
         (exwm-workspace--set-fullscreen f))
+      ;; Raise the minibuffer if it's active.
+      (when (and (active-minibuffer-window)
+                 (exwm-workspace--minibuffer-own-frame-p))
+        (exwm-workspace--show-minibuffer))
       ;; Set _NET_DESKTOP_GEOMETRY.
       (exwm-workspace--set-desktop-geometry)
       (xcb:flush exwm--connection)

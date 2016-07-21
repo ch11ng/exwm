@@ -63,8 +63,8 @@ NIL if FRAME is not a workspace"
 (defvar exwm-workspace--switch-map
   (let ((map (make-sparse-keymap)))
     (define-key map [t] (lambda () (interactive)))
-    (define-key map "+" #'exwm-workspace-add)
-    (define-key map "-" #'exwm-workspace-delete)
+    (define-key map "+" #'exwm-workspace--prompt-add)
+    (define-key map "-" #'exwm-workspace--prompt-delete)
     (dotimes (i 10)
       (define-key map (int-to-string i)
         #'exwm-workspace--switch-map-nth-prefix))
@@ -104,6 +104,38 @@ NIL if FRAME is not a workspace"
          (workspace-idx (cl-position history-idx exwm-workspace--switch-history
                                      :test #'equal)))
     (elt exwm-workspace--list workspace-idx)))
+
+(defvar exwm-workspace--prompt-add-allowed nil
+  "Non-nil to allow adding workspace from the prompt.")
+(defvar exwm-workspace--prompt-delete-allowed nil
+  "Non-nil to allow deleting workspace from the prompt")
+(defvar exwm-workspace--create-silently nil
+  "When non-nil workspaces are created in the background (not switched to).")
+
+(defun exwm-workspace--prompt-add ()
+  "Add workspace from the prompt."
+  (interactive)
+  (when exwm-workspace--prompt-add-allowed
+    (let ((exwm-workspace--create-silently t))
+      (make-frame))
+    (exwm-workspace--update-switch-history)
+    (goto-history-element minibuffer-history-position)))
+
+(defun exwm-workspace--prompt-delete ()
+  "Delete workspace from the prompt."
+  (interactive)
+  (when (and exwm-workspace--prompt-delete-allowed
+             (< 1 (exwm-workspace--count)))
+    (let ((frame (elt exwm-workspace--list (1- minibuffer-history-position))))
+      (if (eq frame exwm-workspace--current)
+          ;; Abort the recursive minibuffer if deleting the current workspace.
+          (progn
+            (run-with-idle-timer 0 nil #'delete-frame frame)
+            (abort-recursive-edit))
+        (delete-frame frame)
+        (exwm-workspace--update-switch-history)
+        (goto-history-element (min minibuffer-history-position
+                                   (exwm-workspace--count)))))))
 
 (defun exwm-workspace--update-switch-history ()
   "Update the history for switching workspace to reflect the latest status."
@@ -390,25 +422,16 @@ PREFIX-DIGITS is a list of the digits introduced so far."
   "Normal hook run after switching workspace.")
 
 ;;;###autoload
-(cl-defun exwm-workspace-switch (frame-or-index &optional force)
+(defun exwm-workspace-switch (frame-or-index &optional force)
   "Switch to workspace INDEX.  Query for FRAME-OR-INDEX if it's not specified.
 
 The optional FORCE option is for internal use only."
   (interactive
    (list
     (unless (and (eq major-mode 'exwm-mode) exwm--fullscreen) ;it's invisible
-      (exwm-workspace--prompt-for-workspace "Workspace [+/-]: "))))
-  ;; Try to create workspace(s) when INDEX is out-of-range.
-  (when (and (integerp frame-or-index)
-             (>= frame-or-index (exwm-workspace--count)))
-    (run-with-idle-timer 0 nil
-                         (lambda (times)
-                           (dotimes (_ times)
-                             (make-frame)))
-                         ;; Create no more than 9 workspaces.
-                         (min 9
-                              (1+ (- frame-or-index (exwm-workspace--count)))))
-    (cl-return-from exwm-workspace-switch))
+      (let ((exwm-workspace--prompt-add-allowed t)
+            (exwm-workspace--prompt-delete-allowed t))
+        (exwm-workspace--prompt-for-workspace "Switch to [+/-]: ")))))
   (let* ((frame (exwm-workspace--workspace-from-frame-or-index frame-or-index))
          (index (exwm-workspace--position frame))
          (workspace (frame-parameter frame 'exwm-workspace))
@@ -469,6 +492,23 @@ The optional FORCE option is for internal use only."
       (xcb:flush exwm--connection))
     (run-hooks 'exwm-workspace-switch-hook)))
 
+(defvar exwm-workspace-switch-create-limit 10
+  "Number of workspaces `exwm-workspace-switch-create' allowed to create
+each time.")
+
+(defun exwm-workspace-switch-create (frame-or-index)
+  "Switch to workspace FRAME-OR-INDEX, creating it if it does not exist yet."
+  (interactive)
+  (if (or (framep frame-or-index)
+          (< frame-or-index (exwm-workspace--count)))
+      (exwm-workspace-switch frame-or-index)
+    (let ((exwm-workspace--create-silently t))
+      (dotimes (_ (min exwm-workspace-switch-create-limit
+                       (1+ (- frame-or-index
+                              (exwm-workspace--count)))))
+        (make-frame)))
+    (exwm-workspace-switch (car (last exwm-workspace--list)))))
+
 (defvar exwm-workspace-list-change-hook nil
   "Normal hook run when the workspace list is changed (workspace added,
 deleted, moved, etc).")
@@ -478,10 +518,14 @@ deleted, moved, etc).")
   "Interchange position of WORKSPACE1 with that of WORKSPACE2."
   (interactive
    (unless (and (eq major-mode 'exwm-mode) exwm--fullscreen) ;it's invisible
-     (let* ((w1 (exwm-workspace--prompt-for-workspace "Pick a workspace: "))
-            (w2 (exwm-workspace--prompt-for-workspace
+     (let (w1 w2)
+       (let ((exwm-workspace--prompt-add-allowed t)
+             (exwm-workspace--prompt-delete-allowed t))
+         (setq w1 (exwm-workspace--prompt-for-workspace
+                   "Pick a workspace [+/-]: ")))
+       (setq w2 (exwm-workspace--prompt-for-workspace
                  (format "Swap workspace %d with: "
-                         (exwm-workspace--position w1)))))
+                         (exwm-workspace--position w1))))
        (list w1 w2))))
   (let ((pos1 (exwm-workspace--position workspace1))
         (pos2 (exwm-workspace--position workspace2)))
@@ -544,31 +588,20 @@ before it."
 
 INDEX must not exceed the current number of workspaces."
   (interactive)
-  (run-with-idle-timer
-   0 nil
-   (lambda (index)
-     (if (and index
-              ;; No need to move if it's the last one.
-              (< index (exwm-workspace--count)))
-         (exwm-workspace-move (make-frame) index)
-       (make-frame)))
-   index)
-  (when (active-minibuffer-window)
-    (abort-recursive-edit)))
+  (if (and index
+           ;; No need to move if it's the last one.
+           (< index (exwm-workspace--count)))
+      (exwm-workspace-move (make-frame) index)
+    (make-frame)))
 
 ;;;###autoload
 (defun exwm-workspace-delete (&optional frame-or-index)
   "Delete the workspace FRAME-OR-INDEX."
   (interactive)
-  (run-with-idle-timer 0 nil #'delete-frame
-                       ;; We should not simply delete the selected frame
-                       ;; since it can be e.g. a floating frame.
-                       (if frame-or-index
-                           (exwm-workspace--workspace-from-frame-or-index
-                            frame-or-index)
-                         exwm-workspace--current))
-  (when (active-minibuffer-window)
-    (abort-recursive-edit)))
+  (delete-frame
+   (if frame-or-index
+       (exwm-workspace--workspace-from-frame-or-index frame-or-index)
+     exwm-workspace--current)))
 
 (defun exwm-workspace--on-focus-in ()
   "Handle unexpected frame switch."
@@ -601,7 +634,9 @@ INDEX must not exceed the current number of workspaces."
 (defun exwm-workspace-move-window (frame-or-index &optional id)
   "Move window ID to workspace FRAME-OR-INDEX."
   (interactive (list
-                (exwm-workspace--prompt-for-workspace "Move to: ")))
+                (let ((exwm-workspace--prompt-add-allowed t)
+                      (exwm-workspace--prompt-delete-allowed t))
+                  (exwm-workspace--prompt-for-workspace "Move to [+/-]: "))))
   (let ((frame (exwm-workspace--workspace-from-frame-or-index frame-or-index)))
     (unless id (setq id (exwm--buffer->id (window-buffer))))
     (with-current-buffer (exwm--id->buffer id)
@@ -874,6 +909,9 @@ Please check `exwm-workspace--minibuffer-own-frame-p' first."
                              :window window
                              :value-mask xcb:ConfigWindow:Height
                              :height height)))
+        (when (/= (exwm-workspace--count) (length exwm-workspace--workareas))
+          ;; There is a chance the workareas are not updated timely.
+          (exwm-workspace--update-workareas))
         (setq workarea (elt exwm-workspace--workareas
                             exwm-workspace-current-index)
               y (if (eq exwm-workspace-minibuffer-position 'top)
@@ -1064,8 +1102,7 @@ Please check `exwm-workspace--minibuffer-own-frame-p' first."
     (exwm--log "Frame `%s' is floating" frame))
    (t
     (exwm--log "Adding frame `%s' as workspace" frame)
-    (setq exwm-workspace--list (nconc exwm-workspace--list (list frame))
-          exwm-workspace--current frame)
+    (setq exwm-workspace--list (nconc exwm-workspace--list (list frame)))
     (let ((outer-id (string-to-number (frame-parameter frame
                                                        'outer-window-id)))
           (container (xcb:generate-id exwm--connection))
@@ -1093,6 +1130,11 @@ Please check `exwm-workspace--minibuffer-own-frame-p' first."
                                              xcb:CW:EventMask)
                          :override-redirect 1
                          :event-mask xcb:EventMask:SubstructureRedirect))
+      (xcb:+request exwm--connection
+          (make-instance 'xcb:ConfigureWindow
+                         :window workspace
+                         :value-mask xcb:ConfigWindow:StackMode
+                         :stack-mode xcb:StackMode:Below))
       (xcb:+request exwm--connection
           (make-instance 'xcb:CreateWindow
                          :depth 0 :wid container :parent workspace
@@ -1129,7 +1171,9 @@ Please check `exwm-workspace--minibuffer-own-frame-p' first."
                          frame 'fullscreen 'fullboth)
     ;; Update EWMH properties.
     (exwm-workspace--update-ewmh-props)
-    (exwm-workspace-switch frame t)
+    (if exwm-workspace--create-silently
+        (setq exwm-workspace--switch-history-outdated t)
+      (exwm-workspace-switch frame t))
     (run-hooks 'exwm-workspace-list-change-hook))))
 
 (defun exwm-workspace--remove-frame-as-workspace (frame)
