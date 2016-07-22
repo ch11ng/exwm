@@ -604,10 +604,11 @@ INDEX must not exceed the current number of workspaces."
 (defun exwm-workspace-delete (&optional frame-or-index)
   "Delete the workspace FRAME-OR-INDEX."
   (interactive)
-  (delete-frame
-   (if frame-or-index
-       (exwm-workspace--workspace-from-frame-or-index frame-or-index)
-     exwm-workspace--current)))
+  (when (< 1 (exwm-workspace--count))
+    (delete-frame
+     (if frame-or-index
+         (exwm-workspace--workspace-from-frame-or-index frame-or-index)
+       exwm-workspace--current))))
 
 (defun exwm-workspace--on-focus-in ()
   "Handle unexpected frame switch."
@@ -1198,12 +1199,13 @@ Please check `exwm-workspace--minibuffer-own-frame-p' first."
   (cond
    ((not (exwm-workspace--workspace-p frame))
     (exwm--log "Frame `%s' is not a workspace" frame))
-   ((= 1 (exwm-workspace--count))
-    ;; FIXME: When using dedicated minibuffer frame, deleting the last
-    ;;        frame hangs Emacs.
-    (user-error "[EXWM] Cannot remove last workspace"))
    (t
     (exwm--log "Removing frame `%s' as workspace" frame)
+    (when (= 1 (exwm-workspace--count))
+      ;; The user managed to delete the last workspace, so create a new one.
+      (exwm--log "Last worksapce deleted; create a new one")
+      (let ((exwm-workspace--create-silently t))
+        (make-frame)))
     (let* ((index (exwm-workspace--position frame))
            (lastp (= index (1- (exwm-workspace--count))))
            (nextw (elt exwm-workspace--list (+ index (if lastp -1 +1)))))
