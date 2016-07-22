@@ -205,41 +205,49 @@ This value should always be overwritten.")
 (defun exwm-input--on-ButtonPress (data _synthetic)
   "Handle ButtonPress event."
   (let ((obj (make-instance 'xcb:ButtonPress))
-        (mode xcb:Allow:SyncPointer))
+        (mode xcb:Allow:SyncPointer)
+        window buffer frame)
     (xcb:unmarshal obj data)
     (with-slots (detail time event state) obj
       (setq exwm-input--timestamp time)
+      (setq window (get-buffer-window (exwm--id->buffer event) t)
+            buffer (window-buffer window))
       (cond ((and (= state exwm-input--move-mask)
-                  (= detail exwm-input--move-keysym))
+                  (= detail exwm-input--move-keysym)
+                  ;; Either an undecorated or a floating X window.
+                  (with-current-buffer buffer
+                    (or (not (eq major-mode 'exwm-mode))
+                        exwm--floating-frame)))
              ;; Move
              (exwm-floating--start-moveresize
               event xcb:ewmh:_NET_WM_MOVERESIZE_MOVE))
             ((and (= state exwm-input--resize-mask)
-                  (= detail exwm-input--resize-keysym))
+                  (= detail exwm-input--resize-keysym)
+                  (with-current-buffer buffer
+                    (or (not (eq major-mode 'exwm-mode))
+                        exwm--floating-frame)))
              ;; Resize
              (exwm-floating--start-moveresize event))
             (t
              ;; Click to focus
-             (let ((window (get-buffer-window (exwm--id->buffer event) t))
-                   frame)
-               (unless (eq window (selected-window))
-                 (setq frame (window-frame window))
-                 (unless (eq frame exwm-workspace--current)
-                   (if (exwm-workspace--workspace-p frame)
-                       ;; The X window is on another workspace
-                       (exwm-workspace-switch frame)
-                     (with-current-buffer (window-buffer window)
-                       (when (and (eq major-mode 'exwm-mode)
-                                  (not (eq exwm--frame
-                                           exwm-workspace--current)))
-                         ;; The floating X window is on another workspace
-                         (exwm-workspace-switch exwm--frame)))))
-                 ;; It has been reported that the `window' may have be deleted
-                 (if (window-live-p window)
-                     (select-window window)
-                   (setq window
-                         (get-buffer-window (exwm--id->buffer event) t))
-                   (when window (select-window window)))))
+             (unless (eq window (selected-window))
+               (setq frame (window-frame window))
+               (unless (eq frame exwm-workspace--current)
+                 (if (exwm-workspace--workspace-p frame)
+                     ;; The X window is on another workspace
+                     (exwm-workspace-switch frame)
+                   (with-current-buffer buffer
+                     (when (and (eq major-mode 'exwm-mode)
+                                (not (eq exwm--frame
+                                         exwm-workspace--current)))
+                       ;; The floating X window is on another workspace
+                       (exwm-workspace-switch exwm--frame)))))
+               ;; It has been reported that the `window' may have be deleted
+               (if (window-live-p window)
+                   (select-window window)
+                 (setq window
+                       (get-buffer-window (exwm--id->buffer event) t))
+                 (when window (select-window window))))
              ;; The event should be replayed
              (setq mode xcb:Allow:ReplayPointer))))
     (xcb:+request exwm--connection
