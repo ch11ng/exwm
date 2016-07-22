@@ -500,6 +500,7 @@ The optional FORCE option is for internal use only."
   "Number of workspaces `exwm-workspace-switch-create' allowed to create
 each time.")
 
+;;;###autoload
 (defun exwm-workspace-switch-create (frame-or-index)
   "Switch to workspace FRAME-OR-INDEX, creating it if it does not exist yet."
   (interactive)
@@ -835,6 +836,7 @@ Please check `exwm-workspace--minibuffer-own-frame-p' first."
   (assq (frame-parameter exwm-workspace--minibuffer 'exwm-container)
         exwm-workspace--id-struts-alist))
 
+;;;###autoload
 (defun exwm-workspace-attach-minibuffer ()
   "Attach the minibuffer so that it always shows."
   (interactive)
@@ -858,6 +860,7 @@ Please check `exwm-workspace--minibuffer-own-frame-p' first."
         (exwm-workspace--set-fullscreen f))
       (exwm-workspace--show-minibuffer))))
 
+;;;###autoload
 (defun exwm-workspace-detach-minibuffer ()
   "Detach the minibuffer so that it automatically hides."
   (interactive)
@@ -873,6 +876,15 @@ Please check `exwm-workspace--minibuffer-own-frame-p' first."
       (dolist (f exwm-workspace--list)
         (exwm-workspace--set-fullscreen f))
       (exwm-workspace--hide-minibuffer))))
+
+;;;###autoload
+(defun exwm-workspace-toggle-minibuffer ()
+  "Attach the minibuffer if it's detached, or detach it if it's attached."
+  (interactive)
+  (when (exwm-workspace--minibuffer-own-frame-p)
+    (if (exwm-workspace--minibuffer-attached-p)
+        (exwm-workspace-detach-minibuffer)
+      (exwm-workspace-attach-minibuffer))))
 
 (defun exwm-workspace--update-minibuffer-height (&optional echo-area)
   "Update the minibuffer frame height."
