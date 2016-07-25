@@ -1203,7 +1203,7 @@ Please check `exwm-workspace--minibuffer-own-frame-p' first."
     (exwm--log "Removing frame `%s' as workspace" frame)
     (when (= 1 (exwm-workspace--count))
       ;; The user managed to delete the last workspace, so create a new one.
-      (exwm--log "Last worksapce deleted; create a new one")
+      (exwm--log "Last workspace deleted; create a new one")
       (let ((exwm-workspace--create-silently t))
         (make-frame)))
     (let* ((index (exwm-workspace--position frame))
@@ -1289,6 +1289,8 @@ applied to all subsequently created X frames."
   "Initialize workspace module."
   ;; Prevent unexpected exit
   (setq confirm-kill-emacs #'exwm-workspace--confirm-kill-emacs)
+  (exwm-workspace--modify-all-x-frames-parameters
+   '((internal-border-width . 0)))
   (let ((initial-workspaces (frame-list)))
     (if (not (exwm-workspace--minibuffer-own-frame-p))
         ;; Initialize workspaces with minibuffers.
@@ -1309,7 +1311,6 @@ applied to all subsequently created X frames."
             (make-frame '((window-system . x) (minibuffer . only)
                           (left . 10000) (right . 10000)
                           (width . 1) (height . 1)
-                          (internal-border-width . 0)
                           (client . nil))))
       ;; Remove/hide existing frames.
       (dolist (f initial-workspaces)
@@ -1370,7 +1371,6 @@ applied to all subsequently created X frames."
       (add-hook 'echo-area-clear-hook #'exwm-workspace--on-echo-area-clear)
       ;; Recreate one frame with the external minibuffer set.
       (setq initial-workspaces (list (make-frame '((window-system . x)
-                                                   (internal-border-width . 0)
                                                    (client . nil)))))
       ;; The default behavior of `display-buffer' (indirectly called by
       ;; `minibuffer-completion-help') is not correct here.
@@ -1384,7 +1384,6 @@ applied to all subsequently created X frames."
     ;; Create remaining workspaces.
     (dotimes (_ (- exwm-workspace-number (length initial-workspaces)))
       (nconc initial-workspaces (list (make-frame '((window-system . x)
-                                                    (internal-border-width . 0)
                                                     (client . nil))))))
     ;; Configure workspaces
     (dolist (i initial-workspaces)

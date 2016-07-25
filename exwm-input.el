@@ -323,7 +323,7 @@ This value should always be overwritten.")
 ;;        add it into (this-command-keys) there, we use `unread-command-events'
 ;;        differently on Emacs 24 and 25.
 (eval-and-compile
-  (if (< emacs-major-version 25)
+  (if (< emacs-major-version 26)
       (defsubst exwm-input--unread-event (event)
         (setq unread-command-events
               (append unread-command-events (list event))))
