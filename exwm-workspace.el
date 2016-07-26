@@ -996,9 +996,7 @@ Please check `exwm-workspace--minibuffer-own-frame-p' first."
              ;; Exclude non-graphical frames.
              (frame-parameter nil 'exwm-outer-id))
     (add-hook 'post-command-hook #'exwm-workspace--update-minibuffer-height)
-    (exwm-workspace--show-minibuffer)
-    ;; Set input focus on the Emacs frame
-    (x-focus-frame (window-frame (minibuffer-selected-window)))))
+    (exwm-workspace--show-minibuffer)))
 
 (defun exwm-workspace--on-minibuffer-exit ()
   "Run in minibuffer-exit-hook to hide the minibuffer container."

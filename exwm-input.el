@@ -174,6 +174,11 @@ This value should always be overwritten.")
           (xcb:flush exwm--connection)))))
   (setq exwm-input--update-focus-lock nil))
 
+(defun exwm-input--on-minibuffer-setup ()
+  "Run in `minibuffer-setup-hook' to set input focus."
+  ;; Set input focus on the Emacs frame
+  (x-focus-frame (window-frame (minibuffer-selected-window))))
+
 (defun exwm-input--set-active-window (&optional id)
   "Set _NET_ACTIVE_WINDOW."
   (xcb:+request exwm--connection
@@ -604,6 +609,8 @@ Its usage is the same with `exwm-input-set-simulation-keys'."
               #'exwm-floating--stop-moveresize)
   (xcb:+event exwm--connection 'xcb:MotionNotify
               #'exwm-floating--do-moveresize)
+  ;; The input focus should be set on the frame when minibuffer is active.
+  (add-hook 'minibuffer-setup-hook #'exwm-input--on-minibuffer-setup)
   ;; `pre-command-hook' marks the end of a key sequence (existing or not)
   (add-hook 'pre-command-hook #'exwm-input--finish-key-sequence)
   ;; Control `exwm-input--during-command'
