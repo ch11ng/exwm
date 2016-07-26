@@ -28,6 +28,11 @@
 
 (require 'exwm-core)
 
+(defvar exwm-manage-force-tiling nil
+  "Non-nil to force managing all X windows in tiling layout.
+
+You can still make the X windows floating afterwards.")
+
 (defvar exwm-manage-finish-hook nil
   "Normal hook run after a window is just managed, in the context of the
 corresponding buffer.")
@@ -233,9 +238,11 @@ corresponding buffer.")
       (xcb:flush exwm--connection)
       (exwm--update-title id)
       (exwm--update-protocols id)
-      (if (or exwm-transient-for exwm--fixed-size
-              (memq xcb:Atom:_NET_WM_WINDOW_TYPE_UTILITY exwm-window-type)
-              (memq xcb:Atom:_NET_WM_WINDOW_TYPE_DIALOG exwm-window-type))
+      (if (and (not exwm-manage-force-tiling)
+               (or exwm-transient-for exwm--fixed-size
+                   (memq xcb:Atom:_NET_WM_WINDOW_TYPE_UTILITY exwm-window-type)
+                   (memq xcb:Atom:_NET_WM_WINDOW_TYPE_DIALOG
+                         exwm-window-type)))
           (exwm-floating--set-floating id)
         (exwm-floating--unset-floating id))
       (exwm-input-grab-keyboard id)
