@@ -265,7 +265,7 @@ This value should always be overwritten.")
     (xcb:unmarshal obj data)
     (setq exwm-input--timestamp (slot-value obj 'time))
     (if (eq major-mode 'exwm-mode)
-        (funcall exwm--on-KeyPress obj)
+        (funcall exwm--on-KeyPress obj data)
       (exwm-input--on-KeyPress-char-mode obj))))
 
 (defvar exwm-input--global-keys nil "Global key bindings.")
@@ -307,9 +307,9 @@ This value should always be overwritten.")
                     keycode (xcb:keysyms:keysym->keycode exwm--connection
                                                          (car keysym)))
               (setf (slot-value grab-key 'grab-window) workspace
-                    (slot-value grab-key 'modifiers) (cadr keysym)
+                    (slot-value grab-key 'modifiers) (cdr keysym)
                     (slot-value grab-key 'key) keycode)
-              (when (or (not keycode)
+              (when (or (= 0 keycode)
                         (xcb:+request-checked+request-check exwm--connection
                             grab-key))
                 (user-error "[EXWM] Failed to grab key: %s"
@@ -344,14 +344,15 @@ This value should always be overwritten.")
 (defvar exwm-input--during-command nil
   "Indicate whether between `pre-command-hook' and `post-command-hook'.")
 
-(defun exwm-input--on-KeyPress-line-mode (key-press)
+(defun exwm-input--on-KeyPress-line-mode (key-press raw-data)
   "Parse X KeyPress event to Emacs key event and then feed the command loop."
   (with-slots (detail state) key-press
     (let ((keysym (xcb:keysyms:keycode->keysym exwm--connection detail state))
           event minibuffer-window mode)
-      (when (and keysym
-                 (setq event (xcb:keysyms:keysym->event exwm--connection
-                                                        keysym state))
+      (when (and (/= 0 (car keysym))
+                 (setq event (xcb:keysyms:keysym->event
+                              exwm--connection (car keysym)
+                              (logand state (lognot (cdr keysym)))))
                  (or exwm-input--during-key-sequence
                      exwm-input--during-command
                      (setq minibuffer-window (active-minibuffer-window))
@@ -363,20 +364,35 @@ This value should always be overwritten.")
         ;; Feed this event to command loop.  Also force it to be added to
         ;; `this-command-keys'.
         (exwm-input--unread-event event))
+      (unless mode
+        (if (= 0 (logand #x6000 state)) ;Check the 13~14 bits.
+            ;; Not an XKB state; just replay it.
+            (setq mode xcb:Allow:ReplayKeyboard)
+          ;; An XKB state; sent it with SendEvent.
+          ;; FIXME: Can this also be replayed?
+          ;; FIXME: KeyRelease events are lost.
+          (setq mode xcb:Allow:AsyncKeyboard)
+          (xcb:+request exwm--connection
+              (make-instance 'xcb:SendEvent
+                             :propagate 0
+                             :destination (slot-value key-press 'event)
+                             :event-mask xcb:EventMask:NoEvent
+                             :event raw-data))))
       (xcb:+request exwm--connection
           (make-instance 'xcb:AllowEvents
-                         :mode (or mode xcb:Allow:ReplayKeyboard)
+                         :mode mode
                          :time xcb:Time:CurrentTime))
       (xcb:flush exwm--connection))))
 
-(defun exwm-input--on-KeyPress-char-mode (key-press)
+(defun exwm-input--on-KeyPress-char-mode (key-press &optional _raw-data)
   "Handle KeyPress event in char-mode."
   (with-slots (detail state) key-press
     (let ((keysym (xcb:keysyms:keycode->keysym exwm--connection detail state))
           event)
-      (when (and keysym
-                 (setq event (xcb:keysyms:keysym->event exwm--connection
-                                                        keysym state)))
+      (when (and (/= 0 (car keysym))
+                 (setq event (xcb:keysyms:keysym->event
+                              exwm--connection (car keysym)
+                              (logand state (lognot (cdr keysym))))))
         (when (eq major-mode 'exwm-mode)
           ;; FIXME: This functionality seems not working, e.g. when this
           ;;        command would activate the minibuffer, the temporary
@@ -476,11 +492,11 @@ This value should always be overwritten.")
   "Fake a key event equivalent to Emacs event EVENT."
   (let* ((keysym (xcb:keysyms:event->keysym exwm--connection event))
          keycode id)
-    (unless keysym
+    (when (= 0 (car keysym))
       (user-error "[EXWM] Invalid key: %s" (single-key-description event)))
     (setq keycode (xcb:keysyms:keysym->keycode exwm--connection
                                                (car keysym)))
-    (when keycode
+    (when (/= 0 keycode)
       (setq id (exwm--buffer->id (window-buffer (selected-window))))
       (dolist (class '(xcb:KeyPress xcb:KeyRelease))
         (xcb:+request exwm--connection
@@ -495,7 +511,7 @@ This value should always be overwritten.")
                                                   :child 0
                                                   :root-x 0 :root-y 0
                                                   :event-x 0 :event-y 0
-                                                  :state (cadr keysym)
+                                                  :state (cdr keysym)
                                                   :same-screen 1)
                                    exwm--connection)))))
     (xcb:flush exwm--connection)))
@@ -592,16 +608,16 @@ Its usage is the same with `exwm-input-set-simulation-keys'."
                                              exwm-input-move-event))
         (resize-key (xcb:keysyms:event->keysym exwm--connection
                                                exwm-input-resize-event)))
-    (unless move-key
+    (when (= 0 (car move-key))
       (user-error "[EXWM] Invalid key: %s"
                   (single-key-description exwm-input-move-event)))
-    (unless resize-key
+    (when (= 0 (car resize-key))
       (user-error "[EXWM] Invalid key: %s"
                   (single-key-description exwm-input-resize-event)))
     (setq exwm-input--move-keysym (car move-key)
-          exwm-input--move-mask (cadr move-key)
+          exwm-input--move-mask (cdr move-key)
           exwm-input--resize-keysym (car resize-key)
-          exwm-input--resize-mask (cadr resize-key)))
+          exwm-input--resize-mask (cdr resize-key)))
   ;; Attach event listeners
   (xcb:+event exwm--connection 'xcb:KeyPress #'exwm-input--on-KeyPress)
   (xcb:+event exwm--connection 'xcb:ButtonPress #'exwm-input--on-ButtonPress)

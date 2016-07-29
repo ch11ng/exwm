@@ -79,7 +79,7 @@
   "Event mask set on all managed windows.")
 
 (declare-function exwm-input--on-KeyPress-line-mode "exwm-input.el"
-                  (key-press))
+                  (key-press raw-data))
 
 ;; Internal variables
 (defvar-local exwm--id nil)               ;window ID
