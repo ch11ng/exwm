@@ -277,6 +277,14 @@
             (make-instance 'xcb:ChangeWindowAttributes
                            :window id :value-mask xcb:CW:EventMask
                            :event-mask exwm--client-event-mask))
+        ;; The X window might have been moved due to the floating border.
+        (xcb:+request exwm--connection
+            (make-instance 'xcb:ConfigureWindow
+                           :window id
+                           :value-mask (logior xcb:ConfigWindow:X
+                                               xcb:ConfigWindow:Y)
+                           :x 0
+                           :y 0))
         ;; Reparent the floating frame back to the root window.
         (let ((frame-id (frame-parameter exwm--floating-frame 'exwm-outer-id))
               (frame-container (frame-parameter exwm--floating-frame
