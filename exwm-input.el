@@ -659,7 +659,11 @@ Its usage is the same with `exwm-input-set-simulation-keys'."
   (remove-hook 'post-command-hook #'exwm-input--on-post-command)
   (remove-hook 'buffer-list-update-hook #'exwm-input--on-buffer-list-update)
   (remove-hook 'exwm-workspace-list-change-hook
-               #'exwm-input--update-global-prefix-keys))
+               #'exwm-input--update-global-prefix-keys)
+  (when exwm-input--update-focus-defer-timer
+    (cancel-timer exwm-input--update-focus-defer-timer))
+  (when exwm-input--update-focus-timer
+    (cancel-timer exwm-input--update-focus-timer)))
 
 
 

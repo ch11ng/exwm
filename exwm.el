@@ -83,6 +83,20 @@
       (exwm-layout--refresh)
       (call-interactively #'exwm-input-grab-keyboard))))
 
+;;;###autoload
+(defun exwm-restart ()
+  "Restart EXWM."
+  (interactive)
+  (when (exwm-workspace--confirm-kill-emacs "[EXWM] Restart? ")
+    (server-force-delete)
+    (run-hooks 'kill-emacs-hook)
+    ;; FIXME: more?
+    (apply #'call-process (car command-line-args) nil nil nil
+           (cdr command-line-args))
+    ;; Kill this instance at last.
+    (let ((kill-emacs-hook nil))
+      (kill-emacs))))
+
 (defun exwm--update-window-type (id &optional force)
   "Update _NET_WM_WINDOW_TYPE."
   (with-current-buffer (exwm--id->buffer id)
@@ -597,6 +611,30 @@
                          :window i :data "EXWM"))))
   (xcb:flush exwm--connection))
 
+(defun exwm--exit-icccm-ewmh ()
+  "Remove ICCCM/EWMH properties."
+  (dolist (p (list
+              xcb:Atom:_NET_WM_NAME
+              xcb:Atom:_NET_SUPPORTED
+              xcb:Atom:_NET_CLIENT_LIST
+              xcb:Atom:_NET_CLIENT_LIST_STACKING
+              xcb:Atom:_NET_NUMBER_OF_DESKTOPS
+              xcb:Atom:_NET_DESKTOP_GEOMETRY
+              xcb:Atom:_NET_DESKTOP_VIEWPORT
+              xcb:Atom:_NET_CURRENT_DESKTOP
+              xcb:Atom:_NET_ACTIVE_WINDOW
+              xcb:Atom:_NET_WORKAREA
+              xcb:Atom:_NET_SUPPORTING_WM_CHECK
+              xcb:Atom:_NET_VIRTUAL_ROOTS
+              ;; TODO: Keep this list synchronized with that in
+              ;;       `exwm--init-icccm-ewmh'.
+              ))
+    (xcb:+request exwm--connection
+        (make-instance 'xcb:DeleteProperty
+                       :window exwm--root
+                       :property p))
+    (xcb:flush exwm--connection)))
+
 (defvar exwm-init-hook nil
   "Normal hook run when EXWM has just finished initialization.")
 
@@ -643,10 +681,7 @@
         (exwm-manage--scan)
         (run-hooks 'exwm-init-hook)))))
 
-(defvar exwm-exit-hook nil
-  "Normal hook run just before EXWM is about to exit.
-
-This hook is only run when EXWM is started with emacsclient.")
+(defvar exwm-exit-hook nil "Normal hook run just before EXWM exits.")
 
 (defun exwm--exit ()
   "Exit EXWM."
@@ -657,11 +692,7 @@ This hook is only run when EXWM is started with emacsclient.")
   (exwm-manage--exit)
   (exwm-floating--exit)
   (exwm-layout--exit)
-  ;; Reset several import variables.
-  (setq exwm--connection nil
-        exwm--root nil
-        exwm--id-buffer-alist nil)
-  (exwm-enable))
+  (exwm--exit-icccm-ewmh))
 
 (defvar exwm-blocking-subrs '(x-file-dialog x-popup-dialog x-select-font)
   "Subrs (primitives) that would normally block EXWM.")

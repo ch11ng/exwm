@@ -112,6 +112,11 @@ corresponding buffer.")
                              :window id :value-mask xcb:CW:EventMask
                              :event-mask exwm--client-event-mask))
       (throw 'return 'dead))
+    ;; Add this X window to save-set.
+    (xcb:+request exwm--connection
+        (make-instance 'xcb:ChangeSaveSet
+                       :mode xcb:SetMode:Insert
+                       :window id))
     (with-current-buffer (generate-new-buffer "*EXWM*")
       ;; Keep the oldest X window first.
       (setq exwm--id-buffer-alist

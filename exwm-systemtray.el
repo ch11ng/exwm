@@ -89,6 +89,11 @@ You shall use the default value if using auto-hide minibuffer.")
                 height* (round (* height (/ (float width*) width)))))
         (exwm--log "(System Tray) Resize from %dx%d to %dx%d"
                    width height width* height*))
+      ;; Add this icon to save-set.
+      (xcb:+request exwm-systemtray--connection
+          (make-instance 'xcb:ChangeSaveSet
+                         :mode xcb:SetMode:Insert
+                         :window icon))
       ;; Reparent to the embedder.
       (xcb:+request exwm-systemtray--connection
           (make-instance 'xcb:ReparentWindow

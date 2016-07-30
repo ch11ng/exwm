@@ -1045,47 +1045,46 @@ Please check `exwm-workspace--minibuffer-own-frame-p' first."
           (0 (y-or-n-p prompt))
           (x (yes-or-no-p (format "[EXWM] %d window%s currently alive. %s"
                                   x (if (= x 1) "" "s") prompt))))
-    ;; Unmanage all X windows.
-    (dolist (i exwm--id-buffer-alist)
-      (exwm-manage--unmanage-window (car i) 'quit)
-      (xcb:+request exwm--connection
-          (make-instance 'xcb:MapWindow :window (car i))))
-    ;; Reparent out the minibuffer frame.
+    ;; Hide & reparent out all frames (save-set can't be used here since
+    ;; X windows will be re-mapped).
     (when (exwm-workspace--minibuffer-own-frame-p)
-      (xcb:+request exwm--connection
-          (make-instance 'xcb:ReparentWindow
-                         :window (frame-parameter exwm-workspace--minibuffer
-                                                  'exwm-outer-id)
-                         :parent exwm--root
-                         :x 0
-                         :y 0)))
-    ;; Reparent out all workspace frames.
+      (let ((id (frame-parameter exwm-workspace--minibuffer 'exwm-outer-id)))
+        (xcb:+request exwm--connection
+            (make-instance 'xcb:UnmapWindow
+                           :window id))
+        (xcb:+request exwm--connection
+            (make-instance 'xcb:ReparentWindow
+                           :window id
+                           :parent exwm--root
+                           :x 0
+                           :y 0))))
     (dolist (f exwm-workspace--list)
-      (xcb:+request exwm--connection
-          (make-instance 'xcb:ReparentWindow
-                         :window (frame-parameter f 'exwm-outer-id)
-                         :parent exwm--root
-                         :x 0
-                         :y 0)))
-    (xcb:flush exwm--connection)
-    (if (not exwm-workspace--client)
-        (progn
-          ;; Destroy all resources created by this connection.
-          (xcb:disconnect exwm--connection)
-          t)
-      ;; Extra cleanups for emacsclient.
+      (let ((id (frame-parameter f 'exwm-outer-id)))
+        (xcb:+request exwm--connection
+            (make-instance 'xcb:UnmapWindow
+                           :window id))
+        (xcb:+request exwm--connection
+            (make-instance 'xcb:ReparentWindow
+                           :window id
+                           :parent exwm--root
+                           :x 0
+                           :y 0))))
+    ;; Exit each module.
+    (exwm--exit)
+    ;; Destroy all resources created by this connection.
+    (xcb:disconnect exwm--connection)
+    (setq exwm--connection nil)
+    ;; Extra cleanups for emacsclient.
+    (when exwm-workspace--client
       (dolist (f exwm-workspace--list)
         (set-frame-parameter f 'client exwm-workspace--client))
       (when (exwm-workspace--minibuffer-own-frame-p)
         (set-frame-parameter exwm-workspace--minibuffer 'client
                              exwm-workspace--client))
-      (let ((connection exwm--connection))
-        (exwm--exit)
-        ;; Destroy all resources created by this connection.
-        (xcb:disconnect connection))
       ;; Kill the client.
-      (server-save-buffers-kill-terminal nil)
-      nil)))
+      (server-save-buffers-kill-terminal nil))
+    ;; Set the return value.
+    (not exwm-workspace--client)))
 
 (defun exwm-workspace--set-desktop-geometry ()
   "Set _NET_DESKTOP_GEOMETRY."
