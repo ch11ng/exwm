@@ -610,16 +610,6 @@ INDEX must not exceed the current number of workspaces."
          (exwm-workspace--workspace-from-frame-or-index frame-or-index)
        exwm-workspace--current))))
 
-(defun exwm-workspace--on-focus-in ()
-  "Handle unexpected frame switch."
-  ;; `focus-in-hook' is run by `handle-switch-frame'.
-  (unless (eq this-command #'handle-switch-frame)
-    (let ((index (exwm-workspace--position (selected-frame))))
-      (exwm--log "Focus on workspace %s" index)
-      (when (and index (/= index exwm-workspace-current-index))
-        (exwm--log "Workspace was switched unexpectedly")
-        (exwm-workspace-switch index)))))
-
 (defun exwm-workspace--set-desktop (id)
   "Set _NET_WM_DESKTOP for X window ID."
   (with-current-buffer (exwm--id->buffer id)
@@ -1374,8 +1364,6 @@ applied to all subsequently created X frames."
       ;; `minibuffer-completion-help') is not correct here.
       (cl-pushnew '(exwm-workspace--display-buffer) display-buffer-alist
                   :test #'equal))
-    ;; Handle unexpected frame switch.
-    (add-hook 'focus-in-hook #'exwm-workspace--on-focus-in)
     ;; Prevent `other-buffer' from selecting already displayed EXWM buffers.
     (modify-all-frames-parameters
      '((buffer-predicate . exwm-layout--other-buffer-predicate)))
@@ -1413,7 +1401,6 @@ applied to all subsequently created X frames."
   (setq display-buffer-alist
         (cl-delete '(exwm-workspace--display-buffer) display-buffer-alist
                    :test #'equal))
-  (remove-hook 'focus-in-hook #'exwm-workspace--on-focus-in)
   (advice-remove 'x-create-frame #'exwm-workspace--x-create-frame)
   (remove-hook 'after-make-frame-functions
                #'exwm-workspace--add-frame-as-workspace)

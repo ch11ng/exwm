@@ -73,7 +73,7 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
         (exwm--log "Focus on #x%x with SetInputFocus" id)
         (xcb:+request exwm--connection
             (make-instance 'xcb:SetInputFocus
-                           :revert-to xcb:InputFocus:PointerRoot
+                           :revert-to xcb:InputFocus:Parent
                            :focus id
                            :time xcb:Time:CurrentTime)))
       (exwm-input--set-active-window id)
@@ -169,9 +169,15 @@ This value should always be overwritten.")
               (xcb:flush exwm--connection)))
         (when (eq (selected-window) window)
           (exwm--log "Focus on %s" window)
-          (select-frame-set-input-focus (window-frame window) t)
-          (exwm-input--set-active-window)
-          (xcb:flush exwm--connection)))))
+          (if (and (exwm-workspace--workspace-p (selected-frame))
+                   (not (eq (selected-frame) exwm-workspace--current)))
+              ;; The focus is on another workspace (e.g. it got clicked)
+              ;; so switch to it.
+              (exwm-workspace-switch (selected-frame))
+            ;; The focus is still on the current workspace.
+            (select-frame-set-input-focus (window-frame window) t)
+            (exwm-input--set-active-window)
+            (xcb:flush exwm--connection))))))
   (setq exwm-input--update-focus-lock nil))
 
 (defun exwm-input--on-minibuffer-setup ()
