@@ -292,7 +292,11 @@ This value should always be overwritten.")
       (setq exwm-input--global-prefix-keys nil)
       (dolist (i exwm-input--global-keys)
         (cl-pushnew (elt i 0) exwm-input--global-prefix-keys))
-      (unless (equal original exwm-input--global-prefix-keys)
+      ;; Stop here if the global prefix keys are update-to-date and
+      ;; there's no new workspace.
+      (unless (and (equal original exwm-input--global-prefix-keys)
+                   (cl-every (lambda (w) (frame-parameter w 'exwm-grabbed))
+                             exwm-workspace--list))
         (setq ungrab-key (make-instance 'xcb:UngrabKey
                                         :key xcb:Grab:Any :grab-window nil
                                         :modifiers xcb:ModMask:Any)
@@ -308,6 +312,8 @@ This value should always be overwritten.")
           (setf (slot-value ungrab-key 'grab-window) workspace)
           (if (xcb:+request-checked+request-check exwm--connection ungrab-key)
               (exwm--log "Failed to ungrab keys")
+            ;; Label this frame.
+            (set-frame-parameter w 'exwm-grabbed t)
             (dolist (k exwm-input--global-prefix-keys)
               (setq keysym (xcb:keysyms:event->keysym exwm--connection k)
                     keycode (xcb:keysyms:keysym->keycode exwm--connection
@@ -640,6 +646,9 @@ Its usage is the same with `exwm-input-set-simulation-keys'."
   (add-hook 'post-command-hook #'exwm-input--on-post-command)
   ;; Update focus when buffer list updates
   (add-hook 'buffer-list-update-hook #'exwm-input--on-buffer-list-update)
+  ;; Re-grab global keys.
+  (add-hook 'exwm-workspace-list-change-hook
+            #'exwm-input--update-global-prefix-keys)
   ;; Update prefix keys for global keys
   (exwm-input--update-global-prefix-keys))
 
@@ -648,7 +657,9 @@ Its usage is the same with `exwm-input-set-simulation-keys'."
   (remove-hook 'pre-command-hook #'exwm-input--finish-key-sequence)
   (remove-hook 'pre-command-hook #'exwm-input--on-pre-command)
   (remove-hook 'post-command-hook #'exwm-input--on-post-command)
-  (remove-hook 'buffer-list-update-hook #'exwm-input--on-buffer-list-update))
+  (remove-hook 'buffer-list-update-hook #'exwm-input--on-buffer-list-update)
+  (remove-hook 'exwm-workspace-list-change-hook
+               #'exwm-input--update-global-prefix-keys))
 
 
 
