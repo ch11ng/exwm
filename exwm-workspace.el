@@ -463,7 +463,7 @@ The optional FORCE option is for internal use only."
         (set-frame-parameter (buffer-local-value 'exwm--frame (window-buffer))
                              'exwm-selected-window (selected-window)))
       (select-window window)
-      (x-focus-frame frame)    ;essential for transferring input focus
+      (x-focus-frame (window-frame window)) ;The real input focus.
       (set-frame-parameter frame 'exwm-selected-window nil)
       ;; Close the (possible) active minibuffer
       (when (active-minibuffer-window)
