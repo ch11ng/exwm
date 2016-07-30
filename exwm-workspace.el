@@ -1401,6 +1401,7 @@ applied to all subsequently created X frames."
         exwm-workspace--list nil
         exwm-workspace--client nil
         exwm-workspace--minibuffer nil
+        exwm-workspace--fullscreen-frame-count 0
         default-minibuffer-frame nil)
   (remove-hook 'minibuffer-setup-hook #'exwm-workspace--on-minibuffer-setup)
   (remove-hook 'minibuffer-exit-hook #'exwm-workspace--on-minibuffer-exit)
