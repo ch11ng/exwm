@@ -681,6 +681,9 @@ This hook is only run when EXWM is started with emacsclient.")
     (_                                  ;enable EXWM
      (setq frame-resize-pixelwise t     ;mandatory; before init
            window-resize-pixelwise t)
+     ;; Ignore unrecognized command line arguments.  This can be helpful
+     ;; when EXWM is launched by some session manager.
+     (push #'vector command-line-functions)
      (add-hook 'window-setup-hook #'exwm-init t)          ;for Emacs
      (add-hook 'after-make-frame-functions #'exwm-init t) ;for Emacs Client
      (add-hook 'kill-emacs-hook #'exwm--server-stop)
