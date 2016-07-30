@@ -986,7 +986,17 @@ Please check `exwm-workspace--minibuffer-own-frame-p' first."
              ;; Exclude non-graphical frames.
              (frame-parameter nil 'exwm-outer-id))
     (add-hook 'post-command-hook #'exwm-workspace--update-minibuffer-height)
-    (exwm-workspace--show-minibuffer)))
+    (exwm-workspace--show-minibuffer))
+  ;; FIXME: This is a temporary fix for the *Completions* buffer not
+  ;;        being correctly fitted by its displaying window.  As with
+  ;;        `exwm-workspace--display-buffer', the problem is caused by
+  ;;        the fact that the minibuffer (rather than the workspace)
+  ;;        frame is the 'selected frame'.  `get-buffer-window' will
+  ;;        fail to retrieve the correct window.  It's likely there are
+  ;;        other related issues.
+  (let ((window (get-buffer-window "*Completions*" exwm-workspace--current)))
+    (when window
+      (fit-window-to-buffer window nil nil nil nil t))))
 
 (defun exwm-workspace--on-minibuffer-exit ()
   "Run in minibuffer-exit-hook to hide the minibuffer container."

@@ -679,7 +679,8 @@ This hook is only run when EXWM is started with emacsclient.")
      (dolist (i exwm-blocking-subrs)
        (advice-remove i #'exwm--server-eval-at)))
     (_                                  ;enable EXWM
-     (setq frame-resize-pixelwise t)    ;mandatory; before init
+     (setq frame-resize-pixelwise t     ;mandatory; before init
+           window-resize-pixelwise t)
      (add-hook 'window-setup-hook #'exwm-init t)          ;for Emacs
      (add-hook 'after-make-frame-functions #'exwm-init t) ;for Emacs Client
      (add-hook 'kill-emacs-hook #'exwm--server-stop)
