@@ -98,6 +98,7 @@ corresponding buffer.")
 (declare-function exwm-workspace--current-height "exwm-workspace.el")
 (declare-function exwm-workspace--current-width  "exwm-workspace.el")
 (declare-function exwm-workspace--set-desktop "exwm-workspace.el" (id))
+(declare-function exwm-workspace--count "exwm-workspace.el" ())
 (declare-function exwm-workspace-move-window "exwm-workspace.el"
                   (frame-or-index &optional id))
 
@@ -254,7 +255,10 @@ corresponding buffer.")
             desktop)
         (when reply
           (setq desktop (slot-value reply 'value)))
-        (if (and desktop (/= desktop exwm-workspace-current-index))
+        (if (and desktop
+                 (/= desktop exwm-workspace-current-index)
+                 ;; Check the range.
+                 (< desktop (exwm-workspace--count)))
             (exwm-workspace-move-window desktop id)
           (exwm-workspace--set-desktop id)))
       (with-current-buffer (exwm--id->buffer id)
