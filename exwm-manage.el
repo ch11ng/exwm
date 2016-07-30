@@ -352,14 +352,26 @@ manager is shutting down."
         ;; Destroy the X window container (and the frame container if any).
         (xcb:+request exwm--connection
             (make-instance 'xcb:DestroyWindow :window exwm--container))
-        (let ((kill-buffer-query-functions nil)
-              (floating exwm--floating-frame))
-          (kill-buffer)
-          (when floating
-            (select-window
-             (frame-selected-window exwm-workspace--current)))))
-      (exwm-manage--set-client-list)
-      (xcb:flush exwm--connection))))
+        (exwm-manage--set-client-list)
+        (xcb:flush exwm--connection))
+      (let ((kill-buffer-func
+             (lambda (buffer)
+               (with-current-buffer buffer
+                 (let ((kill-buffer-query-functions nil)
+                       (floating exwm--floating-frame))
+                   (kill-buffer)
+                   (when floating
+                     (select-window
+                      (frame-selected-window exwm-workspace--current))))))))
+        (if (not (active-minibuffer-window))
+            ;; Kill the buffer as usual.
+            (funcall kill-buffer-func buffer)
+          ;; This can happen when this buffer was requested to be killed
+          ;; from the minibuffer (e.g. with `ido-kill-buffer-at-head').
+          ;; We have to exit the minibuffer first or there'll be a
+          ;; "selecting deleted buffer" error.
+          (run-with-idle-timer 0 nil kill-buffer-func buffer)
+          (exit-minibuffer))))))
 
 (defun exwm-manage--scan ()
   "Search for existing windows and try to manage them."
