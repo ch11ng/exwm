@@ -135,6 +135,7 @@ This value should always be overwritten.")
 (declare-function exwm-workspace--minibuffer-own-frame-p "exwm-workspace.el")
 (declare-function exwm-workspace-switch "exwm-workspace.el"
                   (frame-or-index &optional force))
+(declare-function exwm-workspace--workspace-p "exwm-workspace.el" (workspace))
 
 (defun exwm-input--update-focus (window)
   "Update input focus."
@@ -209,7 +210,6 @@ This value should always be overwritten.")
 (declare-function exwm-floating--start-moveresize "exwm-floating.el"
                   (id &optional type))
 (declare-function exwm-workspace--position "exwm-workspace.el" (frame))
-(declare-function exwm-workspace--workspace-p "exwm-workspace.el" (workspace))
 
 (defvar exwm-workspace--list)
 

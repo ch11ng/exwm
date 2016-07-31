@@ -571,7 +571,8 @@ before it."
                      (eq (elt exwm-workspace--list nth)
                          exwm-workspace--current)))
       ;; Do the move.
-      (pop (nthcdr pos exwm-workspace--list))
+      (with-no-warnings                 ;For Emacs 24.
+        (pop (nthcdr pos exwm-workspace--list)))
       (push workspace (nthcdr nth exwm-workspace--list))
       ;; Update the _NET_WM_DESKTOP property of each X window affected.
       (setq start (min pos nth)
@@ -994,9 +995,13 @@ Please check `exwm-workspace--minibuffer-own-frame-p' first."
   ;;        frame is the 'selected frame'.  `get-buffer-window' will
   ;;        fail to retrieve the correct window.  It's likely there are
   ;;        other related issues.
-  (let ((window (get-buffer-window "*Completions*" exwm-workspace--current)))
-    (when window
-      (fit-window-to-buffer window nil nil nil nil t))))
+  ;; This is not required by Emacs 24.
+  (when (fboundp 'window-preserve-size)
+    (let ((window (get-buffer-window "*Completions*"
+                                     exwm-workspace--current)))
+      (when window
+        (fit-window-to-buffer window)
+        (window-preserve-size window)))))
 
 (defun exwm-workspace--on-minibuffer-exit ()
   "Run in minibuffer-exit-hook to hide the minibuffer container."
