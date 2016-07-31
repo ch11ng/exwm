@@ -87,15 +87,11 @@
 (defun exwm-restart ()
   "Restart EXWM."
   (interactive)
-  (when (exwm-workspace--confirm-kill-emacs "[EXWM] Restart? ")
-    (server-force-delete)
-    (run-hooks 'kill-emacs-hook)
-    ;; FIXME: more?
+  (when (exwm-workspace--confirm-kill-emacs "[EXWM] Restart? " 'no-check)
     (apply #'call-process (car command-line-args) nil nil nil
            (cdr command-line-args))
     ;; Kill this instance at last.
-    (let ((kill-emacs-hook nil))
-      (kill-emacs))))
+    (kill-emacs)))
 
 (defun exwm--update-window-type (id &optional force)
   "Update _NET_WM_WINDOW_TYPE."

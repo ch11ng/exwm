@@ -1039,12 +1039,17 @@ Please check `exwm-workspace--minibuffer-own-frame-p' first."
 (declare-function exwm-manage--unmanage-window "exwm-manage.el")
 (declare-function exwm--exit "exwm.el")
 
-(defun exwm-workspace--confirm-kill-emacs (prompt)
+(defun exwm-workspace--confirm-kill-emacs (prompt &optional force)
   "Confirm before exiting Emacs."
-  (when (pcase (length exwm--id-buffer-alist)
-          (0 (y-or-n-p prompt))
-          (x (yes-or-no-p (format "[EXWM] %d window%s currently alive. %s"
-                                  x (if (= x 1) "" "s") prompt))))
+  (when (or (and force (not (eq force 'no-check)))
+            (and (or (eq force 'no-check) (not exwm--id-buffer-alist))
+                 (y-or-n-p prompt))
+            (yes-or-no-p (format "[EXWM] %d window(s) will be destroyed.  %s"
+                                 (length exwm--id-buffer-alist) prompt)))
+    ;; Run `kill-emacs-hook' before Emacs frames are unmapped so that
+    ;; errors can be visible.
+    (run-hooks 'kill-emacs-hook)
+    (setq kill-emacs-hook nil)
     ;; Hide & reparent out all frames (save-set can't be used here since
     ;; X windows will be re-mapped).
     (when (exwm-workspace--minibuffer-own-frame-p)
