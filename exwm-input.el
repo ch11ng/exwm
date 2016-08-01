@@ -79,6 +79,9 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
       (exwm-input--set-active-window id)
       (xcb:flush exwm--connection))))
 
+(declare-function exwm-workspace--client-p "exwm-workspace.el"
+                  (&optional frame))
+
 (defvar exwm-input--update-focus-window nil "The (Emacs) window to be focused.
 
 This value should always be overwritten.")
@@ -87,7 +90,7 @@ This value should always be overwritten.")
   "Run in `buffer-list-update-hook' to track input focus."
   (when (and (not (minibufferp)) ;Do not set input focus on minibuffer window.
              (eq (current-buffer) (window-buffer)) ;e.g. `with-temp-buffer'.
-             (frame-parameter nil 'exwm-outer-id)) ;e.g. emacsclient frame.
+             (not (exwm-workspace--client-p)))
     (setq exwm-input--update-focus-window (selected-window))
     (exwm-input--update-focus-defer)))
 
@@ -183,8 +186,9 @@ This value should always be overwritten.")
 
 (defun exwm-input--on-minibuffer-setup ()
   "Run in `minibuffer-setup-hook' to set input focus."
-  ;; Set input focus on the Emacs frame
-  (x-focus-frame (window-frame (minibuffer-selected-window))))
+  (unless (exwm-workspace--client-p)
+    ;; Set input focus on the Emacs frame
+    (x-focus-frame (window-frame (minibuffer-selected-window)))))
 
 (defun exwm-input--set-active-window (&optional id)
   "Set _NET_ACTIVE_WINDOW."

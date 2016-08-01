@@ -375,9 +375,12 @@ selected by `other-buffer'."
       (exwm-layout--set-client-list-stacking)
       (xcb:flush exwm--connection))))
 
+(declare-function exwm-workspace--client-p "exwm-workspace.el"
+                  (&optional frame))
+
 (defun exwm-layout--on-minibuffer-setup ()
   "Refresh layout when minibuffer grows."
-  (when (frame-parameter nil 'exwm-outer-id)
+  (unless (exwm-workspace--client-p)
     (run-with-idle-timer 0.01 nil         ;FIXME
                          (lambda ()
                            (when (< 1 (window-height (minibuffer-window)))
@@ -386,8 +389,7 @@ selected by `other-buffer'."
 (defun exwm-layout--on-echo-area-change (&optional dirty)
   "Run when message arrives or in `echo-area-clear-hook' to refresh layout."
   (when (and (current-message)
-             ;; Exclude non-graphical frames.
-             (frame-parameter nil 'exwm-outer-id)
+             (not (exwm-workspace--client-p))
              (or (cl-position ?\n (current-message))
                  (> (length (current-message))
                     (frame-width exwm-workspace--current))))

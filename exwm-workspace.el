@@ -48,6 +48,10 @@ NIL if FRAME is not a workspace"
   "Return t if FRAME is a workspace."
   (memq frame exwm-workspace--list))
 
+(defsubst exwm-workspace--client-p (&optional frame)
+  "Return non-nil if FRAME is an emacsclient frame."
+  (frame-parameter frame 'client))
+
 (defun exwm-workspace--workspace-from-frame-or-index (frame-or-index)
   "Retrieve the workspace frame from FRAME-OR-INDEX."
   (cond
@@ -882,24 +886,25 @@ Please check `exwm-workspace--minibuffer-own-frame-p' first."
 
 (defun exwm-workspace--update-minibuffer-height (&optional echo-area)
   "Update the minibuffer frame height."
-  (let ((height
-         (with-current-buffer
-             (window-buffer (minibuffer-window exwm-workspace--minibuffer))
-           (max 1
-                (if echo-area
-                    (let ((width (frame-width exwm-workspace--minibuffer))
-                          (result 0))
-                      (mapc (lambda (i)
-                              (setq result
-                                    (+ result
-                                       (ceiling (1+ (length i)) width))))
-                            (split-string (or (current-message) "") "\n"))
-                      result)
-                  (count-screen-lines))))))
-    (when (and (integerp max-mini-window-height)
-               (> height max-mini-window-height))
-      (setq height max-mini-window-height))
-    (set-frame-height exwm-workspace--minibuffer height)))
+  (unless (exwm-workspace--client-p)
+    (let ((height
+           (with-current-buffer
+               (window-buffer (minibuffer-window exwm-workspace--minibuffer))
+             (max 1
+                  (if echo-area
+                      (let ((width (frame-width exwm-workspace--minibuffer))
+                            (result 0))
+                        (mapc (lambda (i)
+                                (setq result
+                                      (+ result
+                                         (ceiling (1+ (length i)) width))))
+                              (split-string (or (current-message) "") "\n"))
+                        result)
+                    (count-screen-lines))))))
+      (when (and (integerp max-mini-window-height)
+                 (> height max-mini-window-height))
+        (setq height max-mini-window-height))
+      (set-frame-height exwm-workspace--minibuffer height))))
 
 (defun exwm-workspace--on-ConfigureNotify (data _synthetic)
   "Adjust the container to fit the minibuffer frame."
@@ -986,8 +991,7 @@ Please check `exwm-workspace--minibuffer-own-frame-p' first."
 (defun exwm-workspace--on-minibuffer-setup ()
   "Run in minibuffer-setup-hook to show the minibuffer and its container."
   (when (and (= 1 (minibuffer-depth))
-             ;; Exclude non-graphical frames.
-             (frame-parameter nil 'exwm-outer-id))
+             (not (exwm-workspace--client-p)))
     (add-hook 'post-command-hook #'exwm-workspace--update-minibuffer-height)
     (exwm-workspace--show-minibuffer))
   ;; FIXME: This is a temporary fix for the *Completions* buffer not
@@ -1008,8 +1012,7 @@ Please check `exwm-workspace--minibuffer-own-frame-p' first."
 (defun exwm-workspace--on-minibuffer-exit ()
   "Run in minibuffer-exit-hook to hide the minibuffer container."
   (when (and (= 1 (minibuffer-depth))
-             ;; Exclude non-graphical frames.
-             (frame-parameter nil 'exwm-outer-id))
+             (not (exwm-workspace--client-p)))
     (remove-hook 'post-command-hook #'exwm-workspace--update-minibuffer-height)
     (exwm-workspace--hide-minibuffer)))
 
@@ -1018,8 +1021,7 @@ Please check `exwm-workspace--minibuffer-own-frame-p' first."
 (defun exwm-workspace--on-echo-area-dirty ()
   "Run when new message arrives to show the echo area and its container."
   (when (and (not (active-minibuffer-window))
-             ;; Exclude non-graphical frames.
-             (frame-parameter nil 'exwm-outer-id)
+             (not (exwm-workspace--client-p))
              (or (current-message)
                  cursor-in-echo-area))
     (exwm-workspace--update-minibuffer-height t)
@@ -1033,7 +1035,7 @@ Please check `exwm-workspace--minibuffer-own-frame-p' first."
 
 (defun exwm-workspace--on-echo-area-clear ()
   "Run in echo-area-clear-hook to hide echo area container."
-  (when (frame-parameter nil 'exwm-outer-id) ;Exclude non-graphical frames.
+  (unless (exwm-workspace--client-p)
     (unless (active-minibuffer-window)
       (exwm-workspace--hide-minibuffer))
     (when exwm-workspace--display-echo-area-timer
@@ -1153,6 +1155,8 @@ Please check `exwm-workspace--minibuffer-own-frame-p' first."
       (set-frame-parameter frame 'exwm-outer-id outer-id)
       (set-frame-parameter frame 'exwm-container container)
       (set-frame-parameter frame 'exwm-workspace workspace)
+      ;; In case it's created by emacsclient.
+      (set-frame-parameter frame 'client nil)
       ;; Copy RandR frame parameters from the first workspace to
       ;; prevent potential problems.  The values do not matter here as
       ;; they'll be updated by the RandR module later.
@@ -1324,7 +1328,7 @@ applied to all subsequently created X frames."
             (unless (frame-parameter i 'window-id)
               (setq initial-workspaces (delq i initial-workspaces))))
           (setq exwm-workspace--client
-                (frame-parameter (car exwm-workspace--list) 'client))
+                (frame-parameter (car initial-workspaces) 'client))
           (let ((f (car initial-workspaces)))
             ;; Remove the possible internal border.
             (set-frame-parameter f 'internal-border-width 0)
