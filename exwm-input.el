@@ -53,6 +53,12 @@
 
 It's updated in several occasions, and only used by `exwm-input--set-focus'.")
 
+(defvar exwm-workspace--current)
+(defvar exwm-workspace--switch-history-outdated)
+(defvar exwm-workspace-current-index)
+(defvar exwm-workspace--minibuffer)
+(defvar exwm-workspace--list)
+
 (defun exwm-input--set-focus (id)
   "Set input focus to window ID in a proper way."
   (when (exwm--id->buffer id)
@@ -78,6 +84,30 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
                            :time xcb:Time:CurrentTime)))
       (exwm-input--set-active-window id)
       (xcb:flush exwm--connection))))
+
+(defun exwm-input--on-FocusIn (data _synthetic)
+  "Handle FocusIn events."
+  (let ((obj (make-instance 'xcb:FocusIn)))
+    (xcb:unmarshal obj data)
+    (when (= (slot-value obj 'detail) xcb:NotifyDetail:Inferior)
+      ;; Transfer input focus back to the workspace when the workspace
+      ;; container unexpectedly receives it.
+      (x-focus-frame exwm-workspace--current))))
+
+(defun exwm-input--on-workspace-list-change ()
+  "Run in `exwm-input--update-global-prefix-keys'."
+  (dolist (f exwm-workspace--list)
+    ;; Reuse the 'exwm-grabbed' frame parameter set in
+    ;; `exwm-input--update-global-prefix-keys'.
+    (unless (frame-parameter f 'exwm-grabbed)
+      (xcb:+request exwm--connection
+          (make-instance 'xcb:ChangeWindowAttributes
+                         :window (frame-parameter f 'exwm-workspace)
+                         :value-mask xcb:CW:EventMask
+                         ;; There should no other event selected there.
+                         :event-mask xcb:EventMask:FocusChange))))
+  (exwm-input--update-global-prefix-keys)
+  (xcb:flush exwm--connection))
 
 (declare-function exwm-workspace--client-p "exwm-workspace.el"
                   (&optional frame))
@@ -127,11 +157,6 @@ This value should always be overwritten.")
           (run-with-idle-timer exwm-input--update-focus-interval nil
                                #'exwm-input--update-focus
                                exwm-input--update-focus-window))))
-
-(defvar exwm-workspace--current)
-(defvar exwm-workspace--switch-history-outdated)
-(defvar exwm-workspace-current-index)
-(defvar exwm-workspace--minibuffer)
 
 (declare-function exwm-layout--iconic-state-p "exwm-layout.el" (&optional id))
 (declare-function exwm-layout--set-state "exwm-layout.el" (id state))
@@ -214,8 +239,6 @@ This value should always be overwritten.")
 (declare-function exwm-floating--start-moveresize "exwm-floating.el"
                   (id &optional type))
 (declare-function exwm-workspace--position "exwm-workspace.el" (frame))
-
-(defvar exwm-workspace--list)
 
 (defun exwm-input--on-ButtonPress (data _synthetic)
   "Handle ButtonPress event."
@@ -641,6 +664,7 @@ Its usage is the same with `exwm-input-set-simulation-keys'."
               #'exwm-floating--stop-moveresize)
   (xcb:+event exwm--connection 'xcb:MotionNotify
               #'exwm-floating--do-moveresize)
+  (xcb:+event exwm--connection 'xcb:FocusIn #'exwm-input--on-FocusIn)
   ;; The input focus should be set on the frame when minibuffer is active.
   (add-hook 'minibuffer-setup-hook #'exwm-input--on-minibuffer-setup)
   ;; `pre-command-hook' marks the end of a key sequence (existing or not)
@@ -652,9 +676,8 @@ Its usage is the same with `exwm-input-set-simulation-keys'."
   (add-hook 'buffer-list-update-hook #'exwm-input--on-buffer-list-update)
   ;; Re-grab global keys.
   (add-hook 'exwm-workspace-list-change-hook
-            #'exwm-input--update-global-prefix-keys)
-  ;; Update prefix keys for global keys
-  (exwm-input--update-global-prefix-keys))
+            #'exwm-input--on-workspace-list-change)
+  (exwm-input--on-workspace-list-change))
 
 (defun exwm-input--exit ()
   "Exit the input module."
@@ -663,7 +686,7 @@ Its usage is the same with `exwm-input-set-simulation-keys'."
   (remove-hook 'post-command-hook #'exwm-input--on-post-command)
   (remove-hook 'buffer-list-update-hook #'exwm-input--on-buffer-list-update)
   (remove-hook 'exwm-workspace-list-change-hook
-               #'exwm-input--update-global-prefix-keys)
+               #'exwm-input--on-workspace-list-change)
   (when exwm-input--update-focus-defer-timer
     (cancel-timer exwm-input--update-focus-defer-timer))
   (when exwm-input--update-focus-timer
