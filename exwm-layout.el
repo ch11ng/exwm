@@ -68,18 +68,24 @@
   "Show window ID exactly fit in the Emacs window WINDOW."
   (exwm--log "Show #x%x in %s" id window)
   (let* ((edges (window-inside-absolute-pixel-edges window))
-         (width (- (elt edges 2) (elt edges 0)))
-         (height (- (elt edges 3) (elt edges 1)))
+         (x (pop edges))
+         (y (pop edges))
+         (width (- (pop edges) x))
+         (height (- (pop edges) y))
+         (edges (window-inside-pixel-edges window))
+         (relative-x (pop edges))
+         (relative-y (pop edges))
          frame-width frame-height)
     (with-current-buffer (exwm--id->buffer id)
       (if (not exwm--floating-frame)
-          (let ((relative-edges (window-inside-pixel-edges window)))
-            (exwm-layout--resize-container
-             id exwm--container
-             (elt relative-edges 0) (elt relative-edges 1) width height
-             ;; Do not resize the X window if the minibuffer resizes itself.
-             (and (active-minibuffer-window)
-                  (< 1 (window-height (active-minibuffer-window))))))
+          (exwm-layout--resize-container id exwm--container
+                                         relative-x relative-y width height
+                                         ;; Keep the size of the X window if
+                                         ;; it's the minibuffer that resized.
+                                         (and
+                                          (active-minibuffer-window)
+                                          (< 1 (window-height
+                                                (active-minibuffer-window)))))
         ;; A floating X window is of the same size as the Emacs window,
         ;; whereas its container is of the same size as the Emacs frame.
         (setq frame-width (frame-pixel-width exwm--floating-frame)
@@ -106,8 +112,8 @@
                                                xcb:ConfigWindow:Y
                                                xcb:ConfigWindow:Width
                                                xcb:ConfigWindow:Height)
-                           :x exwm-floating-border-width
-                           :y exwm-floating-border-width
+                           :x relative-x
+                           :y relative-y
                            :width width
                            :height height)))
       ;; Make the resizing take effect.
@@ -122,11 +128,13 @@
                        :event-mask xcb:EventMask:StructureNotify
                        :event (xcb:marshal
                                (make-instance 'xcb:ConfigureNotify
-                                              :event id :window id
+                                              :event id
+                                              :window id
                                               :above-sibling xcb:Window:None
-                                              :x (elt edges 0)
-                                              :y (elt edges 1)
-                                              :width width :height height
+                                              :x x
+                                              :y y
+                                              :width width
+                                              :height height
                                               :border-width 0
                                               :override-redirect 0)
                                exwm--connection))))
