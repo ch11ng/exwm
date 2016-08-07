@@ -370,27 +370,38 @@ You shall use the default value if using auto-hide minibuffer.")
                        :data xcb:systemtray:ORIENTATION:HORZ)))
   ;; Create the embedder.
   (let ((id (xcb:generate-id exwm-systemtray--connection))
-        parent y)
+        frame parent depth y)
     (setq exwm-systemtray--embedder id)
-    (xcb:+request exwm-systemtray--connection
-        (make-instance 'xcb:CreateWindow
-                       :depth 0 :wid id :parent exwm--root
-                       :x 0 :y 0 :width 1 :height exwm-systemtray-height
-                       :border-width 0 :class xcb:WindowClass:CopyFromParent
-                       :visual 0 :value-mask xcb:CW:EventMask
-                       :event-mask xcb:EventMask:SubstructureNotify))
     (if (exwm-workspace--minibuffer-own-frame-p)
-        (setq parent (frame-parameter exwm-workspace--minibuffer
-                                      'exwm-container)
-              ;; Vertically centered.
-              y (/ (- (line-pixel-height) exwm-systemtray-height) 2))
-      (setq parent (string-to-number (frame-parameter exwm-workspace--current
-                                                      'window-id))
+        (setq frame exwm-workspace--minibuffer
+              y (if (>= (line-pixel-height) exwm-systemtray-height)
+                    ;; Bottom aligned.
+                    (- (line-pixel-height) exwm-systemtray-height)
+                  ;; Vertically centered.
+                  (/ (- (line-pixel-height) exwm-systemtray-height) 2)))
+      (setq frame exwm-workspace--current
             ;; Bottom aligned.
             y (- (exwm-workspace--current-height) exwm-systemtray-height)))
+    (setq parent (string-to-number (frame-parameter frame 'window-id))
+          depth (slot-value (xcb:+request-unchecked+reply exwm--connection
+                                (make-instance 'xcb:GetGeometry
+                                               :drawable parent))
+                            'depth))
     (xcb:+request exwm-systemtray--connection
-        (make-instance 'xcb:ReparentWindow
-                       :window id :parent parent :x 0 :y y))
+        (make-instance 'xcb:CreateWindow
+                       :depth depth
+                       :wid id
+                       :parent parent
+                       :x 0
+                       :y y
+                       :width 1
+                       :height exwm-systemtray-height
+                       :border-width 0
+                       :class xcb:WindowClass:CopyFromParent
+                       :visual 0
+                       :value-mask (logior xcb:CW:BackPixmap xcb:CW:EventMask)
+                       :background-pixmap xcb:BackPixmap:ParentRelative
+                       :event-mask xcb:EventMask:SubstructureNotify))
     ;; Set _NET_WM_NAME.
     (xcb:+request exwm-systemtray--connection
         (make-instance 'xcb:ewmh:set-_NET_WM_NAME
