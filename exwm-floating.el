@@ -34,9 +34,11 @@
   "Border color of the floating window.")
 
 (defvar exwm-floating-setup-hook nil
-  "Normal hook run when a window has been made floating.")
+  "Normal hook run when an X window has been made floating, in the
+context of the corresponding buffer.")
 (defvar exwm-floating-exit-hook nil
-  "Normal hook run when a window has exited floating state.")
+  "Normal hook run when an X window has exited floating state, in the
+context of the corresponding buffer.")
 
 ;; Cursors for moving/resizing a window
 (defvar exwm-floating--cursor-move nil)
@@ -252,7 +254,8 @@
                                              xcb:ConfigWindow:Y)
                          :x 0 :y 0))
       (xcb:flush exwm--connection)))
-  (run-hooks 'exwm-floating-setup-hook)
+  (with-current-buffer (exwm--id->buffer id)
+    (run-hooks 'exwm-floating-setup-hook))
   ;; Redraw the frame.
   (redisplay))
 
@@ -324,7 +327,8 @@
       (let ((window (frame-selected-window exwm-workspace--current)))
         (set-window-buffer window buffer)
         (select-window window))))
-  (run-hooks 'exwm-floating-exit-hook))
+  (with-current-buffer (exwm--id->buffer id)
+    (run-hooks 'exwm-floating-exit-hook)))
 
 ;;;###autoload
 (defun exwm-floating-toggle-floating ()
