@@ -170,15 +170,15 @@ corresponding buffer.")
                             exwm-window-type)
                       (memq xcb:Atom:_NET_WM_WINDOW_TYPE_DOCK
                             exwm-window-type))
-            (let ((frame-geometry (frame-parameter exwm-workspace--current
-                                                   'exwm-geometry))
-                  (workspace (frame-parameter exwm-workspace--current
-                                              'exwm-workspace)))
-              (when (and frame-geometry
-                         (/= x 0)
+            (let ((workspace (frame-parameter exwm-workspace--current
+                                              'exwm-workspace))
+                  workarea)
+              (when (and (/= x 0)
                          (/= y 0))
-                (setq x (- x (slot-value frame-geometry 'x))
-                      y (- y (slot-value frame-geometry 'y))))
+                (setq workarea (elt exwm-workspace--workareas
+                                    exwm-workspace-current-index)
+                      x (- x (aref workarea 0))
+                      y (- y (aref workarea 1))))
               (xcb:+request exwm--connection
                   (make-instance 'xcb:ReparentWindow
                                  :window id

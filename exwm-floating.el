@@ -105,15 +105,15 @@ context of the corresponding buffer.")
          (x (slot-value exwm--geometry 'x))
          (y (slot-value exwm--geometry 'y))
          (width (slot-value exwm--geometry 'width))
-         (height (slot-value exwm--geometry 'height))
-         (frame-geometry (frame-parameter original-frame 'exwm-geometry)))
+         (height (slot-value exwm--geometry 'height)))
     (exwm--log "Floating geometry (original, absolute): %dx%d%+d%+d"
                width height x y)
-    (when (and frame-geometry
-               (/= x 0)
+    (when (and (/= x 0)
                (/= y 0))
-      (setq x (- x (slot-value frame-geometry 'x))
-            y (- y (slot-value frame-geometry 'y))))
+      (let ((workarea (elt exwm-workspace--workareas
+                           (exwm-workspace--position original-frame))))
+        (setq x (- x (aref workarea 0))
+              y (- y (aref workarea 1)))))
     (exwm--log "Floating geometry (original, relative): %dx%d%+d%+d"
                width height x y)
     ;; Save frame parameters.
@@ -561,14 +561,12 @@ context of the corresponding buffer.")
 (defun exwm-floating--do-moveresize (data _synthetic)
   "Perform move/resize."
   (when exwm-floating--moveresize-calculate
-    (let ((obj (make-instance 'xcb:MotionNotify))
-          (geometry (frame-parameter exwm-workspace--current 'exwm-geometry))
-          (frame-x 0)
-          (frame-y 0)
-          result value-mask width height buffer-or-id container-or-id)
-      (when geometry
-        (setq frame-x (slot-value geometry 'x)
-              frame-y (slot-value geometry 'y)))
+    (let* ((obj (make-instance 'xcb:MotionNotify))
+           (workarea (elt exwm-workspace--workareas
+                          exwm-workspace-current-index))
+           (frame-x (aref workarea 0))
+           (frame-y (aref workarea 1))
+           result value-mask width height buffer-or-id container-or-id)
       (xcb:unmarshal obj data)
       (setq result (funcall exwm-floating--moveresize-calculate
                             (slot-value obj 'root-x) (slot-value obj 'root-y))
