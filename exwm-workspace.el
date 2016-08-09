@@ -691,10 +691,13 @@ INDEX must not exceed the current number of workspaces."
                        (outer-id (string-to-number
                                   (frame-parameter new-frame
                                                    'outer-window-id)))
+                       (window-id (string-to-number
+                                   (frame-parameter new-frame 'window-id)))
                        (frame-container (frame-parameter old-frame
                                                          'exwm-container))
                        (window (frame-root-window new-frame)))
                   (set-frame-parameter new-frame 'exwm-outer-id outer-id)
+                  (set-frame-parameter new-frame 'exwm-id window-id)
                   (set-frame-parameter new-frame 'exwm-container
                                        frame-container)
                   (make-frame-invisible new-frame)
@@ -1149,10 +1152,12 @@ Please check `exwm-workspace--minibuffer-own-frame-p' first."
     (setq exwm-workspace--list (nconc exwm-workspace--list (list frame)))
     (let ((outer-id (string-to-number (frame-parameter frame
                                                        'outer-window-id)))
+          (window-id (string-to-number (frame-parameter frame 'window-id)))
           (container (xcb:generate-id exwm--connection))
           (workspace (xcb:generate-id exwm--connection)))
       ;; Save window IDs
       (set-frame-parameter frame 'exwm-outer-id outer-id)
+      (set-frame-parameter frame 'exwm-id window-id)
       (set-frame-parameter frame 'exwm-container container)
       (set-frame-parameter frame 'exwm-workspace workspace)
       ;; In case it's created by emacsclient.
@@ -1356,9 +1361,13 @@ applied to all subsequently created X frames."
       (let ((outer-id (string-to-number
                        (frame-parameter exwm-workspace--minibuffer
                                         'outer-window-id)))
+            (window-id (string-to-number
+                        (frame-parameter exwm-workspace--minibuffer
+                                         'window-id)))
             (container (xcb:generate-id exwm--connection)))
         (set-frame-parameter exwm-workspace--minibuffer
                              'exwm-outer-id outer-id)
+        (set-frame-parameter exwm-workspace--minibuffer 'exwm-id window-id)
         (set-frame-parameter exwm-workspace--minibuffer 'exwm-container
                              container)
         (xcb:+request exwm--connection

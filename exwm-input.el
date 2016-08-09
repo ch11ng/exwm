@@ -48,10 +48,9 @@
 (defvar exwm-input--resize-keysym nil)
 (defvar exwm-input--resize-mask nil)
 
-(defvar exwm-input--timestamp xcb:Time:CurrentTime
-  "A recent timestamp received from X server.
-
-It's updated in several occasions, and only used by `exwm-input--set-focus'.")
+(defvar exwm-input--timestamp-window nil)
+(defvar exwm-input--timestamp-atom nil)
+(defvar exwm-input--timestamp-callback nil)
 
 (defvar exwm-workspace--current)
 (defvar exwm-workspace--switch-history-outdated)
@@ -62,37 +61,81 @@ It's updated in several occasions, and only used by `exwm-input--set-focus'.")
 (defun exwm-input--set-focus (id)
   "Set input focus to window ID in a proper way."
   (when (exwm--id->buffer id)
-    (with-current-buffer (exwm--id->buffer id)
-      (if (and (not exwm--hints-input)
-               (memq xcb:Atom:WM_TAKE_FOCUS exwm--protocols))
-          (progn
-            (exwm--log "Focus on #x%x with WM_TAKE_FOCUS" id)
+    (let ((focus (slot-value (xcb:+request-unchecked+reply exwm--connection
+                                 (make-instance 'xcb:GetInputFocus))
+                             'focus)))
+      (unless (= focus id)
+        (with-current-buffer (exwm--id->buffer id)
+          (cond
+           ((and (not exwm--hints-input)
+                 (memq xcb:Atom:WM_TAKE_FOCUS exwm--protocols))
+            (when (= focus (frame-parameter nil 'exwm-id))
+              (exwm--log "Focus on #x%x with WM_TAKE_FOCUS" id)
+              (exwm-input--update-timestamp
+               (lambda (timestamp id)
+                 (let ((event (make-instance 'xcb:icccm:WM_TAKE_FOCUS
+                                             :window id
+                                             :time timestamp)))
+                   (setq event (xcb:marshal event exwm--connection))
+                   (xcb:+request exwm--connection
+                       (make-instance 'xcb:icccm:SendEvent
+                                      :destination id
+                                      :event event))
+                   (exwm-input--set-active-window id)
+                   (xcb:flush exwm--connection)))
+               id)))
+           (t
+            (exwm--log "Focus on #x%x with SetInputFocus" id)
             (xcb:+request exwm--connection
-                (make-instance 'xcb:icccm:SendEvent
-                               :destination id
-                               :event (xcb:marshal
-                                       (make-instance 'xcb:icccm:WM_TAKE_FOCUS
-                                                      :window id
-                                                      :time
-                                                      exwm-input--timestamp)
-                                       exwm--connection))))
-        (exwm--log "Focus on #x%x with SetInputFocus" id)
-        (xcb:+request exwm--connection
-            (make-instance 'xcb:SetInputFocus
-                           :revert-to xcb:InputFocus:Parent
-                           :focus id
-                           :time xcb:Time:CurrentTime)))
-      (exwm-input--set-active-window id)
-      (xcb:flush exwm--connection))))
+                (make-instance 'xcb:SetInputFocus
+                               :revert-to xcb:InputFocus:Parent
+                               :focus id
+                               :time xcb:Time:CurrentTime))
+            (exwm-input--set-active-window id)
+            (xcb:flush exwm--connection))))))))
+
+(defun exwm-input--update-timestamp (callback &rest args)
+  "Fetch the latest timestamp from the server and feed it to CALLBACK.
+
+ARGS are additional arguments to CALLBACK."
+  (setq exwm-input--timestamp-callback (cons callback args))
+  (xcb:+request exwm--connection
+      (make-instance 'xcb:ChangeProperty
+                     :mode xcb:PropMode:Replace
+                     :window exwm-input--timestamp-window
+                     :property exwm-input--timestamp-atom
+                     :type xcb:Atom:CARDINAL
+                     :format 32
+                     :data-len 0
+                     :data nil))
+  (xcb:flush exwm--connection))
+
+(defun exwm-input--on-PropertyNotify (data _synthetic)
+  "Handle PropertyNotify events."
+  (when exwm-input--timestamp-callback
+    (let ((obj (make-instance 'xcb:PropertyNotify)))
+      (xcb:unmarshal obj data)
+      (when (= exwm-input--timestamp-window
+               (slot-value obj 'window))
+        (apply (car exwm-input--timestamp-callback)
+               (slot-value obj 'time)
+               (cdr exwm-input--timestamp-callback))
+        (setq exwm-input--timestamp-callback nil)))))
 
 (defun exwm-input--on-FocusIn (data _synthetic)
   "Handle FocusIn events."
   (let ((obj (make-instance 'xcb:FocusIn)))
     (xcb:unmarshal obj data)
-    (when (= (slot-value obj 'detail) xcb:NotifyDetail:Inferior)
-      ;; Transfer input focus back to the workspace when the workspace
-      ;; container unexpectedly receives it.
-      (x-focus-frame exwm-workspace--current))))
+    ;; Not sure if this is the right thing to do but the point is the
+    ;; input focus should not stay at the root window or any container,
+    ;; or the result would be unpredictable.  `x-focus-frame' would
+    ;; first set the input focus to the (previously) selected frame, and
+    ;; then `select-window' would further update the input focus if the
+    ;; selected window is displaying an `exwm-mode' buffer.  Perhaps we
+    ;; should carefully filter out FocusIn events with certain 'detail'
+    ;; and 'mode' combinations, but this just works.
+    (x-focus-frame (selected-frame))
+    (select-window (selected-window))))
 
 (defun exwm-input--on-workspace-list-change ()
   "Run in `exwm-input--update-global-prefix-keys'."
@@ -247,7 +290,6 @@ This value should always be overwritten.")
         window buffer frame)
     (xcb:unmarshal obj data)
     (with-slots (detail time event state) obj
-      (setq exwm-input--timestamp time)
       (setq window (get-buffer-window (exwm--id->buffer event) t)
             buffer (window-buffer window))
       (cond ((and (= state exwm-input--move-mask)
@@ -296,7 +338,6 @@ This value should always be overwritten.")
   "Handle KeyPress event."
   (let ((obj (make-instance 'xcb:KeyPress)))
     (xcb:unmarshal obj data)
-    (setq exwm-input--timestamp (slot-value obj 'time))
     (if (eq major-mode 'exwm-mode)
         (funcall exwm--on-KeyPress obj data)
       (exwm-input--on-KeyPress-char-mode obj))))
@@ -657,7 +698,33 @@ Its usage is the same with `exwm-input-set-simulation-keys'."
           exwm-input--move-mask (cdr move-key)
           exwm-input--resize-keysym (car resize-key)
           exwm-input--resize-mask (cdr resize-key)))
+  ;; Create the X window and intern the atom used to fetch timestamp.
+  (setq exwm-input--timestamp-window (xcb:generate-id exwm--connection))
+  (xcb:+request exwm--connection
+      (make-instance 'xcb:CreateWindow
+                     :depth 0
+                     :wid exwm-input--timestamp-window
+                     :parent exwm--root
+                     :x -1
+                     :y -1
+                     :width 1
+                     :height 1
+                     :border-width 0
+                     :class xcb:WindowClass:CopyFromParent
+                     :visual 0
+                     :value-mask xcb:CW:EventMask
+                     :event-mask xcb:EventMask:PropertyChange))
+  (let ((atom "_TIME"))
+    (setq exwm-input--timestamp-atom
+          (slot-value (xcb:+request-unchecked+reply exwm--connection
+                          (make-instance 'xcb:InternAtom
+                                         :only-if-exists 0
+                                         :name-len (length atom)
+                                         :name atom))
+                      'atom)))
   ;; Attach event listeners
+  (xcb:+event exwm--connection 'xcb:PropertyNotify
+              #'exwm-input--on-PropertyNotify)
   (xcb:+event exwm--connection 'xcb:KeyPress #'exwm-input--on-KeyPress)
   (xcb:+event exwm--connection 'xcb:ButtonPress #'exwm-input--on-ButtonPress)
   (xcb:+event exwm--connection 'xcb:ButtonRelease

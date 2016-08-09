@@ -99,7 +99,9 @@ context of the corresponding buffer.")
                      (height . ,window-min-height)
                      (unsplittable . t))))) ;and fix the size later
          (outer-id (string-to-number (frame-parameter frame 'outer-window-id)))
-         (container (buffer-local-value 'exwm--container (exwm--id->buffer id)))
+         (window-id (string-to-number (frame-parameter frame 'window-id)))
+         (container (buffer-local-value 'exwm--container
+                                        (exwm--id->buffer id)))
          (frame-container (xcb:generate-id exwm--connection))
          (window (frame-first-window frame)) ;and it's the only window
          (x (slot-value exwm--geometry 'x))
@@ -118,6 +120,7 @@ context of the corresponding buffer.")
                width height x y)
     ;; Save frame parameters.
     (set-frame-parameter frame 'exwm-outer-id outer-id)
+    (set-frame-parameter frame 'exwm-id window-id)
     (set-frame-parameter frame 'exwm-container frame-container)
     ;; Fix illegal parameters
     ;; FIXME: check normal hints restrictions

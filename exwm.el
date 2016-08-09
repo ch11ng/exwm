@@ -315,8 +315,7 @@
         atom id buffer)
     (xcb:unmarshal obj data)
     (setq id (slot-value obj 'window)
-          atom (slot-value obj 'atom)
-          exwm-input--timestamp (slot-value obj 'time))
+          atom (slot-value obj 'atom))
     (setq buffer (exwm--id->buffer id))
     (if (not (buffer-live-p buffer))
         ;; Properties of unmanaged X windows.
