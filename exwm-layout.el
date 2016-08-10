@@ -314,11 +314,14 @@ selected by `other-buffer'."
                        :data (vconcat (append clients-other clients-iconic
                                               clients clients-floating))))))
 
-(defun exwm-layout--refresh ()
+(defun exwm-layout--refresh (&optional frame)
   "Refresh layout."
-  (let ((frame (selected-frame))
-        covered-buffers             ;EXWM-buffers covered by a new X window.
-        vacated-windows             ;Windows previously displaying EXWM-buffers.
+  ;; `window-size-change-functions' sets this argument while
+  ;; `window-configuration-change-hook' makes the frame selected.
+  (unless frame
+    (setq frame (selected-frame)))
+  (let (covered-buffers   ;EXWM-buffers covered by a new X window.
+        vacated-windows   ;Windows previously displaying EXWM-buffers.
         windows)
     (if (not (exwm-workspace--workspace-p frame))
         (if (frame-parameter frame 'exwm-outer-id)
@@ -566,6 +569,9 @@ See also `exwm-layout-enlarge-window'."
   "Initialize layout module."
   ;; Auto refresh layout
   (add-hook 'window-configuration-change-hook #'exwm-layout--refresh)
+  ;; The behavior of `window-configuration-change-hook' will be changed.
+  (when (fboundp 'window-pixel-width-before-size-change)
+    (add-hook 'window-size-change-functions #'exwm-layout--refresh))
   (unless (exwm-workspace--minibuffer-own-frame-p)
     ;; Refresh when minibuffer grows
     (add-hook 'minibuffer-setup-hook #'exwm-layout--on-minibuffer-setup t)
