@@ -268,13 +268,9 @@
                                      :window id)))
       (when reply
         (setq struts (slot-value reply 'value))
-        (if struts
-            (if pair
-                (setcdr pair struts)
-              (push (cons id struts) exwm-workspace--id-struts-alist))
-          (when pair
-            (setq exwm-workspace--id-struts-alist
-                  (assq-delete-all id exwm-workspace--id-struts-alist))))
+        (if pair
+            (setcdr pair struts)
+          (push (cons id struts) exwm-workspace--id-struts-alist))
         (exwm-workspace--update-struts))
       ;; Update workareas and set _NET_WORKAREA.
       (exwm-workspace--update-workareas)
@@ -291,13 +287,9 @@
     (when reply
       (setq struts (slot-value reply 'value)
             pair (assq id exwm-workspace--id-struts-alist))
-      (if struts
-          (if pair
-              (setcdr pair struts)
-            (push (cons id struts) exwm-workspace--id-struts-alist))
-        (when pair
-          (setq exwm-workspace--id-struts-alist
-                (assq-delete-all id exwm-workspace--id-struts-alist))))
+      (if pair
+          (setcdr pair struts)
+        (push (cons id struts) exwm-workspace--id-struts-alist))
       (exwm-workspace--update-struts))
     ;; Update workareas and set _NET_WORKAREA.
     (exwm-workspace--update-workareas)

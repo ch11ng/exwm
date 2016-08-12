@@ -232,18 +232,19 @@ Value nil means to use the default position which is fixed at bottom, while
   (let (struts struts*)
     (dolist (pair exwm-workspace--id-struts-alist)
       (setq struts (cdr pair))
-      (dotimes (i 4)
-        (when (/= 0 (aref struts i))
-          (setq struts*
-                (vector (aref [left right top bottom] i)
-                        (aref struts i)
-                        (when (= 12 (length struts))
-                          (substring struts (+ 4 (* i 2)) (+ 6 (* i 2))))))
-          (if (= 0 (mod i 2))
-              ;; Make left/top processed first.
-              (push struts* exwm-workspace--struts)
-            (setq exwm-workspace--struts
-                  (append exwm-workspace--struts (list struts*)))))))))
+      (when struts
+        (dotimes (i 4)
+          (when (/= 0 (aref struts i))
+            (setq struts*
+                  (vector (aref [left right top bottom] i)
+                          (aref struts i)
+                          (when (= 12 (length struts))
+                            (substring struts (+ 4 (* i 2)) (+ 6 (* i 2))))))
+            (if (= 0 (mod i 2))
+                ;; Make left/top processed first.
+                (push struts* exwm-workspace--struts)
+              (setq exwm-workspace--struts
+                    (append exwm-workspace--struts (list struts*))))))))))
 
 (defvar exwm-workspace--workareas nil "Workareas (struts excluded).")
 
