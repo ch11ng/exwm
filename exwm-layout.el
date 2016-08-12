@@ -177,7 +177,7 @@
   "Make window ID fullscreen."
   (interactive)
   (with-current-buffer (if id (exwm--id->buffer id) (window-buffer))
-    (when exwm--fullscreen
+    (when (memq xcb:Atom:_NET_WM_STATE_FULLSCREEN exwm--ewmh-state)
       (user-error "Already in full-screen mode."))
     ;; Save the position of floating frame.
     (when exwm--floating-frame
@@ -221,7 +221,7 @@
                        :window exwm--id
                        :data (vector xcb:Atom:_NET_WM_STATE_FULLSCREEN)))
     (xcb:flush exwm--connection)
-    (setq exwm--fullscreen t)
+    (cl-pushnew xcb:Atom:_NET_WM_STATE_FULLSCREEN exwm--ewmh-state)
     (call-interactively #'exwm-input-release-keyboard)))
 
 ;;;###autoload
@@ -229,7 +229,7 @@
   "Restore window from fullscreen state."
   (interactive)
   (with-current-buffer (if id (exwm--id->buffer id) (window-buffer))
-    (unless exwm--fullscreen
+    (unless (memq xcb:Atom:_NET_WM_STATE_FULLSCREEN exwm--ewmh-state)
       (user-error "Not in full-screen mode."))
     ;; Restore the size of this workspace.
     (exwm-workspace--set-fullscreen exwm--frame)
@@ -256,7 +256,8 @@
     (xcb:+request exwm--connection
         (make-instance 'xcb:ewmh:set-_NET_WM_STATE :window exwm--id :data []))
     (xcb:flush exwm--connection)
-    (setq exwm--fullscreen nil)
+    (setq exwm--ewmh-state
+          (delq xcb:Atom:_NET_WM_STATE_FULLSCREEN exwm--ewmh-state))
     (call-interactively #'exwm-input-grab-keyboard)))
 
 (defvar exwm-layout--other-buffer-exclude-exwm-mode-buffers nil

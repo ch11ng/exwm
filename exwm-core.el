@@ -87,7 +87,6 @@
 (defvar-local exwm--frame nil)            ;workspace frame
 (defvar-local exwm--floating-frame nil)   ;floating frame
 (defvar-local exwm--mode-line-format nil) ;save mode-line-format
-(defvar-local exwm--fullscreen nil)       ;used in fullscreen
 (defvar-local exwm--floating-frame-position nil) ;used in fullscreen
 (defvar-local exwm--fixed-size nil)              ;fixed size
 (defvar-local exwm--keyboard-grabbed nil)        ;Keyboard grabbed.
@@ -103,6 +102,7 @@
 (defvar-local exwm-transient-for nil "WM_TRANSIENT_FOR.")
 (defvar-local exwm--protocols nil)
 (defvar-local exwm-state xcb:icccm:WM_STATE:NormalState "WM_STATE.")
+(defvar-local exwm--ewmh-state nil "_NET_WM_STATE.")
 ;; _NET_WM_NORMAL_HINTS
 (defvar-local exwm--normal-hints-x nil)
 (defvar-local exwm--normal-hints-y nil)
@@ -150,8 +150,10 @@
     "*General*"
     "---"
     ["Toggle floating" exwm-floating-toggle-floating]
-    ["Enter fullscreen" exwm-layout-set-fullscreen (not exwm--fullscreen)]
-    ["Leave fullscreen" exwm-reset exwm--fullscreen]
+    ["Enter fullscreen" exwm-layout-set-fullscreen
+     (null (memq xcb:Atom:_NET_WM_STATE_FULLSCREEN exwm--ewmh-state))]
+    ["Leave fullscreen" exwm-reset
+     (memq xcb:Atom:_NET_WM_STATE_FULLSCREEN exwm--ewmh-state)]
     ["Hide window" exwm-floating-hide exwm--floating-frame]
 
     "---"

@@ -78,7 +78,8 @@
   (interactive)
   (with-current-buffer (window-buffer)
     (when (eq major-mode 'exwm-mode)
-      (when exwm--fullscreen (exwm-layout-unset-fullscreen))
+      (when (memq xcb:Atom:_NET_WM_STATE_FULLSCREEN exwm--ewmh-state)
+        (exwm-layout-unset-fullscreen))
       ;; Force refresh
       (exwm-layout--refresh)
       (call-interactively #'exwm-input-grab-keyboard))))
@@ -464,12 +465,17 @@
             (when (or (memq xcb:Atom:_NET_WM_STATE_FULLSCREEN props)
                       (memq xcb:Atom:_NET_WM_STATE_ABOVE props))
               (cond ((= action xcb:ewmh:_NET_WM_STATE_ADD)
-                     (unless exwm--fullscreen (exwm-layout-set-fullscreen id))
+                     (unless (memq xcb:Atom:_NET_WM_STATE_FULLSCREEN
+                                   exwm--ewmh-state)
+                       (exwm-layout-set-fullscreen id))
                      (push xcb:Atom:_NET_WM_STATE_FULLSCREEN props-new))
                     ((= action xcb:ewmh:_NET_WM_STATE_REMOVE)
-                     (when exwm--fullscreen (exwm-layout-unset-fullscreen id)))
+                     (when (memq xcb:Atom:_NET_WM_STATE_FULLSCREEN
+                                 exwm--ewmh-state)
+                       (exwm-layout-unset-fullscreen id)))
                     ((= action xcb:ewmh:_NET_WM_STATE_TOGGLE)
-                     (if exwm--fullscreen
+                     (if (memq xcb:Atom:_NET_WM_STATE_FULLSCREEN
+                               exwm--ewmh-state)
                          (exwm-layout-unset-fullscreen id)
                        (exwm-layout-set-fullscreen id)
                        (push xcb:Atom:_NET_WM_STATE_FULLSCREEN props-new)))))

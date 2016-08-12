@@ -445,7 +445,9 @@ PREFIX-DIGITS is a list of the digits introduced so far."
 The optional FORCE option is for internal use only."
   (interactive
    (list
-    (unless (and (eq major-mode 'exwm-mode) exwm--fullscreen) ;it's invisible
+    (unless (and (eq major-mode 'exwm-mode)
+                 ;; The prompt is invisible in fullscreen mode.
+                 (memq xcb:Atom:_NET_WM_STATE_FULLSCREEN exwm--ewmh-state))
       (let ((exwm-workspace--prompt-add-allowed t)
             (exwm-workspace--prompt-delete-allowed t))
         (exwm-workspace--prompt-for-workspace "Switch to [+/-]: ")))))
@@ -463,7 +465,8 @@ The optional FORCE option is for internal use only."
                          :value-mask xcb:ConfigWindow:StackMode
                          :stack-mode xcb:StackMode:Above))
       ;; Raise X windows with struts set if there's no fullscreen X window.
-      (unless (buffer-local-value 'exwm--fullscreen (window-buffer window))
+      (unless (with-current-buffer (window-buffer window)
+                (memq xcb:Atom:_NET_WM_STATE_FULLSCREEN exwm--ewmh-state))
         (dolist (pair exwm-workspace--id-struts-alist)
           (xcb:+request exwm--connection
               (make-instance 'xcb:ConfigureWindow
@@ -537,7 +540,9 @@ deleted, moved, etc).")
 (defun exwm-workspace-swap (workspace1 workspace2)
   "Interchange position of WORKSPACE1 with that of WORKSPACE2."
   (interactive
-   (unless (and (eq major-mode 'exwm-mode) exwm--fullscreen) ;it's invisible
+   (unless (and (eq major-mode 'exwm-mode)
+                ;; The prompt is invisible in fullscreen mode.
+                (memq xcb:Atom:_NET_WM_STATE_FULLSCREEN exwm--ewmh-state))
      (let (w1 w2)
        (let ((exwm-workspace--prompt-add-allowed t)
              (exwm-workspace--prompt-delete-allowed t))
@@ -572,7 +577,9 @@ deleted, moved, etc).")
 When called interactively, prompt for a workspace and move current one just
 before it."
   (interactive
-   (unless (and (eq major-mode 'exwm-mode) exwm--fullscreen) ;it's invisible
+   (unless (and (eq major-mode 'exwm-mode)
+                ;; The prompt is invisible in fullscreen mode.
+                (memq xcb:Atom:_NET_WM_STATE_FULLSCREEN exwm--ewmh-state))
      (list exwm-workspace--current
            (exwm-workspace--position
             (exwm-workspace--prompt-for-workspace "Move workspace to: ")))))

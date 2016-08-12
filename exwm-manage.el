@@ -48,6 +48,16 @@ corresponding buffer.")
         (when reply                     ;nil when destroyed
           (setq exwm--geometry reply))))))
 
+(defun exwm-manage--update-ewmh-state (id)
+  "Update _NET_WM_STATE."
+  (with-current-buffer (exwm--id->buffer id)
+    (unless exwm--ewmh-state
+      (let ((reply (xcb:+request-unchecked+reply exwm--connection
+                       (make-instance 'xcb:ewmh:get-_NET_WM_STATE
+                                      :window id))))
+        (when reply
+          (setq exwm--ewmh-state (append (slot-value reply 'value) nil)))))))
+
 ;; The _MOTIF_WM_HINTS atom (see <Xm/MwmUtil.h> for more details)
 ;; It's currently only used in 'exwm-manage' module
 (defvar exwm-manage--_MOTIF_WM_HINTS nil "_MOTIF_WM_HINTS atom.")
@@ -286,7 +296,12 @@ corresponding buffer.")
                  (< desktop (exwm-workspace--count)))
             (exwm-workspace-move-window desktop id)
           (exwm-workspace--set-desktop id)))
+      (exwm-manage--update-ewmh-state id)
       (with-current-buffer (exwm--id->buffer id)
+        (when (memq xcb:Atom:_NET_WM_STATE_FULLSCREEN exwm--ewmh-state)
+          (setq exwm--ewmh-state
+                (delq xcb:Atom:_NET_WM_STATE_FULLSCREEN exwm--ewmh-state))
+          (exwm-layout-set-fullscreen id))
         (run-hooks 'exwm-manage-finish-hook)))))
 
 (defvar exwm-workspace--id-struts-alist)
@@ -373,7 +388,7 @@ manager is shutting down."
                 (make-instance 'xcb:ReparentWindow
                                :window window :parent exwm--root :x 0 :y 0))))
         ;; Restore the workspace if this X window is currently fullscreen.
-        (when exwm--fullscreen
+        (when (memq xcb:Atom:_NET_WM_STATE_FULLSCREEN exwm--ewmh-state)
           (exwm-workspace--set-fullscreen exwm--frame))
         ;; Destroy the X window container (and the frame container if any).
         (xcb:+request exwm--connection
@@ -552,7 +567,7 @@ border-width: %d; sibling: #x%x; stack-mode: %d"
                  border-width sibling stack-mode)
       (if (and (setq buffer (exwm--id->buffer window))
                (with-current-buffer buffer
-                 (or exwm--fullscreen
+                 (or (memq xcb:Atom:_NET_WM_STATE_FULLSCREEN exwm--ewmh-state)
                      ;; Make sure it's a floating X window wanting to resize
                      ;; itself.
                      (or (not exwm--floating-frame)
@@ -578,7 +593,7 @@ border-width: %d; sibling: #x%x; stack-mode: %d"
           ;; Send client message for managed windows
           (with-current-buffer buffer
             (setq edges
-                  (if exwm--fullscreen
+                  (if (memq xcb:Atom:_NET_WM_STATE_FULLSCREEN exwm--ewmh-state)
                       (list 0 0
                             (exwm-workspace--current-width)
                             (exwm-workspace--current-height))
