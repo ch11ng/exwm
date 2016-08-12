@@ -307,7 +307,8 @@ manager is shutting down."
                id buffer withdraw-only)
     (setq exwm--id-buffer-alist (assq-delete-all id exwm--id-buffer-alist))
     ;; Update workspaces when a dock is destroyed.
-    (when (assq id exwm-workspace--id-struts-alist)
+    (when (and (null withdraw-only)
+               (assq id exwm-workspace--id-struts-alist))
       (setq exwm-workspace--id-struts-alist
             (assq-delete-all id exwm-workspace--id-struts-alist))
       (exwm-workspace--update-struts)
