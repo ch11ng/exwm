@@ -37,6 +37,8 @@ You can still make the X windows floating afterwards.")
   "Normal hook run after a window is just managed, in the context of the
 corresponding buffer.")
 
+(defvar exwm-manage--desktop nil "The desktop X window.")
+
 (defun exwm-manage--update-geometry (id &optional force)
   "Update window geometry."
   (with-current-buffer (exwm--id->buffer id)
@@ -198,6 +200,16 @@ corresponding buffer.")
                                :y (/ (- (exwm-workspace--current-height)
                                         height)
                                      2)))))
+        ;; Check for desktop.
+        (when (memq xcb:Atom:_NET_WM_WINDOW_TYPE_DESKTOP exwm-window-type)
+          ;; There should be only one desktop X window.
+          (setq exwm-manage--desktop id)
+          ;; Put it at bottom.
+          (xcb:+request exwm--connection
+              (make-instance 'xcb:ConfigureWindow
+                             :window id
+                             :value-mask xcb:ConfigWindow:StackMode
+                             :stack-mode xcb:StackMode:Below)))
         (xcb:flush exwm--connection)
         (setq exwm--id-buffer-alist (assq-delete-all id exwm--id-buffer-alist))
         (let ((kill-buffer-query-functions nil))

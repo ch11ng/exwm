@@ -29,6 +29,8 @@
 
 (require 'exwm-core)
 
+(defvar exwm-manage--desktop)
+
 (defvar exwm-workspace-number 1 "Initial number of workspaces.")
 (defvar exwm-workspace--list nil "List of all workspaces (Emacs frames).")
 (defvar exwm-workspace--current nil "Current active workspace.")
@@ -369,11 +371,17 @@ If the minibuffer is detached, this value is 0.")
                        :value-mask (logior xcb:ConfigWindow:X
                                            xcb:ConfigWindow:Y
                                            xcb:ConfigWindow:Width
+                                           (if exwm-manage--desktop
+                                               xcb:ConfigWindow:Sibling
+                                             0)
                                            xcb:ConfigWindow:StackMode)
                        :x (aref workarea 0)
                        :y y
                        :width width
-                       :stack-mode xcb:StackMode:Below))
+                       :sibling exwm-manage--desktop
+                       :stack-mode (if exwm-manage--desktop
+                                       xcb:StackMode:Above
+                                     xcb:StackMode:Below)))
     (xcb:+request exwm--connection
         (make-instance 'xcb:ConfigureWindow
                        :window (frame-parameter exwm-workspace--minibuffer
@@ -987,8 +995,14 @@ Please check `exwm-workspace--minibuffer-own-frame-p' first."
       (make-instance 'xcb:ConfigureWindow
                      :window (frame-parameter exwm-workspace--minibuffer
                                               'exwm-container)
-                     :value-mask xcb:ConfigWindow:StackMode
-                     :stack-mode xcb:StackMode:Below))
+                     :value-mask (logior (if exwm-manage--desktop
+                                             xcb:ConfigWindow:Sibling
+                                           0)
+                                         xcb:ConfigWindow:StackMode)
+                     :sibling exwm-manage--desktop
+                     :stack-mode (if exwm-manage--desktop
+                                     xcb:StackMode:Above
+                                   xcb:StackMode:Below)))
   (xcb:flush exwm--connection))
 
 (defun exwm-workspace--on-minibuffer-setup ()
