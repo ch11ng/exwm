@@ -83,6 +83,7 @@ corresponding buffer.")
 (defvar exwm-workspace--current)
 (defvar exwm-workspace--switch-history-outdated)
 (defvar exwm-workspace-current-index)
+(defvar exwm-workspace--workareas)
 
 (declare-function exwm--update-window-type "exwm.el" (id &optional force))
 (declare-function exwm--update-class "exwm.el" (id &optional force))
@@ -208,14 +209,21 @@ corresponding buffer.")
       (setq exwm--container (xcb:generate-id exwm--connection))
       (xcb:+request exwm--connection
           (make-instance 'xcb:CreateWindow
-                         :depth 0 :wid exwm--container
+                         :depth 0
+                         :wid exwm--container
                          :parent (frame-parameter exwm-workspace--current
                                                   'exwm-workspace)
-                         :x 0 :y 0 :width 1 :height 1 :border-width 0
-                         :class xcb:WindowClass:CopyFromParent
-                         :visual 0      ;CopyFromParent
-                         :value-mask (logior xcb:CW:OverrideRedirect
+                         :x 0
+                         :y 0
+                         :width 1
+                         :height 1
+                         :border-width 0
+                         :class xcb:WindowClass:InputOutput
+                         :visual 0
+                         :value-mask (logior xcb:CW:BackPixmap
+                                             xcb:CW:OverrideRedirect
                                              xcb:CW:EventMask)
+                         :background-pixmap xcb:BackPixmap:ParentRelative
                          :override-redirect 1
                          :event-mask xcb:EventMask:SubstructureRedirect))
       (exwm--debug

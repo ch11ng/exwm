@@ -609,10 +609,17 @@
   (let ((new-id (xcb:generate-id exwm--connection)))
     (xcb:+request exwm--connection
         (make-instance 'xcb:CreateWindow
-                       :depth 0 :wid new-id :parent exwm--root
-                       :x -1 :y -1 :width 1 :height 1
-                       :border-width 0 :class xcb:WindowClass:CopyFromParent
-                       :visual 0 :value-mask xcb:CW:OverrideRedirect
+                       :depth 0
+                       :wid new-id
+                       :parent exwm--root
+                       :x 0
+                       :y 0
+                       :width 1
+                       :height 1
+                       :border-width 0
+                       :class xcb:WindowClass:InputOnly
+                       :visual 0
+                       :value-mask xcb:CW:OverrideRedirect
                        :override-redirect 1))
     (dolist (i (list exwm--root new-id))
       ;; Set _NET_SUPPORTING_WM_CHECK

@@ -1171,14 +1171,20 @@ Please check `exwm-workspace--minibuffer-own-frame-p' first."
           (set-frame-parameter frame param (frame-parameter w param))))
       (xcb:+request exwm--connection
           (make-instance 'xcb:CreateWindow
-                         :depth 0 :wid workspace :parent exwm--root
-                         :x 0 :y 0
+                         :depth 0
+                         :wid workspace
+                         :parent exwm--root
+                         :x 0
+                         :y 0
                          :width (x-display-pixel-width)
                          :height (x-display-pixel-height)
-                         :border-width 0 :class xcb:WindowClass:CopyFromParent
-                         :visual 0      ;CopyFromParent
-                         :value-mask (logior xcb:CW:OverrideRedirect
+                         :border-width 0
+                         :class xcb:WindowClass:InputOutput
+                         :visual 0
+                         :value-mask (logior xcb:CW:BackPixmap
+                                             xcb:CW:OverrideRedirect
                                              xcb:CW:EventMask)
+                         :background-pixmap xcb:BackPixmap:ParentRelative
                          :override-redirect 1
                          :event-mask xcb:EventMask:SubstructureRedirect))
       (xcb:+request exwm--connection
@@ -1188,13 +1194,19 @@ Please check `exwm-workspace--minibuffer-own-frame-p' first."
                          :stack-mode xcb:StackMode:Below))
       (xcb:+request exwm--connection
           (make-instance 'xcb:CreateWindow
-                         :depth 0 :wid container :parent workspace
-                         :x 0 :y 0
+                         :depth 0
+                         :wid container
+                         :parent workspace
+                         :x 0
+                         :y 0
                          :width (x-display-pixel-width)
                          :height (x-display-pixel-height)
-                         :border-width 0 :class xcb:WindowClass:CopyFromParent
-                         :visual 0      ;CopyFromParent
-                         :value-mask xcb:CW:OverrideRedirect
+                         :border-width 0
+                         :class xcb:WindowClass:InputOutput
+                         :visual 0
+                         :value-mask (logior xcb:CW:BackPixmap
+                                             xcb:CW:OverrideRedirect)
+                         :background-pixmap xcb:BackPixmap:ParentRelative
                          :override-redirect 1))
       (exwm--debug
        (xcb:+request exwm--connection
@@ -1372,12 +1384,19 @@ applied to all subsequently created X frames."
                              container)
         (xcb:+request exwm--connection
             (make-instance 'xcb:CreateWindow
-                           :depth 0 :wid container :parent exwm--root
-                           :x -1 :y -1 :width 1 :height 1
+                           :depth 0
+                           :wid container
+                           :parent exwm--root
+                           :x 0
+                           :y 0
+                           :width 1
+                           :height 1
                            :border-width 0
-                           :class xcb:WindowClass:CopyFromParent
-                           :visual 0        ;CopyFromParent
-                           :value-mask xcb:CW:OverrideRedirect
+                           :class xcb:WindowClass:InputOutput
+                           :visual 0
+                           :value-mask (logior xcb:CW:BackPixmap
+                                               xcb:CW:OverrideRedirect)
+                           :background-pixmap xcb:BackPixmap:ParentRelative
                            :override-redirect 1))
         (exwm--debug
          (xcb:+request exwm--connection

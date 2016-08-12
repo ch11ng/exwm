@@ -334,10 +334,17 @@ You shall use the default value if using auto-hide minibuffer.")
     (setq exwm-systemtray--selection-owner-window id)
     (xcb:+request exwm-systemtray--connection
         (make-instance 'xcb:CreateWindow
-                       :depth 0 :wid id :parent exwm--root
-                       :x 0 :y 0 :width 1 :height 1
-                       :border-width 0 :class xcb:WindowClass:InputOnly
-                       :visual 0 :value-mask xcb:CW:OverrideRedirect
+                       :depth 0
+                       :wid id
+                       :parent exwm--root
+                       :x 0
+                       :y 0
+                       :width 1
+                       :height 1
+                       :border-width 0
+                       :class xcb:WindowClass:InputOnly
+                       :visual 0
+                       :value-mask xcb:CW:OverrideRedirect
                        :override-redirect 1))
     ;; Get the selection ownership.
     (xcb:+request exwm-systemtray--connection
@@ -397,7 +404,7 @@ You shall use the default value if using auto-hide minibuffer.")
                        :width 1
                        :height exwm-systemtray-height
                        :border-width 0
-                       :class xcb:WindowClass:CopyFromParent
+                       :class xcb:WindowClass:InputOutput
                        :visual 0
                        :value-mask (logior xcb:CW:BackPixmap xcb:CW:EventMask)
                        :background-pixmap xcb:BackPixmap:ParentRelative

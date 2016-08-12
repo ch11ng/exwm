@@ -70,11 +70,14 @@ context of the corresponding buffer.")
 
 (defvar exwm-workspace--current)
 (defvar exwm-workspace--struts)
+(defvar exwm-workspace--workareas)
+(defvar exwm-workspace-current-index)
 
 (declare-function exwm-layout--refresh "exwm-layout.el" ())
 (declare-function exwm-layout--show "exwm-layout.el" (id &optional window))
 (declare-function exwm-layout--iconic-state-p "exwm-layout.el" (&optional id))
 (declare-function exwm-workspace--minibuffer-own-frame-p "exwm-workspace.el")
+(declare-function exwm-workspace--position "exwm-workspace.el" (frame))
 
 (defun exwm-floating--set-floating (id)
   "Make window ID floating."
@@ -191,12 +194,19 @@ context of the corresponding buffer.")
       ;; a child of the X window container.
       (xcb:+request exwm--connection
           (make-instance 'xcb:CreateWindow
-                         :depth 0 :wid frame-container
+                         :depth 0
+                         :wid frame-container
                          :parent container
-                         :x 0 :y 0 :width width :height height :border-width 0
-                         :class xcb:WindowClass:CopyFromParent
-                         :visual 0      ;CopyFromParent
-                         :value-mask xcb:CW:OverrideRedirect
+                         :x 0
+                         :y 0
+                         :width width
+                         :height height
+                         :border-width 0
+                         :class xcb:WindowClass:InputOutput
+                         :visual 0
+                         :value-mask (logior xcb:CW:BackPixmap
+                                             xcb:CW:OverrideRedirect)
+                         :background-pixmap xcb:BackPixmap:ParentRelative
                          :override-redirect 1))
       ;; Put it at bottom.
       (xcb:+request exwm--connection
