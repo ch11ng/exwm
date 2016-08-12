@@ -1320,11 +1320,6 @@ Please check `exwm-workspace--minibuffer-own-frame-p' first."
                        :window exwm--root :data num-workspaces))
     ;; Set _NET_DESKTOP_GEOMETRY.
     (exwm-workspace--set-desktop-geometry)
-    ;; Set _NET_DESKTOP_VIEWPORT (we don't support large desktop).
-    (xcb:+request exwm--connection
-        (make-instance 'xcb:ewmh:set-_NET_DESKTOP_VIEWPORT
-                       :window exwm--root
-                       :data (make-vector (* 2 num-workspaces) 0)))
     ;; Update and set _NET_WORKAREA.
     (exwm-workspace--update-workareas)
     ;; Set _NET_VIRTUAL_ROOTS.

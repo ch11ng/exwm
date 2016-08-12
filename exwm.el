@@ -628,6 +628,11 @@
       (xcb:+request exwm--connection
           (make-instance 'xcb:ewmh:set-_NET_WM_NAME
                          :window i :data "EXWM"))))
+  ;; Set _NET_DESKTOP_VIEWPORT (we don't support large desktop).
+  (xcb:+request exwm--connection
+      (make-instance 'xcb:ewmh:set-_NET_DESKTOP_VIEWPORT
+                     :window exwm--root
+                     :data [0 0]))
   (xcb:flush exwm--connection))
 
 (defun exwm--exit-icccm-ewmh ()
