@@ -389,16 +389,23 @@ manager is shutting down."
 (defun exwm-manage--scan ()
   "Search for existing windows and try to manage them."
   (let* ((tree (xcb:+request-unchecked+reply exwm--connection
-                   (make-instance 'xcb:QueryTree :window exwm--root))))
+                   (make-instance 'xcb:QueryTree
+                                  :window exwm--root)))
+         reply)
     (dolist (i (slot-value tree 'children))
-      (with-slots (override-redirect map-state)
-          (xcb:+request-unchecked+reply exwm--connection
-              (make-instance 'xcb:GetWindowAttributes :window i))
-        (when (and (= 0 override-redirect) (= xcb:MapState:Viewable map-state))
-          (xcb:+request exwm--connection
-              (make-instance 'xcb:UnmapWindow :window i))
-          (xcb:flush exwm--connection)
-          (exwm-manage--manage-window i))))))
+      (setq reply (xcb:+request-unchecked+reply exwm--connection
+                      (make-instance 'xcb:GetWindowAttributes
+                                     :window i)))
+      ;; It's possible the X window has been destroyed.
+      (when reply
+        (with-slots (override-redirect map-state) reply
+          (when (and (= 0 override-redirect)
+                     (= xcb:MapState:Viewable map-state))
+            (xcb:+request exwm--connection
+                (make-instance 'xcb:UnmapWindow
+                               :window i))
+            (xcb:flush exwm--connection)
+            (exwm-manage--manage-window i)))))))
 
 (defvar exwm-manage--ping-lock nil
   "Non-nil indicates EXWM is pinging a window.")
