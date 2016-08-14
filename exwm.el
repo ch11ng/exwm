@@ -36,6 +36,7 @@
 ;; + Dynamic workspace support
 ;; + ICCCM/EWMH compliance
 ;; + (Optional) RandR (multi-monitor) support
+;; + (Optional) Built-in composting manager
 ;; + (Optional) Builtin system tray
 
 ;; Installation & configuration
