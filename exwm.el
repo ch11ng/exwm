@@ -273,7 +273,7 @@
             (setcdr pair struts)
           (push (cons id struts) exwm-workspace--id-struts-alist))
         (exwm-workspace--update-struts))
-      ;; Update workareas and set _NET_WORKAREA.
+      ;; Update workareas.
       (exwm-workspace--update-workareas)
       ;; Update workspaces.
       (dolist (f exwm-workspace--list)
@@ -292,7 +292,7 @@
           (setcdr pair struts)
         (push (cons id struts) exwm-workspace--id-struts-alist))
       (exwm-workspace--update-struts))
-    ;; Update workareas and set _NET_WORKAREA.
+    ;; Update workareas.
     (exwm-workspace--update-workareas)
     ;; Update workspaces.
     (dolist (f exwm-workspace--list)
@@ -520,7 +520,7 @@
                             xcb:Atom:_NET_CURRENT_DESKTOP
                             ;; xcb:Atom:_NET_DESKTOP_NAMES
                             xcb:Atom:_NET_ACTIVE_WINDOW
-                            xcb:Atom:_NET_WORKAREA
+                            ;; xcb:Atom:_NET_WORKAREA
                             xcb:Atom:_NET_SUPPORTING_WM_CHECK
                             xcb:Atom:_NET_VIRTUAL_ROOTS
                             ;; xcb:Atom:_NET_DESKTOP_LAYOUT
@@ -648,7 +648,6 @@
               xcb:Atom:_NET_DESKTOP_VIEWPORT
               xcb:Atom:_NET_CURRENT_DESKTOP
               xcb:Atom:_NET_ACTIVE_WINDOW
-              xcb:Atom:_NET_WORKAREA
               xcb:Atom:_NET_SUPPORTING_WM_CHECK
               xcb:Atom:_NET_VIRTUAL_ROOTS
               ;; TODO: Keep this list synchronized with that in

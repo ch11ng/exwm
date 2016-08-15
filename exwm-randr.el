@@ -107,7 +107,7 @@
                   output nil))
           (set-frame-parameter frame 'exwm-randr-output output)
           (set-frame-parameter frame 'exwm-geometry geometry)))
-      ;; Update workareas and set _NET_WORKAREA.
+      ;; Update workareas.
       (exwm-workspace--update-workareas)
       ;; Resize workspace.
       (dolist (f exwm-workspace--list)

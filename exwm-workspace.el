@@ -249,7 +249,7 @@ Value nil means to use the default position which is fixed at bottom, while
 (defvar exwm-workspace--workareas nil "Workareas (struts excluded).")
 
 (defun exwm-workspace--update-workareas ()
-  "Update `exwm-workspace--workareas' and set _NET_WORKAREA."
+  "Update `exwm-workspace--workareas'."
   (let ((root-width (x-display-pixel-width))
         (root-height (x-display-pixel-height))
         workareas
@@ -309,11 +309,6 @@ Value nil means to use the default position which is fixed at bottom, while
              (cl-incf (aref w 3) delta))))))
     ;; Save the result.
     (setq exwm-workspace--workareas workareas)
-    ;; Update _NET_WORKAREA.
-    (xcb:+request exwm--connection
-        (make-instance 'xcb:ewmh:set-_NET_WORKAREA
-                       :window exwm--root
-                       :data (mapconcat #'vconcat workareas [])))
     (xcb:flush exwm--connection)))
 
 (defvar exwm-workspace--fullscreen-frame-count 0
@@ -1320,7 +1315,7 @@ Please check `exwm-workspace--minibuffer-own-frame-p' first."
                        :window exwm--root :data num-workspaces))
     ;; Set _NET_DESKTOP_GEOMETRY.
     (exwm-workspace--set-desktop-geometry)
-    ;; Update and set _NET_WORKAREA.
+    ;; Update workareas.
     (exwm-workspace--update-workareas)
     ;; Set _NET_VIRTUAL_ROOTS.
     (xcb:+request exwm--connection
