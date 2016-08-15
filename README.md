@@ -8,7 +8,7 @@ It features:
 + Dynamic workspace support
 + ICCCM/EWMH compliance
 + (Optional) RandR (multi-monitor) support
-+ (Optional) Built-in composting manager
++ (Optional) Built-in compositing manager
 + (Optional) Built-in system tray
 
 Please check out the

@@ -1754,7 +1754,7 @@ Create implicit workspace frame container")))
   (add-hook 'exwm-exit-hook #'exwm-cm--exit t))
 
 (defun exwm-cm-start ()
-  "Start EXWM composting manager."
+  "Start EXWM compositing manager."
   (interactive)
   (unless exwm-cm--conn
     (exwm-cm--init)))
