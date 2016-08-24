@@ -150,10 +150,7 @@
     "*General*"
     "---"
     ["Toggle floating" exwm-floating-toggle-floating]
-    ["Enter fullscreen" exwm-layout-set-fullscreen
-     (null (memq xcb:Atom:_NET_WM_STATE_FULLSCREEN exwm--ewmh-state))]
-    ["Leave fullscreen" exwm-reset
-     (memq xcb:Atom:_NET_WM_STATE_FULLSCREEN exwm--ewmh-state)]
+    ["Toggle fullscreen mode" exwm-layout-toggle-fullscreen]
     ["Hide window" exwm-floating-hide exwm--floating-frame]
 
     "---"
@@ -168,10 +165,7 @@
     "---"
     "*Keyboard*"
     "---"
-    ["Capture keyboard" exwm-input-release-keyboard exwm--keyboard-grabbed]
-    ;; It's recommended to use `exwm-reset' rather than
-    ;; `exwm-input-grab-keyboard' to release keyboard (enter line-mode).
-    ["Release keyboard" exwm-reset (not exwm--keyboard-grabbed)]
+    ["Toggle keyboard mode" exwm-input-toggle-keyboard]
     ["Send key" exwm-input-send-next-key exwm--keyboard-grabbed]
     ;; This is merely a reference.
     ("Send simulation key" :filter

@@ -260,6 +260,16 @@
           (delq xcb:Atom:_NET_WM_STATE_FULLSCREEN exwm--ewmh-state))
     (call-interactively #'exwm-input-grab-keyboard)))
 
+;;;###autoload
+(defun exwm-layout-toggle-fullscreen (&optional id)
+  "Toggle fullscreen mode."
+  (interactive (list (exwm--buffer->id (window-buffer))))
+  (when id
+    (with-current-buffer (exwm--id->buffer id)
+      (if (memq xcb:Atom:_NET_WM_STATE_FULLSCREEN exwm--ewmh-state)
+          (exwm-reset)
+        (exwm-layout-set-fullscreen id)))))
+
 (defvar exwm-layout--other-buffer-exclude-exwm-mode-buffers nil
   "When non-nil, prevent EXWM buffers from being selected by `other-buffer'.")
 

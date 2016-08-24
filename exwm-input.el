@@ -567,6 +567,16 @@ This value should always be overwritten.")
       (exwm-input--update-mode-line id)
       (force-mode-line-update))))
 
+;;;###autoload
+(defun exwm-input-toggle-keyboard (&optional id)
+  "Toggle between 'line-mode' and 'char-mode'."
+  (interactive (list (exwm--buffer->id (window-buffer))))
+  (when id
+    (with-current-buffer (exwm--id->buffer id)
+      (if exwm--keyboard-grabbed
+          (exwm-input-release-keyboard id)
+        (exwm-reset)))))
+
 (defun exwm-input--fake-key (event)
   "Fake a key event equivalent to Emacs event EVENT."
   (let* ((keysym (xcb:keysyms:event->keysym exwm--connection event))
