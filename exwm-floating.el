@@ -82,8 +82,9 @@ context of the corresponding buffer.")
 (defun exwm-floating--set-floating (id)
   "Make window ID floating."
   (let ((window (get-buffer-window (exwm--id->buffer id))))
-    (when window                        ;window in non-floating state
-      (set-window-buffer window (other-buffer)))) ;hide it first
+    (when window
+      ;; Hide the non-floating X window first.
+      (set-window-buffer window (other-buffer nil t))))
   (let* ((original-frame exwm-workspace--current)
          ;; Create new frame
          (frame (with-current-buffer

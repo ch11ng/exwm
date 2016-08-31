@@ -746,10 +746,9 @@ INDEX must not exceed the current number of workspaces."
                                        (frame-root-window
                                         exwm--floating-frame)))))
           ;; Move the X window container.
-          (if (eq frame exwm-workspace--current)
-              (set-window-buffer (get-buffer-window (current-buffer) t)
-                                 (other-buffer))
-            (bury-buffer)
+          (set-window-buffer (get-buffer-window (current-buffer) t)
+                             (other-buffer nil t))
+          (unless (eq frame exwm-workspace--current)
             ;; Clear the 'exwm-selected-window' frame parameter.
             (set-frame-parameter frame 'exwm-selected-window nil))
           (exwm-layout--hide id)
