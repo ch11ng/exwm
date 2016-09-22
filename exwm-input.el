@@ -121,20 +121,18 @@ ARGS are additional arguments to CALLBACK."
                (cdr exwm-input--timestamp-callback))
         (setq exwm-input--timestamp-callback nil)))))
 
-(defun exwm-input--on-FocusIn (data _synthetic)
+(defun exwm-input--on-FocusIn (&rest _args)
   "Handle FocusIn events."
-  (let ((obj (make-instance 'xcb:FocusIn)))
-    (xcb:unmarshal obj data)
-    ;; Not sure if this is the right thing to do but the point is the
-    ;; input focus should not stay at the root window or any container,
-    ;; or the result would be unpredictable.  `x-focus-frame' would
-    ;; first set the input focus to the (previously) selected frame, and
-    ;; then `select-window' would further update the input focus if the
-    ;; selected window is displaying an `exwm-mode' buffer.  Perhaps we
-    ;; should carefully filter out FocusIn events with certain 'detail'
-    ;; and 'mode' combinations, but this just works.
-    (x-focus-frame (selected-frame))
-    (select-window (selected-window))))
+  ;; Not sure if this is the right thing to do but the point is the
+  ;; input focus should not stay at the root window or any container,
+  ;; or the result would be unpredictable.  `x-focus-frame' would
+  ;; first set the input focus to the (previously) selected frame, and
+  ;; then `select-window' would further update the input focus if the
+  ;; selected window is displaying an `exwm-mode' buffer.  Perhaps we
+  ;; should carefully filter out FocusIn events with certain 'detail'
+  ;; and 'mode' combinations, but this just works.
+  (x-focus-frame (selected-frame))
+  (select-window (selected-window)))
 
 (defun exwm-input--on-workspace-list-change ()
   "Run in `exwm-input--update-global-prefix-keys'."
