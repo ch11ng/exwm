@@ -440,20 +440,6 @@
               (xcb:flush exwm--connection))))
         (when buffer                    ;ensure it's managed
           (with-current-buffer buffer
-            ;; _NET_WM_STATE_MODAL
-            (when (memq xcb:Atom:_NET_WM_STATE_MODAL props)
-              (cond ((= action xcb:ewmh:_NET_WM_STATE_ADD)
-                     (unless exwm--floating-frame
-                       (exwm-floating--set-floating id))
-                     (push xcb:Atom:_NET_WM_STATE_MODAL props-new))
-                    ((= action xcb:ewmh:_NET_WM_STATE_REMOVE)
-                     (when exwm--floating-frame
-                       (exwm-floating--unset-floating id)))
-                    ((= action xcb:ewmh:_NET_WM_STATE_TOGGLE)
-                     (if exwm--floating-frame
-                         (exwm-floating--unset-floating id)
-                       (exwm-floating--set-floating id)
-                       (push xcb:Atom:_NET_WM_STATE_MODAL props-new)))))
             ;; _NET_WM_STATE_FULLSCREEN
             (when (or (memq xcb:Atom:_NET_WM_STATE_FULLSCREEN props)
                       (memq xcb:Atom:_NET_WM_STATE_ABOVE props))
@@ -557,7 +543,7 @@
                             xcb:Atom:_NET_WM_WINDOW_TYPE_NORMAL
                             ;;
                             xcb:Atom:_NET_WM_STATE
-                            xcb:Atom:_NET_WM_STATE_MODAL
+                            ;; xcb:Atom:_NET_WM_STATE_MODAL
                             ;; xcb:Atom:_NET_WM_STATE_STICKY
                             ;; xcb:Atom:_NET_WM_STATE_MAXIMIZED_VERT
                             ;; xcb:Atom:_NET_WM_STATE_MAXIMIZED_HORZ
