@@ -26,6 +26,8 @@
 
 ;;; Code:
 
+(require 'kmacro)
+
 (require 'xcb)
 (require 'xcb-icccm)
 (require 'xcb-ewmh)
@@ -78,6 +80,12 @@
     (logior xcb:EventMask:StructureNotify xcb:EventMask:PropertyChange))
   "Event mask set on all managed windows.")
 
+(defvar exwm-input--during-key-sequence)
+(defvar exwm-input--global-prefix-keys)
+(defvar exwm-input-prefix-keys)
+(defvar exwm-input--simulation-prefix-keys)
+
+(declare-function exwm-input--fake-key "exwm-input.el" (event))
 (declare-function exwm-input--on-KeyPress-line-mode "exwm-input.el"
                   (key-press raw-data))
 
@@ -139,6 +147,26 @@
     (define-key map "\C-c\C-t\C-m" #'exwm-layout-toggle-mode-line)
     map)
   "Keymap for `exwm-mode'.")
+
+(defvar exwm--kmacro-map
+  (let ((map (make-sparse-keymap)))
+    (define-key map [t]
+      (lambda ()
+        (interactive)
+        (cond
+         ((or exwm-input--during-key-sequence
+              ;; Do not test `exwm-input--during-command'.
+              (active-minibuffer-window)
+              (memq last-input-event exwm-input--global-prefix-keys)
+              (memq last-input-event exwm-input-prefix-keys)
+              (memq last-input-event exwm-input--simulation-prefix-keys))
+          (set-transient-map (make-composed-keymap (list exwm-mode-map
+                                                         global-map)))
+          (push last-input-event unread-command-events))
+         (t
+          (exwm-input--fake-key last-input-event)))))
+    map)
+  "Keymap used when executing keyboard macros.")
 
 ;; This menu mainly acts as an reminder for users.  Thus it should be as
 ;; detailed as possible, even some entries do not make much sense here.
@@ -226,6 +254,9 @@
   ;; Kill buffer -> close window
   (add-hook 'kill-buffer-query-functions
             #'exwm-manage--kill-buffer-query-function nil t)
+  ;; Redirect events when executing keyboard macros.
+  (push `(executing-kbd-macro . ,exwm--kmacro-map)
+        minor-mode-overriding-map-alist)
   (setq buffer-read-only t
         left-margin-width nil
         right-margin-width nil

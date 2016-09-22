@@ -454,7 +454,11 @@ This value should always be overwritten.")
                              :propagate 0
                              :destination (slot-value key-press 'event)
                              :event-mask xcb:EventMask:NoEvent
-                             :event raw-data))))
+                             :event raw-data)))
+        ;; Make Emacs aware of this event when defining keyboard macros.
+        (when (and defining-kbd-macro event)
+          (set-transient-map '(keymap (t . (lambda () (interactive)))))
+          (exwm-input--unread-event event)))
       (xcb:+request exwm--connection
           (make-instance 'xcb:AllowEvents
                          :mode mode
