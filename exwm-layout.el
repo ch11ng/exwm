@@ -460,6 +460,7 @@ windows."
             (setq width (max (+ exwm--normal-hints-min-width margin)
                              (+ width delta))))))
       (when width
+        (setf (slot-value exwm--geometry 'width) width)
         (xcb:+request exwm--connection
             (make-instance 'xcb:ConfigureWindow
                            :window (frame-parameter exwm--floating-frame
@@ -492,6 +493,7 @@ windows."
             (setq height (max (+ exwm--normal-hints-min-height margin)
                               (+ height delta))))))
       (when height
+        (setf (slot-value exwm--geometry 'height) height)
         (xcb:+request exwm--connection
             (make-instance 'xcb:ConfigureWindow
                            :window (frame-parameter exwm--floating-frame

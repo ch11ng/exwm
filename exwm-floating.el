@@ -550,22 +550,35 @@ context of the corresponding buffer.")
              ;; Unmanaged.
              (eq major-mode 'exwm-mode))
     (let ((edges (window-inside-absolute-pixel-edges (frame-selected-window)))
-          (id (buffer-local-value 'exwm--id
-                                  (window-buffer (frame-selected-window)))))
+          x y width height id)
+      (setq x (pop edges)
+            y (pop edges)
+            width (- (pop edges) x)
+            height (- (pop edges) y))
+      (with-current-buffer (window-buffer (frame-selected-window))
+        (setq id exwm--id)
+        (with-slots ((x* x)
+                     (y* y)
+                     (width* width)
+                     (height* height))
+            exwm--geometry
+          (setf x* x
+                y* y
+                width* width
+                height* height)))
       (xcb:+request exwm--connection
           (make-instance 'xcb:SendEvent
-                         :propagate 0 :destination id
+                         :propagate 0
+                         :destination id
                          :event-mask xcb:EventMask:StructureNotify
                          :event (xcb:marshal
                                  (make-instance 'xcb:ConfigureNotify
                                                 :event id :window id
                                                 :above-sibling xcb:Window:None
-                                                :x (elt edges 0)
-                                                :y (elt edges 1)
-                                                :width (- (elt edges 2)
-                                                          (elt edges 0))
-                                                :height (- (elt edges 3)
-                                                           (elt edges 1))
+                                                :x x
+                                                :y y
+                                                :width width
+                                                :height height
                                                 :border-width 0
                                                 :override-redirect 0)
                                  exwm--connection)))))
