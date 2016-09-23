@@ -118,7 +118,18 @@ You shall use the default value if using auto-hide minibuffer.")
                          :window icon
                          :value-mask xcb:CW:EventMask
                          :event-mask (logior xcb:EventMask:ResizeRedirect
+                                             xcb:EventMask:KeyPress
                                              xcb:EventMask:PropertyChange)))
+      ;; Grab all keys and forward them to Emacs frame.
+      (unless (exwm-workspace--minibuffer-own-frame-p)
+        (xcb:+request exwm-systemtray--connection
+            (make-instance 'xcb:GrabKey
+                           :owner-events 0
+                           :grab-window icon
+                           :modifiers xcb:ModMask:Any
+                           :key xcb:Grab:Any
+                           :pointer-mode xcb:GrabMode:Async
+                           :keyboard-mode xcb:GrabMode:Async)))
       (setq visible (slot-value info 'flags))
       (if visible
           (setq visible
@@ -276,6 +287,23 @@ You shall use the default value if using auto-hide minibuffer.")
               (t
                (exwm--log "(System Tray) Unknown opcode message: %s" obj)))))))
 
+(defun exwm-systemtray--on-KeyPress (data _synthetic)
+  "Forward all KeyPress events to Emacs frame."
+  ;; This function is only executed when there's no autohide minibuffer,
+  ;; a workspace frame has the input focus and the pointer is over a
+  ;; tray icon.
+  (let ((dest (frame-parameter (selected-frame) 'exwm-outer-id))
+        (obj (make-instance 'xcb:KeyPress)))
+    (xcb:unmarshal obj data)
+    (setf (slot-value obj 'event) dest)
+    (xcb:+request exwm-systemtray--connection
+        (make-instance 'xcb:SendEvent
+                       :propagate 0
+                       :destination dest
+                       :event-mask xcb:EventMask:NoEvent
+                       :event (xcb:marshal obj exwm-systemtray--connection))))
+  (xcb:flush exwm-systemtray--connection))
+
 (defun exwm-systemtray--on-workspace-switch ()
   "Reparent/Refresh the system tray in `exwm-workspace-switch-hook'."
   (unless (exwm-workspace--minibuffer-own-frame-p)
@@ -390,7 +418,8 @@ You shall use the default value if using auto-hide minibuffer.")
             ;; Bottom aligned.
             y (- (exwm-workspace--current-height) exwm-systemtray-height)))
     (setq parent (string-to-number (frame-parameter frame 'window-id))
-          depth (slot-value (xcb:+request-unchecked+reply exwm--connection
+          depth (slot-value (xcb:+request-unchecked+reply
+                                exwm-systemtray--connection
                                 (make-instance 'xcb:GetGeometry
                                                :drawable parent))
                             'depth))
@@ -425,6 +454,9 @@ You shall use the default value if using auto-hide minibuffer.")
               #'exwm-systemtray--on-PropertyNotify)
   (xcb:+event exwm-systemtray--connection 'xcb:ClientMessage
               #'exwm-systemtray--on-ClientMessage)
+  (unless (exwm-workspace--minibuffer-own-frame-p)
+    (xcb:+event exwm-systemtray--connection 'xcb:KeyPress
+                #'exwm-systemtray--on-KeyPress))
   ;; Add hook to move/reparent the embedder.
   (add-hook 'exwm-workspace-switch-hook #'exwm-systemtray--on-workspace-switch)
   (when (boundp 'exwm-randr-refresh-hook)
