@@ -160,6 +160,7 @@ This value should always be overwritten.")
   "Run in `buffer-list-update-hook' to track input focus."
   (when (and (not (minibufferp)) ;Do not set input focus on minibuffer window.
              (eq (current-buffer) (window-buffer)) ;e.g. `with-temp-buffer'.
+             (not (eq this-command #'handle-switch-frame))
              (not (exwm-workspace--client-p)))
     (setq exwm-input--update-focus-window (selected-window))
     (exwm-input--update-focus-defer)))
@@ -214,14 +215,7 @@ This value should always be overwritten.")
     (with-current-buffer (window-buffer window)
       (if (eq major-mode 'exwm-mode)
           (if (not (eq exwm--frame exwm-workspace--current))
-              ;; Do not focus X windows on other workspace.
-              (progn
-                (set-frame-parameter exwm--frame 'exwm-urgency t)
-                (setq exwm-workspace--switch-history-outdated t)
-                (force-mode-line-update)
-                ;; The application may have changed its input focus
-                (select-window
-                 (frame-selected-window exwm-workspace--current)))
+              (exwm-workspace-switch exwm--frame)
             (exwm--log "Set focus on #x%x" exwm--id)
             (exwm-input--set-focus exwm--id)
             (when exwm--floating-frame
