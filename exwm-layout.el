@@ -214,7 +214,9 @@
     (xcb:+request exwm--connection
         (make-instance 'xcb:ConfigureWindow
                        :window exwm--container
-                       :value-mask xcb:ConfigWindow:StackMode
+                       :value-mask (logior xcb:ConfigWindow:BorderWidth
+                                           xcb:ConfigWindow:StackMode)
+                       :border-width 0
                        :stack-mode xcb:StackMode:Above))
     (xcb:+request exwm--connection
         (make-instance 'xcb:ewmh:set-_NET_WM_STATE
@@ -240,9 +242,11 @@
                            :window exwm--container
                            :value-mask (eval-when-compile
                                          (logior xcb:ConfigWindow:X
-                                                 xcb:ConfigWindow:Y))
+                                                 xcb:ConfigWindow:Y
+                                                 xcb:ConfigWindow:BorderWidth))
                            :x (elt exwm--floating-frame-position 0)
-                           :y (elt exwm--floating-frame-position 1)))
+                           :y (elt exwm--floating-frame-position 1)
+                           :border-width exwm-floating-border-width))
       ;; Put the X window just above the Emacs frame.
       (xcb:+request exwm--connection
           (make-instance 'xcb:ConfigureWindow

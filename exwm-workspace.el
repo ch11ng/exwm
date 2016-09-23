@@ -636,9 +636,6 @@ INDEX must not exceed the current number of workspaces."
                        :window id
                        :data (exwm-workspace--position exwm--frame)))))
 
-(defvar exwm-floating-border-width)
-(defvar exwm-floating-border-color)
-
 (declare-function exwm-layout--show "exwm-layout.el" (id &optional window))
 (declare-function exwm-layout--hide "exwm-layout.el" (id))
 (declare-function exwm-layout--refresh "exwm-layout.el")
@@ -691,9 +688,6 @@ INDEX must not exceed the current number of workspaces."
                                   (get-buffer "*scratch*")))
                           (make-frame
                            `((minibuffer . ,(minibuffer-window frame))
-                             (background-color . ,exwm-floating-border-color)
-                             (internal-border-width
-                              . ,exwm-floating-border-width)
                              (left . 10000)
                              (top . 10000)
                              (width . ,window-min-width)

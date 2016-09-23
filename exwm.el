@@ -399,19 +399,20 @@
      ;; _NET_REQUEST_FRAME_EXTENTS
      ((= type xcb:Atom:_NET_REQUEST_FRAME_EXTENTS)
       (let ((buffer (exwm--id->buffer id))
-            left right top btm)
+            top btm)
         (if (or (not buffer)
                 (not (buffer-local-value 'exwm--floating-frame buffer)))
-            (setq left 0 right 0 top 0 btm 0)
-          (setq left exwm-floating-border-width
-                right exwm-floating-border-width
-                top (+ exwm-floating-border-width (window-header-line-height))
-                btm (+ exwm-floating-border-width
-                       (window-mode-line-height))))
+            (setq top 0
+                  btm 0)
+          (setq top (window-header-line-height)
+                btm (window-mode-line-height)))
         (xcb:+request exwm--connection
             (make-instance 'xcb:ewmh:set-_NET_FRAME_EXTENTS
-                           :window id :left left :right right
-                           :top top :bottom btm)))
+                           :window id
+                           :left 0
+                           :right 0
+                           :top top
+                           :bottom btm)))
       (xcb:flush exwm--connection))
      ;; _NET_WM_DESKTOP.
      ((= type xcb:Atom:_NET_WM_DESKTOP)

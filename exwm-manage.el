@@ -92,6 +92,8 @@ corresponding buffer.")
                      :window exwm--root
                      :data (vconcat (mapcar #'car exwm--id-buffer-alist)))))
 
+(defvar exwm-floating--border-colormap)
+(defvar exwm-floating--border-pixel)
 (defvar exwm-workspace--current)
 (defvar exwm-workspace--switch-history-outdated)
 (defvar exwm-workspace-current-index)
@@ -243,11 +245,16 @@ corresponding buffer.")
                          :class xcb:WindowClass:InputOutput
                          :visual 0
                          :value-mask (logior xcb:CW:BackPixmap
+                                             (if exwm-floating--border-pixel
+                                                 xcb:CW:BorderPixel 0)
                                              xcb:CW:OverrideRedirect
-                                             xcb:CW:EventMask)
+                                             xcb:CW:EventMask
+                                             xcb:CW:Colormap)
                          :background-pixmap xcb:BackPixmap:ParentRelative
+                         :border-pixel exwm-floating--border-pixel
                          :override-redirect 1
-                         :event-mask xcb:EventMask:SubstructureRedirect))
+                         :event-mask xcb:EventMask:SubstructureRedirect
+                         :colormap exwm-floating--border-colormap))
       (exwm--debug
        (xcb:+request exwm--connection
            (make-instance 'xcb:ewmh:set-_NET_WM_NAME
