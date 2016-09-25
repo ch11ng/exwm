@@ -560,6 +560,20 @@ Would you like to kill it? "
 (defconst exwm-manage--width-delta-min 5)
 (defconst exwm-manage--height-delta-min 5)
 
+(defvar exwm-manage--frame-outer-id-list nil
+  "List of window-outer-id's of all frames.")
+
+(defun exwm-manage--add-frame (frame)
+  "Run in `after-make-frame-functions'."
+  (push (string-to-number (frame-parameter frame 'outer-window-id))
+        exwm-manage--frame-outer-id-list))
+
+(defun exwm-manage--remove-frame (frame)
+  "Run in `delete-frame-functions'."
+  (setq exwm-manage--frame-outer-id-list
+        (delq (string-to-number (frame-parameter frame 'outer-window-id))
+              exwm-manage--frame-outer-id-list)))
+
 (defun exwm-manage--on-ConfigureRequest (data _synthetic)
   "Handle ConfigureRequest event."
   (let ((obj (make-instance 'xcb:ConfigureRequest))
@@ -638,14 +652,19 @@ border-width: %d; sibling: #x%x; stack-mode: %d"
                                   nil t)))
           (exwm--log "ConfigureWindow (preserve geometry)")
           ;; Configure the unmanaged window.
-          (xcb:+request exwm--connection
-              (make-instance 'xcb:ConfigureWindow
-                             :window window
-                             :value-mask value-mask
-                             :x x :y y :width width :height height
-                             :border-width border-width
-                             :sibling sibling
-                             :stack-mode stack-mode))))))
+          ;; But Emacs frames should be excluded.  Generally we don't
+          ;; receive ConfigureRequest events from Emacs frames since we
+          ;; have set OverrideRedirect on them, but this is not true for
+          ;; Lucid build (as of 25.1).
+          (unless (memq window exwm-manage--frame-outer-id-list)
+            (xcb:+request exwm--connection
+                (make-instance 'xcb:ConfigureWindow
+                               :window window
+                               :value-mask value-mask
+                               :x x :y y :width width :height height
+                               :border-width border-width
+                               :sibling sibling
+                               :stack-mode stack-mode)))))))
   (xcb:flush exwm--connection))
 
 (declare-function exwm-layout--iconic-state-p "exwm-layout.el" (&optional id))
@@ -698,6 +717,8 @@ border-width: %d; sibling: #x%x; stack-mode: %d"
                                          :name-len (length atom-name)
                                          :name atom-name))
                       'atom)))
+  (add-hook 'after-make-frame-functions #'exwm-manage--add-frame)
+  (add-hook 'delete-frame-functions #'exwm-manage--remove-frame)
   (xcb:+event exwm--connection 'xcb:ConfigureRequest
               #'exwm-manage--on-ConfigureRequest)
   (xcb:+event exwm--connection 'xcb:MapRequest #'exwm-manage--on-MapRequest)
