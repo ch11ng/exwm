@@ -449,14 +449,19 @@ manager is shutting down."
 (defun exwm-manage--kill-buffer-query-function ()
   "Run in `kill-buffer-query-functions'."
   (catch 'return
-    (when (xcb:+request-checked+request-check exwm--connection
-              (make-instance 'xcb:MapWindow :window exwm--id))
+    (when (or (not exwm--id)
+              (not exwm--container)
+              (xcb:+request-checked+request-check exwm--connection
+                  (make-instance 'xcb:MapWindow
+                                 :window exwm--id)))
       ;; The X window is no longer alive so just close the buffer.
       ;; Destroy the container.
       ;; Hide the container to prevent flickering.
-      (xcb:+request exwm--connection
-          (make-instance 'xcb:UnmapWindow :window exwm--container))
-      (xcb:flush exwm--connection)
+      (when exwm--container
+        (xcb:+request exwm--connection
+            (make-instance 'xcb:UnmapWindow
+                           :window exwm--container))
+        (xcb:flush exwm--connection))
       (when exwm--floating-frame
         (let ((window (frame-parameter exwm--floating-frame 'exwm-outer-id)))
           (xcb:+request exwm--connection
@@ -466,8 +471,10 @@ manager is shutting down."
                              :window window
                              :parent exwm--root
                              :x 0 :y 0))))
-      (xcb:+request exwm--connection
-          (make-instance 'xcb:DestroyWindow :window exwm--container))
+      (when exwm--container
+        (xcb:+request exwm--connection
+            (make-instance 'xcb:DestroyWindow
+                           :window exwm--container)))
       (xcb:flush exwm--connection)
       (throw 'return t))
     (unless (memq xcb:Atom:WM_DELETE_WINDOW exwm--protocols)
@@ -492,15 +499,8 @@ manager is shutting down."
       (xcb:flush exwm--connection)
       ;;
       (unless (memq xcb:Atom:_NET_WM_PING exwm--protocols)
-        ;; The window does not support _NET_WM_PING.  To make sure it'll die,
-        ;; kill it after the time runs out.
-        ;; Hide the container to prevent flickering.
-        (xcb:+request exwm--connection
-            (make-instance 'xcb:UnmapWindow :window exwm--container))
-        (xcb:flush exwm--connection)
-        (run-with-timer exwm-manage-ping-timeout nil #'exwm-manage--kill-client
-                        id)
-        ;; Wait for DestroyNotify event.
+        ;; For X windows without _NET_WM_PING support, we'd better just
+        ;; wait for DestroyNotify events.
         (throw 'return nil))
       ;; Try to determine if the X window is dead with _NET_WM_PING.
       (setq exwm-manage--ping-lock t)
@@ -517,7 +517,7 @@ manager is shutting down."
                                  exwm--connection)))
       (xcb:flush exwm--connection)
       (with-timeout (exwm-manage-ping-timeout
-                     (if (yes-or-no-p (format "'%s' is not responding. \
+                     (if (y-or-n-p (format "'%s' is not responding.  \
 Would you like to kill it? "
                                               (buffer-name)))
                          (progn (exwm-manage--kill-client id)
