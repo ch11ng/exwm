@@ -783,7 +783,7 @@ INDEX must not exceed the current number of workspaces."
              (rename-buffer (substring (buffer-name) 1))))))
      (prog1
          (with-local-quit
-           (list (get-buffer (read-buffer "Switch to buffer: " nil t))))
+           (list (get-buffer (read-buffer-to-switch "Switch to buffer: "))))
        ;; Hide buffers on other workspaces
        (unless exwm-workspace-show-all-buffers
          (dolist (pair exwm--id-buffer-alist)
