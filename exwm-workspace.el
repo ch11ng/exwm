@@ -772,10 +772,10 @@ INDEX must not exceed the current number of workspaces."
 
 ;;;###autoload
 (defun exwm-workspace-switch-to-buffer (buffer-or-name)
-  "Make the current Emacs window display another buffer."
+  "Switch to a workspace displaying the given buffer."
   (interactive
    (let ((inhibit-quit t))
-     ;; Show all buffers
+     ;; Show all buffers temporarily.
      (unless exwm-workspace-show-all-buffers
        (dolist (pair exwm--id-buffer-alist)
          (with-current-buffer (cdr pair)
@@ -784,7 +784,7 @@ INDEX must not exceed the current number of workspaces."
      (prog1
          (with-local-quit
            (list (get-buffer (read-buffer-to-switch "Switch to buffer: "))))
-       ;; Hide buffers on other workspaces
+       ;; Hide buffers on other workspaces again.
        (unless exwm-workspace-show-all-buffers
          (dolist (pair exwm--id-buffer-alist)
            (with-current-buffer (cdr pair)
@@ -793,20 +793,20 @@ INDEX must not exceed the current number of workspaces."
                (rename-buffer (concat " " (buffer-name))))))))))
   (when buffer-or-name
     (with-current-buffer buffer-or-name
-      (if (eq major-mode 'exwm-mode)
-          ;; EXWM buffer.
-          (if (eq exwm--frame exwm-workspace--current)
-              ;; On the current workspace.
-              (if (not exwm--floating-frame)
-                  (switch-to-buffer buffer-or-name)
-                ;; Select the floating frame.
-                (select-frame-set-input-focus exwm--floating-frame)
-                (select-window (frame-root-window exwm--floating-frame)))
-            ;; On another workspace.
-            (exwm-workspace-move-window exwm-workspace--current
-                                        exwm--id))
-        ;; Ordinary buffer.
-        (switch-to-buffer buffer-or-name)))))
+      (if (not (eq major-mode 'exwm-mode))
+          ;; Ordinary buffer.
+          (let ((window (get-buffer-window buffer-or-name t)))
+            (if window
+                (select-window window)
+              (switch-to-buffer buffer-or-name)))
+        ;; EXWM buffer.
+        (unless (eq exwm--frame exwm-workspace--current)
+          (exwm-workspace-switch exwm--frame))
+        (if (not exwm--floating-frame)
+            (switch-to-buffer buffer-or-name)
+          ;; Select the floating frame.
+          (select-frame-set-input-focus exwm--floating-frame)
+          (select-window (frame-root-window exwm--floating-frame)))))))
 
 (defun exwm-workspace-rename-buffer (newname)
   "Rename a buffer."
