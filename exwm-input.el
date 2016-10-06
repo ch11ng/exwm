@@ -212,7 +212,10 @@ This value should always be overwritten.")
     (with-current-buffer (window-buffer window)
       (if (eq major-mode 'exwm-mode)
           (if (not (eq exwm--frame exwm-workspace--current))
-              (exwm-workspace-switch exwm--frame)
+              (progn
+                (set-frame-parameter exwm--frame 'exwm-selected-window window)
+                (run-with-idle-timer 0 nil #'exwm-workspace-switch
+                                     exwm--frame))
             (exwm--log "Set focus on #x%x" exwm--id)
             (exwm-input--set-focus exwm--id)
             (when exwm--floating-frame
@@ -233,7 +236,11 @@ This value should always be overwritten.")
                    (not (eq (selected-frame) exwm-workspace--current)))
               ;; The focus is on another workspace (e.g. it got clicked)
               ;; so switch to it.
-              (exwm-workspace-switch (selected-frame))
+              (progn
+                (set-frame-parameter (selected-frame) 'exwm-selected-window
+                                     window)
+                (run-with-idle-timer 0 nil #'exwm-workspace-switch
+                                     (selected-frame)))
             ;; The focus is still on the current workspace.
             (if (not (and (exwm-workspace--minibuffer-own-frame-p)
                           (minibufferp)))
