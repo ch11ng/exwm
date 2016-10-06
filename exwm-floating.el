@@ -337,9 +337,11 @@ context of the corresponding buffer.")
       (setq window-size-fixed nil
             exwm--floating-frame nil
             exwm--frame exwm-workspace--current))
+    ;; Only show X windows in normal state.
     (unless (exwm-layout--iconic-state-p)
-      ;; Only show X windows in normal state.
-      (let ((window (frame-selected-window exwm-workspace--current)))
+      ;; Show it in the selected Emacs window but skip the mini-window.
+      (let ((window (or (minibuffer-selected-window)
+                        (frame-selected-window exwm-workspace--current))))
         (set-window-buffer window buffer)
         (select-window window))))
   (with-current-buffer (exwm--id->buffer id)

@@ -158,8 +158,7 @@ This value should always be overwritten.")
 
 (defun exwm-input--on-buffer-list-update ()
   "Run in `buffer-list-update-hook' to track input focus."
-  (when (and (not (minibufferp)) ;Do not set input focus on minibuffer window.
-             (eq (current-buffer) (window-buffer)) ;e.g. `with-temp-buffer'.
+  (when (and (eq (current-buffer) (window-buffer)) ;e.g. `with-temp-buffer'.
              (not (eq this-command #'handle-switch-frame))
              (not (exwm-workspace--client-p)))
     (setq exwm-input--update-focus-window (selected-window))
@@ -209,9 +208,7 @@ This value should always be overwritten.")
 (defun exwm-input--update-focus (window)
   "Update input focus."
   (setq exwm-input--update-focus-lock t)
-  (when (and (window-live-p window)
-             ;; Do not update input focus when there's an active minibuffer.
-             (not (active-minibuffer-window)))
+  (when (window-live-p window)
     (with-current-buffer (window-buffer window)
       (if (eq major-mode 'exwm-mode)
           (if (not (eq exwm--frame exwm-workspace--current))
@@ -238,7 +235,15 @@ This value should always be overwritten.")
               ;; so switch to it.
               (exwm-workspace-switch (selected-frame))
             ;; The focus is still on the current workspace.
-            (select-frame-set-input-focus (window-frame window) t)
+            (if (not (and (exwm-workspace--minibuffer-own-frame-p)
+                          (minibufferp)))
+                (select-frame-set-input-focus (window-frame window) t)
+              ;; X input focus should be set on the previously selected
+              ;; frame.
+              (select-frame-set-input-focus (window-frame
+                                             (minibuffer-selected-window))
+                                            t)
+              (select-frame (window-frame window) t))
             (exwm-input--set-active-window)
             (xcb:flush exwm--connection))))))
   (setq exwm-input--update-focus-lock nil))
@@ -255,20 +260,6 @@ This value should always be overwritten.")
       (make-instance 'xcb:ewmh:set-_NET_ACTIVE_WINDOW
                      :window exwm--root
                      :data (or id xcb:Window:None))))
-
-(defvar exwm-input--during-key-sequence nil
-  "Non-nil indicates Emacs is waiting for more keys to form a key sequence.")
-(defvar exwm-input--temp-line-mode nil
-  "Non-nil indicates it's in temporary line-mode for char-mode.")
-
-(defun exwm-input--finish-key-sequence ()
-  "Mark the end of a key sequence (with the aid of `pre-command-hook')."
-  (when (and exwm-input--during-key-sequence
-             (not (equal [?\C-u] (this-single-command-keys))))
-    (setq exwm-input--during-key-sequence nil)
-    (when exwm-input--temp-line-mode
-      (setq exwm-input--temp-line-mode nil)
-      (exwm-input--release-keyboard))))
 
 (declare-function exwm-floating--start-moveresize "exwm-floating.el"
                   (id &optional type))
@@ -415,26 +406,47 @@ This value should always be overwritten.")
 (defvar exwm-input--during-command nil
   "Indicate whether between `pre-command-hook' and `post-command-hook'.")
 
+(defvar exwm-input--line-mode-passthrough nil
+  "Non-nil makes 'line-mode' forwards all events to Emacs.")
+
+(defvar exwm-input--line-mode-cache nil "Cache for incomplete key sequence.")
+
+(defvar exwm-input--temp-line-mode nil
+  "Non-nil indicates it's in temporary line-mode for char-mode.")
+
+(defun exwm-input--cache-event (event)
+  "Cache EVENT."
+  (setq exwm-input--line-mode-cache
+        (vconcat exwm-input--line-mode-cache (vector event)))
+  ;; When the key sequence is complete.
+  (unless (keymapp (key-binding exwm-input--line-mode-cache))
+    (setq exwm-input--line-mode-cache nil)
+    (when exwm-input--temp-line-mode
+      (setq exwm-input--temp-line-mode nil)
+      (exwm-input--release-keyboard)))
+  (exwm-input--unread-event event))
+
 (defun exwm-input--on-KeyPress-line-mode (key-press raw-data)
   "Parse X KeyPress event to Emacs key event and then feed the command loop."
   (with-slots (detail state) key-press
     (let ((keysym (xcb:keysyms:keycode->keysym exwm--connection detail state))
-          event minibuffer-window mode)
+          event mode)
       (when (and (/= 0 (car keysym))
                  (setq event (xcb:keysyms:keysym->event
                               exwm--connection (car keysym)
                               (logand state (lognot (cdr keysym)))))
-                 (or exwm-input--during-key-sequence
+                 (or exwm-input--line-mode-passthrough
                      exwm-input--during-command
-                     (setq minibuffer-window (active-minibuffer-window))
+                     ;; Forward the event when there is an incomplete key
+                     ;; sequence or when the minibuffer is active.
+                     exwm-input--line-mode-cache
+                     (eq (active-minibuffer-window) (selected-window))
+                     ;;
                      (memq event exwm-input--global-prefix-keys)
                      (memq event exwm-input-prefix-keys)
                      (memq event exwm-input--simulation-prefix-keys)))
         (setq mode xcb:Allow:AsyncKeyboard)
-        (unless minibuffer-window (setq exwm-input--during-key-sequence t))
-        ;; Feed this event to command loop.  Also force it to be added to
-        ;; `this-command-keys'.
-        (exwm-input--unread-event event))
+        (exwm-input--cache-event event))
       (unless mode
         (if (= 0 (logand #x6000 state)) ;Check the 13~14 bits.
             ;; Not an XKB state; just replay it.
@@ -469,15 +481,9 @@ This value should always be overwritten.")
                               exwm--connection (car keysym)
                               (logand state (lognot (cdr keysym))))))
         (when (eq major-mode 'exwm-mode)
-          ;; FIXME: This functionality seems not working, e.g. when this
-          ;;        command would activate the minibuffer, the temporary
-          ;;        line-mode would actually quit before the minibuffer
-          ;;        becomes active.
-          (setq exwm-input--temp-line-mode t
-                exwm-input--during-key-sequence t)
+          (setq exwm-input--temp-line-mode t)
           (exwm-input--grab-keyboard))  ;grab keyboard temporarily
-        (setq unread-command-events
-              (append unread-command-events (list event))))))
+        (exwm-input--cache-event event))))
   (xcb:+request exwm--connection
       (make-instance 'xcb:AllowEvents
                      :mode xcb:Allow:AsyncKeyboard
@@ -609,7 +615,7 @@ This value should always be overwritten.")
   (let (key keys)
     (dotimes (i times)
       ;; Skip events not from keyboard
-      (setq exwm-input--during-key-sequence t)
+      (setq exwm-input--line-mode-passthrough t)
       (catch 'break
         (while t
           (setq key (read-key (format "Send key: %s (%d/%d)"
@@ -618,7 +624,7 @@ This value should always be overwritten.")
           (when (and (listp key) (eq (car key) t))
             (setq key (cdr key)))
           (unless (listp key) (throw 'break nil))))
-      (setq exwm-input--during-key-sequence nil)
+      (setq exwm-input--line-mode-passthrough nil)
       (setq keys (vconcat keys (vector key)))
       (exwm-input--fake-key key))))
 
@@ -739,8 +745,6 @@ Its usage is the same with `exwm-input-set-simulation-keys'."
   (xcb:+event exwm--connection 'xcb:FocusIn #'exwm-input--on-FocusIn)
   ;; The input focus should be set on the frame when minibuffer is active.
   (add-hook 'minibuffer-setup-hook #'exwm-input--on-minibuffer-setup)
-  ;; `pre-command-hook' marks the end of a key sequence (existing or not)
-  (add-hook 'pre-command-hook #'exwm-input--finish-key-sequence)
   ;; Control `exwm-input--during-command'
   (add-hook 'pre-command-hook #'exwm-input--on-pre-command)
   (add-hook 'post-command-hook #'exwm-input--on-post-command)
@@ -753,7 +757,6 @@ Its usage is the same with `exwm-input-set-simulation-keys'."
 
 (defun exwm-input--exit ()
   "Exit the input module."
-  (remove-hook 'pre-command-hook #'exwm-input--finish-key-sequence)
   (remove-hook 'pre-command-hook #'exwm-input--on-pre-command)
   (remove-hook 'post-command-hook #'exwm-input--on-post-command)
   (remove-hook 'buffer-list-update-hook #'exwm-input--on-buffer-list-update)
