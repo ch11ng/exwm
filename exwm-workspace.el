@@ -636,6 +636,7 @@ INDEX must not exceed the current number of workspaces."
                        :window id
                        :data (exwm-workspace--position exwm--frame)))))
 
+(declare-function exwm-input--on-buffer-list-update "exwm-input.el" ())
 (declare-function exwm-layout--show "exwm-layout.el" (id &optional window))
 (declare-function exwm-layout--hide "exwm-layout.el" (id))
 (declare-function exwm-layout--refresh "exwm-layout.el")
@@ -780,7 +781,10 @@ INDEX must not exceed the current number of workspaces."
        (dolist (pair exwm--id-buffer-alist)
          (with-current-buffer (cdr pair)
            (when (= ?\s (aref (buffer-name) 0))
-             (rename-buffer (substring (buffer-name) 1))))))
+             (let ((buffer-list-update-hook
+                    (remq #'exwm-input--on-buffer-list-update
+                          buffer-list-update-hook)))
+               (rename-buffer (substring (buffer-name) 1)))))))
      (prog1
          (with-local-quit
            (list (get-buffer (read-buffer-to-switch "Switch to buffer: "))))
@@ -790,7 +794,10 @@ INDEX must not exceed the current number of workspaces."
            (with-current-buffer (cdr pair)
              (unless (or (eq exwm--frame exwm-workspace--current)
                          (= ?\s (aref (buffer-name) 0)))
-               (rename-buffer (concat " " (buffer-name))))))))))
+               (let ((buffer-list-update-hook
+                      (remq #'exwm-input--on-buffer-list-update
+                            buffer-list-update-hook)))
+                 (rename-buffer (concat " " (buffer-name)))))))))))
   (when buffer-or-name
     (with-current-buffer buffer-or-name
       (if (eq major-mode 'exwm-mode)
@@ -820,7 +827,10 @@ INDEX must not exceed the current number of workspaces."
                               (get-buffer (concat " " newname))))
                 (not (eq tmp (current-buffer))))
       (setq newname (format "%s<%d>" basename (cl-incf counter))))
-    (rename-buffer (concat (and hidden " ") newname))))
+    (let ((buffer-list-update-hook
+           (remq #'exwm-input--on-buffer-list-update
+                 buffer-list-update-hook)))
+      (rename-buffer (concat (and hidden " ") newname)))))
 
 (defun exwm-workspace--x-create-frame (orig-fun params)
   "Set override-redirect on the frame created by `x-create-frame'."
