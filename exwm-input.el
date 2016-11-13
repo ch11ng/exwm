@@ -380,7 +380,14 @@ This value should always be overwritten.")
                     (slot-value grab-key 'key) keycode)
               (when (or (= 0 keycode)
                         (xcb:+request-checked+request-check exwm--connection
-                            grab-key))
+                            grab-key)
+                        ;; Also grab this key with num-lock mask set.
+                        (when (/= 0 xcb:keysyms:num-lock-mask)
+                          (setf (slot-value grab-key 'modifiers)
+                                (logior (cdr keysym)
+                                        xcb:keysyms:num-lock-mask))
+                          (xcb:+request-checked+request-check exwm--connection
+                              grab-key)))
                 (user-error "[EXWM] Failed to grab key: %s"
                             (single-key-description k))))))))))
 
