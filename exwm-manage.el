@@ -249,7 +249,8 @@ corresponding buffer.")
                                                  xcb:CW:BorderPixel 0)
                                              xcb:CW:OverrideRedirect
                                              xcb:CW:EventMask
-                                             xcb:CW:Colormap)
+                                             (if exwm-floating--border-colormap
+                                                 xcb:CW:Colormap 0))
                          :background-pixmap xcb:BackPixmap:ParentRelative
                          :border-pixel exwm-floating--border-pixel
                          :override-redirect 1
