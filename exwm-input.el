@@ -767,7 +767,11 @@ Its usage is the same with `exwm-input-set-simulation-keys'."
   ;; Re-grab global keys.
   (add-hook 'exwm-workspace-list-change-hook
             #'exwm-input--on-workspace-list-change)
-  (exwm-input--on-workspace-list-change))
+  (exwm-input--on-workspace-list-change)
+  ;; Prevent frame parameters introduced by this module from being
+  ;; saved/restored.
+  (dolist (i '(exwm-grabbed))
+    (push (cons i :never) frameset-filter-alist)))
 
 (defun exwm-input--exit ()
   "Exit the input module."

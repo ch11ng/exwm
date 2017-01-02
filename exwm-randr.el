@@ -160,7 +160,11 @@
                            ;;            xcb:randr:NotifyMask:CrtcChange))
                            ))
         (xcb:flush exwm--connection)
-        (add-hook 'exwm-workspace-list-change-hook #'exwm-randr--refresh)))))
+        (add-hook 'exwm-workspace-list-change-hook #'exwm-randr--refresh))))
+  ;; Prevent frame parameters introduced by this module from being
+  ;; saved/restored.
+  (dolist (i '(exwm-randr-output exwm-geometry))
+    (push (cons i :never) frameset-filter-alist)))
 
 (defun exwm-randr--exit ()
   "Exit the RandR module."

@@ -1466,7 +1466,12 @@ applied to all subsequently created X frames."
   (add-hook 'delete-frame-functions
             #'exwm-workspace--remove-frame-as-workspace)
   ;; Switch to the first workspace
-  (exwm-workspace-switch 0 t))
+  (exwm-workspace-switch 0 t)
+  ;; Prevent frame parameters introduced by this module from being
+  ;; saved/restored.
+  (dolist (i '(exwm-outer-id exwm-id exwm-container exwm-workspace
+                             fullscreen exwm-selected-window exwm-urgency))
+    (push (cons i :never) frameset-filter-alist)))
 
 (defun exwm-workspace--exit ()
   "Exit the workspace module."
