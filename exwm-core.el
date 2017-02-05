@@ -180,6 +180,7 @@
     ["Toggle floating" exwm-floating-toggle-floating]
     ["Toggle fullscreen mode" exwm-layout-toggle-fullscreen]
     ["Hide window" exwm-floating-hide exwm--floating-frame]
+    ["Close window" (kill-buffer (current-buffer))]
 
     "---"
     "*Resizing*"
