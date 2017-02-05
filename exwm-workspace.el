@@ -116,7 +116,7 @@ NIL if FRAME is not a workspace"
 (defvar exwm-workspace--prompt-add-allowed nil
   "Non-nil to allow adding workspace from the prompt.")
 (defvar exwm-workspace--prompt-delete-allowed nil
-  "Non-nil to allow deleting workspace from the prompt")
+  "Non-nil to allow deleting workspace from the prompt.")
 (defvar exwm-workspace--create-silently nil
   "When non-nil workspaces are created in the background (not switched to).
 

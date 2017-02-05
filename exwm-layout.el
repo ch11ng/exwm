@@ -178,7 +178,7 @@
   (interactive)
   (with-current-buffer (if id (exwm--id->buffer id) (window-buffer))
     (when (memq xcb:Atom:_NET_WM_STATE_FULLSCREEN exwm--ewmh-state)
-      (user-error "Already in full-screen mode."))
+      (user-error "Already in full-screen mode"))
     ;; Save the position of floating frame.
     (when exwm--floating-frame
       (let* ((geometry (xcb:+request-unchecked+reply exwm--connection
@@ -232,7 +232,7 @@
   (interactive)
   (with-current-buffer (if id (exwm--id->buffer id) (window-buffer))
     (unless (memq xcb:Atom:_NET_WM_STATE_FULLSCREEN exwm--ewmh-state)
-      (user-error "Not in full-screen mode."))
+      (user-error "Not in full-screen mode"))
     ;; Restore the size of this workspace.
     (exwm-workspace--set-fullscreen exwm--frame)
     (if exwm--floating-frame

@@ -115,7 +115,7 @@
   "The default value of opacity when it's not explicitly specified.
 
 The value should be a floating number between 0 (transparent) and 100
-(opaque).  A value of nil also means opaque.")
+\(opaque).  A value of nil also means opaque.")
 
 (defvar exwm-cm--hash nil
   "The hash table associating X window IDs to their attributes.")
@@ -226,7 +226,7 @@ If called interactively, XWIN would be the selected X window."
   (car (exwm-cm--get-tree xwin)))
 
 (defsubst exwm-cm--get-siblings (xwin)
-  "Get a list of subtrees of the siblings of X window XWIN"
+  "Get a list of subtrees of the siblings of X window XWIN."
   (cdr (exwm-cm--get-tree xwin)))
 
 (defsubst exwm-cm--get-subtree (xwin)

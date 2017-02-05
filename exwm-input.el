@@ -30,8 +30,8 @@
 ;; + Pointer simulation mode (e.g. 'C-c 1'/'C-c 2' for single/double click,
 ;;   move with arrow keys).
 ;; + Simulation keys to mimic Emacs key bindings for text edit (redo, select,
-;;   cancel, clear, etc). Some of them are not present on common keyboard
-;;   (keycode = 0). May need to use XKB extension.
+;;   cancel, clear, etc).  Some of them are not present on common keyboard
+;;   (keycode = 0).  May need to use XKB extension.
 
 ;;; Code:
 

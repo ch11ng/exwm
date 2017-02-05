@@ -485,4 +485,4 @@ You shall use the default value if using auto-hide minibuffer.")
 
 (provide 'exwm-systemtray)
 
-;; exwm-systemtray.el ends here
+;;; exwm-systemtray.el ends here

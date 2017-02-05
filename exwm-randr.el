@@ -21,9 +21,10 @@
 
 ;;; Commentary:
 
-;; This module adds RandR support for EXWM. Currently it requires external
-;; tools such as xrandr(1) to properly configure RandR first. This dependency
-;; may be removed in the future, but more work is needed before that.
+;; This module adds RandR support for EXWM.  Currently it requires external
+;; tools such as xrandr(1) to properly configure RandR first.  This
+;; dependency may be removed in the future, but more work is needed before
+;; that.
 
 ;; To use this module, load, enable it and configure
 ;; `exwm-randr-workspace-output-plist' and `exwm-randr-screen-change-hook'

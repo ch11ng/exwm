@@ -119,4 +119,4 @@ You can find the original one at `exwm-config-ido-buffer-window-other-frame'."
 
 (provide 'exwm-config)
 
-;; exwm-config.el ends here
+;;; exwm-config.el ends here
