@@ -1,6 +1,6 @@
 ;;; exwm-cm.el --- Compositing Manager for EXWM  -*- lexical-binding: t -*-
 
-;; Copyright (C) 2016 Free Software Foundation, Inc.
+;; Copyright (C) 2016-2017 Free Software Foundation, Inc.
 
 ;; Author: Chris Feng <chris.w.feng@gmail.com>
 
