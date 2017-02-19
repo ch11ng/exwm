@@ -629,16 +629,15 @@ This value should always be overwritten.")
   (let (key keys)
     (dotimes (i times)
       ;; Skip events not from keyboard
-      (setq exwm-input--line-mode-passthrough t)
-      (catch 'break
-        (while t
-          (setq key (read-key (format "Send key: %s (%d/%d)"
-                                      (key-description keys)
-                                      (1+ i) times)))
-          (when (and (listp key) (eq (car key) t))
-            (setq key (cdr key)))
-          (unless (listp key) (throw 'break nil))))
-      (setq exwm-input--line-mode-passthrough nil)
+      (let ((exwm-input--line-mode-passthrough t))
+        (catch 'break
+          (while t
+            (setq key (read-key (format "Send key: %s (%d/%d)"
+                                        (key-description keys)
+                                        (1+ i) times)))
+            (when (and (listp key) (eq (car key) t))
+              (setq key (cdr key)))
+            (unless (listp key) (throw 'break nil)))))
       (setq keys (vconcat keys (vector key)))
       (exwm-input--fake-key key))))
 
