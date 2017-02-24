@@ -247,6 +247,8 @@ Value nil means to use the default position which is fixed at bottom, while
                     (append exwm-workspace--struts (list struts*))))))))))
 
 (defvar exwm-workspace--workareas nil "Workareas (struts excluded).")
+(defvar exwm-workspace--update-workareas-hook nil
+  "Normal hook run when workareas get updated.")
 
 (defun exwm-workspace--update-workareas ()
   "Update `exwm-workspace--workareas'."
@@ -309,7 +311,8 @@ Value nil means to use the default position which is fixed at bottom, while
              (cl-incf (aref w 3) delta))))))
     ;; Save the result.
     (setq exwm-workspace--workareas workareas)
-    (xcb:flush exwm--connection)))
+    (xcb:flush exwm--connection))
+  (run-hooks 'exwm-workspace--update-workareas-hook))
 
 (defvar exwm-workspace--fullscreen-frame-count 0
   "Count the fullscreen workspace frames.")

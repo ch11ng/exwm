@@ -304,6 +304,9 @@ You shall use the default value if using auto-hide minibuffer.")
                        :event (xcb:marshal obj exwm-systemtray--connection))))
   (xcb:flush exwm-systemtray--connection))
 
+(defvar exwm-workspace--workareas)
+(defvar exwm-workspace-current-index)
+
 (defun exwm-systemtray--on-workspace-switch ()
   "Reparent/Refresh the system tray in `exwm-workspace-switch-hook'."
   (unless (exwm-workspace--minibuffer-own-frame-p)
@@ -314,7 +317,9 @@ You shall use the default value if using auto-hide minibuffer.")
                                 (frame-parameter exwm-workspace--current
                                                  'window-id))
                        :x 0
-                       :y (- (exwm-workspace--current-height)
+                       :y (- (elt (elt exwm-workspace--workareas
+                                       exwm-workspace-current-index)
+                                  3)
                              exwm-systemtray-height))))
   (exwm-systemtray--refresh))
 
@@ -325,9 +330,14 @@ You shall use the default value if using auto-hide minibuffer.")
         (make-instance 'xcb:ConfigureWindow
                        :window exwm-systemtray--embedder
                        :value-mask xcb:ConfigWindow:Y
-                       :y (- (exwm-workspace--current-height)
+                       :y (- (elt (elt exwm-workspace--workareas
+                                       exwm-workspace-current-index)
+                                  3)
                              exwm-systemtray-height))))
   (exwm-systemtray--refresh))
+
+(defalias 'exwm-systemtray--on-struts-update
+  #'exwm-systemtray--on-randr-refresh)
 
 (defvar xcb:Atom:_NET_SYSTEM_TRAY_S0)
 (defvar exwm-workspace--minibuffer)
@@ -459,6 +469,8 @@ You shall use the default value if using auto-hide minibuffer.")
                 #'exwm-systemtray--on-KeyPress))
   ;; Add hook to move/reparent the embedder.
   (add-hook 'exwm-workspace-switch-hook #'exwm-systemtray--on-workspace-switch)
+  (add-hook 'exwm-workspace--update-workareas-hook
+            #'exwm-systemtray--on-struts-update)
   (when (boundp 'exwm-randr-refresh-hook)
     (add-hook 'exwm-randr-refresh-hook #'exwm-systemtray--on-randr-refresh)))
 
@@ -472,6 +484,8 @@ You shall use the default value if using auto-hide minibuffer.")
           exwm-systemtray--embedder nil)
     (remove-hook 'exwm-workspace-switch-hook
                  #'exwm-systemtray--on-workspace-switch)
+    (remove-hook 'exwm-workspace--update-workareas-hook
+                 #'exwm-systemtray--on-struts-update)
     (when (boundp 'exwm-randr-refresh-hook)
       (remove-hook 'exwm-randr-refresh-hook
                    #'exwm-systemtray--on-randr-refresh))))
