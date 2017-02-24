@@ -420,7 +420,7 @@ This value should always be overwritten.")
 (defvar exwm-input--during-command nil
   "Indicate whether between `pre-command-hook' and `post-command-hook'.")
 
-(defvar exwm-input--line-mode-passthrough nil
+(defvar exwm-input-line-mode-passthrough nil
   "Non-nil makes 'line-mode' forwards all events to Emacs.")
 
 (defvar exwm-input--line-mode-cache nil "Cache for incomplete key sequence.")
@@ -449,7 +449,7 @@ This value should always be overwritten.")
                  (setq event (xcb:keysyms:keysym->event
                               exwm--connection (car keysym)
                               (logand state (lognot (cdr keysym)))))
-                 (or exwm-input--line-mode-passthrough
+                 (or exwm-input-line-mode-passthrough
                      exwm-input--during-command
                      ;; Forward the event when there is an incomplete key
                      ;; sequence or when the minibuffer is active.
@@ -629,16 +629,15 @@ This value should always be overwritten.")
   (let (key keys)
     (dotimes (i times)
       ;; Skip events not from keyboard
-      (setq exwm-input--line-mode-passthrough t)
-      (catch 'break
-        (while t
-          (setq key (read-key (format "Send key: %s (%d/%d)"
-                                      (key-description keys)
-                                      (1+ i) times)))
-          (when (and (listp key) (eq (car key) t))
-            (setq key (cdr key)))
-          (unless (listp key) (throw 'break nil))))
-      (setq exwm-input--line-mode-passthrough nil)
+      (let ((exwm-input-line-mode-passthrough t))
+        (catch 'break
+          (while t
+            (setq key (read-key (format "Send key: %s (%d/%d)"
+                                        (key-description keys)
+                                        (1+ i) times)))
+            (when (and (listp key) (eq (car key) t))
+              (setq key (cdr key)))
+            (unless (listp key) (throw 'break nil)))))
       (setq keys (vconcat keys (vector key)))
       (exwm-input--fake-key key))))
 
