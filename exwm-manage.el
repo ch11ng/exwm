@@ -566,14 +566,16 @@ Would you like to kill it? "
 
 (defun exwm-manage--add-frame (frame)
   "Run in `after-make-frame-functions'."
-  (push (string-to-number (frame-parameter frame 'outer-window-id))
-        exwm-manage--frame-outer-id-list))
+  (when (display-graphic-p frame)
+    (push (string-to-number (frame-parameter frame 'outer-window-id))
+          exwm-manage--frame-outer-id-list)))
 
 (defun exwm-manage--remove-frame (frame)
   "Run in `delete-frame-functions'."
-  (setq exwm-manage--frame-outer-id-list
-        (delq (string-to-number (frame-parameter frame 'outer-window-id))
-              exwm-manage--frame-outer-id-list)))
+  (when (display-graphic-p frame)
+    (setq exwm-manage--frame-outer-id-list
+          (delq (string-to-number (frame-parameter frame 'outer-window-id))
+                exwm-manage--frame-outer-id-list))))
 
 (defun exwm-manage--on-ConfigureRequest (data _synthetic)
   "Handle ConfigureRequest event."
