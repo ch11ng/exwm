@@ -494,10 +494,12 @@ This value should always be overwritten.")
                  (setq event (xcb:keysyms:keysym->event
                               exwm--connection (car keysym)
                               (logand state (lognot (cdr keysym))))))
-        (when (eq major-mode 'exwm-mode)
+        (if (not (eq major-mode 'exwm-mode))
+            (exwm-input--unread-event event)
+          ;; Grab keyboard temporarily.
           (setq exwm-input--temp-line-mode t)
-          (exwm-input--grab-keyboard))  ;grab keyboard temporarily
-        (exwm-input--cache-event event))))
+          (exwm-input--grab-keyboard)
+          (exwm-input--cache-event event)))))
   (xcb:+request exwm--connection
       (make-instance 'xcb:AllowEvents
                      :mode xcb:Allow:AsyncKeyboard
