@@ -1164,8 +1164,11 @@ Please check `exwm-workspace--minibuffer-own-frame-p' first."
     (exwm--log "Frame `%s' is already a workspace" frame))
    ((not (display-graphic-p frame))
     (exwm--log "Frame `%s' is not graphical" frame))
-   ((not (memq frame (frames-on-display-list (slot-value exwm--connection
-                                                         'display))))
+   ((not (string-equal
+          (replace-regexp-in-string "\\.0$" ""
+                                    (slot-value exwm--connection 'display))
+          (replace-regexp-in-string "\\.0$" ""
+                                    (frame-parameter frame 'display))))
     (exwm--log "Frame `%s' is on a different DISPLAY (%S instead of %S)"
                frame
                (frame-parameter frame 'display)
