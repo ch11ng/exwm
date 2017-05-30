@@ -779,6 +779,8 @@ INDEX must not exceed the current number of workspaces."
         (xcb:flush exwm--connection)))
     (setq exwm-workspace--switch-history-outdated t)))
 
+(defvar exwm-layout-show-all-buffers)
+
 ;;;###autoload
 (defun exwm-workspace-switch-to-buffer (buffer-or-name)
   "Make the current Emacs window display another buffer."
@@ -818,8 +820,16 @@ INDEX must not exceed the current number of workspaces."
                 (select-frame-set-input-focus exwm--floating-frame)
                 (select-window (frame-root-window exwm--floating-frame)))
             ;; On another workspace.
-            (exwm-workspace-move-window exwm-workspace--current
-                                        exwm--id))
+            (if exwm-layout-show-all-buffers
+                (exwm-workspace-move-window exwm-workspace--current
+                                            exwm--id)
+              (let ((window (get-buffer-window buffer-or-name exwm--frame)))
+                (if window
+                    (set-frame-parameter exwm--frame
+                                         'exwm-selected-window window)
+                  (set-window-buffer (frame-selected-window exwm--frame)
+                                     buffer-or-name)))
+              (exwm-workspace-switch exwm--frame)))
         ;; Ordinary buffer.
         (switch-to-buffer buffer-or-name)))))
 
