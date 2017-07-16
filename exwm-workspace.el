@@ -35,6 +35,10 @@
 (defvar exwm-workspace--list nil "List of all workspaces (Emacs frames).")
 (defvar exwm-workspace--current nil "Current active workspace.")
 (defvar exwm-workspace-current-index 0 "Index of current active workspace.")
+(defvar exwm-workspace-index-map #'number-to-string
+  "Function for mapping a workspace index to a string for display.
+
+By default `number-to-string' is applied which yields 0 1 2 ... .")
 
 (defsubst exwm-workspace--position (frame)
   "Retrieve index of given FRAME in workspace list.
@@ -168,7 +172,7 @@ Please manually run the hook `exwm-workspace-list-change-hook' afterwards.")
                 (lambda (j)
                   (format (if (= i j) "[%s]" " %s ")
                           (propertize
-                           (int-to-string j)
+                           (apply exwm-workspace-index-map (list j))
                            'face
                            (cond ((frame-parameter (elt exwm-workspace--list j)
                                                    'exwm-urgency)
