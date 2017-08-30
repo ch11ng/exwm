@@ -472,7 +472,10 @@ You shall use the default value if using auto-hide minibuffer.")
   (add-hook 'exwm-workspace--update-workareas-hook
             #'exwm-systemtray--on-struts-update)
   (when (boundp 'exwm-randr-refresh-hook)
-    (add-hook 'exwm-randr-refresh-hook #'exwm-systemtray--on-randr-refresh)))
+    (add-hook 'exwm-randr-refresh-hook #'exwm-systemtray--on-randr-refresh))
+  ;; The struts can be updated already.
+  (when exwm-workspace--workareas
+    (exwm-systemtray--on-struts-update)))
 
 (defun exwm-systemtray--exit ()
   "Exit the systemtray module."
