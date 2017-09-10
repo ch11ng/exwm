@@ -43,11 +43,6 @@
 (defvar exwm-input-resize-event 's-down-mouse-3
   "Emacs event to start resizing a window.")
 
-(defvar exwm-input--move-keysym nil)
-(defvar exwm-input--move-mask nil)
-(defvar exwm-input--resize-keysym nil)
-(defvar exwm-input--resize-mask nil)
-
 (defvar exwm-input--timestamp-window nil)
 (defvar exwm-input--timestamp-atom nil)
 (defvar exwm-input--timestamp-callback nil)
@@ -276,13 +271,14 @@ This value should always be overwritten.")
   "Handle ButtonPress event."
   (let ((obj (make-instance 'xcb:ButtonPress))
         (mode xcb:Allow:SyncPointer)
-        window buffer frame)
+        button-event window buffer frame)
     (xcb:unmarshal obj data)
     (with-slots (detail time event state) obj
-      (setq window (get-buffer-window (exwm--id->buffer event) t)
+      (setq button-event (xcb:keysyms:keysym->event exwm--connection
+                                                    detail state)
+            window (get-buffer-window (exwm--id->buffer event) t)
             buffer (window-buffer window))
-      (cond ((and (= state exwm-input--move-mask)
-                  (= detail exwm-input--move-keysym)
+      (cond ((and (eq button-event exwm-input-move-event)
                   ;; Either an undecorated or a floating X window.
                   (with-current-buffer buffer
                     (or (not (eq major-mode 'exwm-mode))
@@ -290,8 +286,7 @@ This value should always be overwritten.")
              ;; Move
              (exwm-floating--start-moveresize
               event xcb:ewmh:_NET_WM_MOVERESIZE_MOVE))
-            ((and (= state exwm-input--resize-mask)
-                  (= detail exwm-input--resize-keysym)
+            ((and (eq button-event exwm-input-resize-event)
                   (with-current-buffer buffer
                     (or (not (eq major-mode 'exwm-mode))
                         exwm--floating-frame)))
@@ -709,21 +704,6 @@ Its usage is the same with `exwm-input-set-simulation-keys'."
   "Initialize the keyboard module."
   ;; Refresh keyboard mapping
   (xcb:keysyms:init exwm--connection)
-  ;; Convert move/resize buttons
-  (let ((move-key (xcb:keysyms:event->keysym exwm--connection
-                                             exwm-input-move-event))
-        (resize-key (xcb:keysyms:event->keysym exwm--connection
-                                               exwm-input-resize-event)))
-    (when (= 0 (car move-key))
-      (user-error "[EXWM] Invalid key: %s"
-                  (single-key-description exwm-input-move-event)))
-    (when (= 0 (car resize-key))
-      (user-error "[EXWM] Invalid key: %s"
-                  (single-key-description exwm-input-resize-event)))
-    (setq exwm-input--move-keysym (car move-key)
-          exwm-input--move-mask (cdr move-key)
-          exwm-input--resize-keysym (car resize-key)
-          exwm-input--resize-mask (cdr resize-key)))
   ;; Create the X window and intern the atom used to fetch timestamp.
   (setq exwm-input--timestamp-window (xcb:generate-id exwm--connection))
   (xcb:+request exwm--connection
