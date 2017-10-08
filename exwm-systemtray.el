@@ -480,6 +480,18 @@ You shall use the default value if using auto-hide minibuffer.")
 (defun exwm-systemtray--exit ()
   "Exit the systemtray module."
   (when exwm-systemtray--connection
+    ;; Hide & reparent out the embedder before disconnection to prevent
+    ;; embedded icons from being reparented to an Emacs frame (which is the
+    ;; parent of the embedder).
+    (xcb:+request exwm-systemtray--connection
+        (make-instance 'xcb:UnmapWindow
+                       :window exwm-systemtray--embedder))
+    (xcb:+request exwm-systemtray--connection
+        (make-instance 'xcb:ReparentWindow
+                       :window exwm-systemtray--embedder
+                       :parent exwm--root
+                       :x 0
+                       :y 0))
     (xcb:disconnect exwm-systemtray--connection)
     (setq exwm-systemtray--connection nil
           exwm-systemtray--list nil
