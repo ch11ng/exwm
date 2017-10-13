@@ -189,7 +189,8 @@ This value should always be overwritten.")
     (when exwm-input--update-focus-timer
       (cancel-timer exwm-input--update-focus-timer))
     (setq exwm-input--update-focus-timer
-          (run-with-idle-timer exwm-input--update-focus-interval nil
+          (run-with-idle-timer (time-add (current-idle-time) exwm-input--update-focus-interval)
+                               nil
                                #'exwm-input--update-focus
                                exwm-input--update-focus-window))))
 
