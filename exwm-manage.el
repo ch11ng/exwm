@@ -405,21 +405,13 @@ manager is shutting down."
         (xcb:flush exwm--connection))
       (let ((kill-buffer-func
              (lambda (buffer)
-               (with-current-buffer buffer
-                 (let ((kill-buffer-query-functions nil)
-                       (floating exwm--floating-frame))
-                   (kill-buffer)
-                   (when floating
-                     (select-window
-                      (frame-selected-window exwm-workspace--current))))))))
-        (if (not (active-minibuffer-window))
-            ;; Kill the buffer as usual.
-            (funcall kill-buffer-func buffer)
-          ;; This can happen when this buffer was requested to be killed
-          ;; from the minibuffer (e.g. with `ido-kill-buffer-at-head').
-          ;; We have to exit the minibuffer first or there'll be a
-          ;; "selecting deleted buffer" error.
-          (run-with-idle-timer 0 nil kill-buffer-func buffer)
+               (let ((kill-buffer-query-functions nil))
+                 (when exwm--floating-frame
+                   (select-window
+                    (frame-selected-window exwm-workspace--current)))
+                 (kill-buffer buffer)))))
+        (run-with-idle-timer 0 nil kill-buffer-func buffer)
+        (when (active-minibuffer-window)
           (exit-minibuffer))))))
 
 (defun exwm-manage--scan ()
