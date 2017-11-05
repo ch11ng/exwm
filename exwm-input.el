@@ -153,9 +153,12 @@ This value should always be overwritten.")
 
 (defun exwm-input--on-buffer-list-update ()
   "Run in `buffer-list-update-hook' to track input focus."
-  (when (and (eq (current-buffer) (window-buffer)) ;e.g. `with-temp-buffer'.
-             (not (eq this-command #'handle-switch-frame))
-             (not (exwm-workspace--client-p)))
+  (when (and (not (eq this-command #'handle-switch-frame))
+             (not (exwm-workspace--client-p))
+             ;; The following conditions filter out events relating to temp
+             ;; buffers.
+             (eq (current-buffer) (window-buffer))
+             (not (get-buffer " *temp*")))
     (setq exwm-input--update-focus-window (selected-window))
     (exwm-input--update-focus-defer)))
 
