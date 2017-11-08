@@ -726,8 +726,11 @@
      ;; Ignore unrecognized command line arguments.  This can be helpful
      ;; when EXWM is launched by some session manager.
      (push #'vector command-line-functions)
-     (add-hook 'window-setup-hook #'exwm-init t)          ;for Emacs
-     (add-hook 'after-make-frame-functions #'exwm-init t) ;for Emacs Client
+     (if (display-graphic-p)
+         ;; emacs.
+         (add-hook 'window-setup-hook #'exwm-init t)
+       ;; emacsclient.
+       (add-hook 'after-make-frame-functions #'exwm-init t))
      (add-hook 'kill-emacs-hook #'exwm--server-stop)
      (dolist (i exwm-blocking-subrs)
        (advice-add i :around #'exwm--server-eval-at)))))
