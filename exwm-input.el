@@ -397,10 +397,8 @@ This value should always be overwritten.")
   (when (called-interactively-p 'any)
     (exwm-input--update-global-prefix-keys)))
 
-;; FIXME: Putting (t . EVENT) into `unread-command-events' does not really work
-;;        as documented in Emacs 24.  Since inserting a conventional EVENT does
-;;        add it into (this-command-keys) there, we use `unread-command-events'
-;;        differently on Emacs 24 and 25.
+;; Putting (t . EVENT) into `unread-command-events' does not really work
+;; as documented for Emacs < 27.
 (eval-and-compile
   (if (< emacs-major-version 27)
       (defsubst exwm-input--unread-event (event)
@@ -635,8 +633,6 @@ This value should always be overwritten.")
             (setq key (read-key (format "Send key: %s (%d/%d)"
                                         (key-description keys)
                                         (1+ i) times)))
-            (when (and (listp key) (eq (car key) t))
-              (setq key (cdr key)))
             (unless (listp key) (throw 'break nil)))))
       (setq keys (vconcat keys (vector key)))
       (exwm-input--fake-key key))))
