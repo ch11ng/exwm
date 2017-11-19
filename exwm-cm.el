@@ -661,14 +661,14 @@ painting a frame."
             (setq queue
                   (nconc (exwm-cm--paint-tree subtree region fullscreen clip)
                          queue))
-            (when fullscreen
-              ;; Fullscreen X windows are always opaque thus occludes
-              ;; anything in this workspace.
-              (throw 'break 'fullscreen))
             (when clip
               (xcb:+request exwm-cm--conn
                   (make-instance 'xcb:xfixes:DestroyRegion
-                                 :region clip))))
+                                 :region clip)))
+            (when fullscreen
+              ;; Fullscreen X windows are always opaque thus occludes
+              ;; anything in this workspace.
+              (throw 'break 'fullscreen)))
           (if (not (eq root exwm--root))
               ;; Avoid painting any siblings below the workspace frame
               ;; container.
@@ -863,6 +863,9 @@ Also update the attributes of XWIN and clip the region."
                            :value-mask xcb:render:CP:Repeat
                            :repeat 1))
         (xcb:+request exwm-cm--conn
+            (make-instance 'xcb:FreePixmap
+                           :pixmap pixmap))
+        (xcb:+request exwm-cm--conn
             (make-instance 'xcb:render:FillRectangles
                            :op xcb:render:PictOp:Src
                            :dst alpha-picture
@@ -1033,6 +1036,9 @@ the whole screen."
                          :value-mask xcb:render:CP:Repeat
                          :repeat 1))
       (unless exist
+        (xcb:+request exwm-cm--conn
+            (make-instance 'xcb:FreePixmap
+                           :pixmap pixmap))
         (xcb:+request exwm-cm--conn
             (make-instance 'xcb:render:FillRectangles
                            :op xcb:render:PictOp:Src
