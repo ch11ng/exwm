@@ -158,7 +158,9 @@ This value should always be overwritten.")
              ;; The following conditions filter out events relating to temp
              ;; buffers.
              (eq (current-buffer) (window-buffer))
-             (not (get-buffer " *temp*")))
+             (not (string-prefix-p " *temp*"
+                                   (buffer-name (car (last (buffer-list)))))))
+    (redirect-frame-focus (selected-frame) nil)
     (setq exwm-input--update-focus-window (selected-window))
     (exwm-input--update-focus-defer)))
 
@@ -186,15 +188,14 @@ This value should always be overwritten.")
     (cancel-timer exwm-input--update-focus-defer-timer))
   (if exwm-input--update-focus-lock
       (setq exwm-input--update-focus-defer-timer
-            (run-with-idle-timer 0 nil
-                                 #'exwm-input--update-focus-defer))
+            (exwm--defer 0 #'exwm-input--update-focus-defer))
     (setq exwm-input--update-focus-defer-timer nil)
     (when exwm-input--update-focus-timer
       (cancel-timer exwm-input--update-focus-timer))
     (setq exwm-input--update-focus-timer
-          (run-with-idle-timer exwm-input--update-focus-interval nil
-                               #'exwm-input--update-focus
-                               exwm-input--update-focus-window))))
+          (exwm--defer exwm-input--update-focus-interval
+                       #'exwm-input--update-focus-commit
+                       exwm-input--update-focus-window))))
 
 (declare-function exwm-layout--iconic-state-p "exwm-layout.el" (&optional id))
 (declare-function exwm-layout--set-state "exwm-layout.el" (id state))
@@ -203,17 +204,22 @@ This value should always be overwritten.")
                   (frame-or-index &optional force))
 (declare-function exwm-workspace--workspace-p "exwm-workspace.el" (workspace))
 
+(defun exwm-input--update-focus-commit (window)
+  "Commit updating input focus."
+  (setq exwm-input--update-focus-lock t)
+  (unwind-protect
+      (exwm-input--update-focus window)
+    (setq exwm-input--update-focus-lock nil)))
+
 (defun exwm-input--update-focus (window)
   "Update input focus."
-  (setq exwm-input--update-focus-lock t)
   (when (window-live-p window)
     (with-current-buffer (window-buffer window)
       (if (eq major-mode 'exwm-mode)
           (if (not (eq exwm--frame exwm-workspace--current))
               (progn
                 (set-frame-parameter exwm--frame 'exwm-selected-window window)
-                (run-with-idle-timer 0 nil #'exwm-workspace-switch
-                                     exwm--frame))
+                (exwm--defer 0 #'exwm-workspace-switch exwm--frame))
             (exwm--log "Set focus on #x%x" exwm--id)
             (exwm-input--set-focus exwm--id)
             (when exwm--floating-frame
@@ -237,21 +243,16 @@ This value should always be overwritten.")
               (progn
                 (set-frame-parameter (selected-frame) 'exwm-selected-window
                                      window)
-                (run-with-idle-timer 0 nil #'exwm-workspace-switch
-                                     (selected-frame)))
+                (exwm--defer 0 #'exwm-workspace-switch (selected-frame)))
             ;; The focus is still on the current workspace.
             (if (not (and (exwm-workspace--minibuffer-own-frame-p)
                           (minibufferp)))
-                (select-frame-set-input-focus (window-frame window) t)
+                (x-focus-frame (window-frame window))
               ;; X input focus should be set on the previously selected
               ;; frame.
-              (select-frame-set-input-focus (window-frame
-                                             (minibuffer-selected-window))
-                                            t)
-              (select-frame (window-frame window) t))
+              (x-focus-frame (window-frame (minibuffer-selected-window))))
             (exwm-input--set-active-window)
-            (xcb:flush exwm--connection))))))
-  (setq exwm-input--update-focus-lock nil))
+            (xcb:flush exwm--connection)))))))
 
 (defun exwm-input--on-minibuffer-setup ()
   "Run in `minibuffer-setup-hook' to set input focus."

@@ -410,7 +410,7 @@ manager is shutting down."
                    (select-window
                     (frame-selected-window exwm-workspace--current)))
                  (kill-buffer buffer)))))
-        (run-with-idle-timer 0 nil kill-buffer-func buffer)
+        (exwm--defer 0 kill-buffer-func buffer)
         (when (active-minibuffer-window)
           (exit-minibuffer))))))
 

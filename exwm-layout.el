@@ -407,10 +407,9 @@ selected by `other-buffer'."
 (defun exwm-layout--on-minibuffer-setup ()
   "Refresh layout when minibuffer grows."
   (unless (exwm-workspace--client-p)
-    (run-with-idle-timer 0.01 nil         ;FIXME
-                         (lambda ()
-                           (when (< 1 (window-height (minibuffer-window)))
-                             (exwm-layout--refresh))))))
+    (exwm--defer 0 (lambda ()
+                     (when (< 1 (window-height (minibuffer-window)))
+                       (exwm-layout--refresh))))))
 
 (defun exwm-layout--on-echo-area-change (&optional dirty)
   "Run when message arrives or in `echo-area-clear-hook' to refresh layout."
@@ -421,7 +420,7 @@ selected by `other-buffer'."
                     (frame-width exwm-workspace--current))))
     (if dirty
         (exwm-layout--refresh)
-      (run-with-idle-timer 0.01 nil #'exwm-layout--refresh)))) ;FIXME
+      (exwm--defer 0 #'exwm-layout--refresh))))
 
 ;;;###autoload
 (defun exwm-layout-enlarge-window (delta &optional horizontal)

@@ -145,7 +145,7 @@ Please manually run the hook `exwm-workspace-list-change-hook' afterwards.")
       (if (eq frame exwm-workspace--current)
           ;; Abort the recursive minibuffer if deleting the current workspace.
           (progn
-            (run-with-idle-timer 0 nil #'delete-frame frame)
+            (exwm--defer 0 #'delete-frame frame)
             (abort-recursive-edit))
         (delete-frame frame)
         (exwm-workspace--update-switch-history)
@@ -488,10 +488,10 @@ The optional FORCE option is for internal use only."
       (set-frame-parameter frame 'exwm-selected-window nil)
       ;; Close the (possible) active minibuffer
       (when (active-minibuffer-window)
-        (run-with-idle-timer 0 nil (lambda ()
-                                     ;; Might be aborted by then.
-                                     (when (active-minibuffer-window)
-                                       (abort-recursive-edit)))))
+        (exwm--defer 0 (lambda ()
+                         ;; Might be aborted by then.
+                         (when (active-minibuffer-window)
+                           (abort-recursive-edit)))))
       (if (exwm-workspace--minibuffer-own-frame-p)
           ;; Resize the minibuffer frame.
           (exwm-workspace--resize-minibuffer-frame)
@@ -1275,8 +1275,7 @@ Please check `exwm-workspace--minibuffer-own-frame-p' first."
           (make-instance 'xcb:MapWindow :window workspace)))
     (xcb:flush exwm--connection)
     ;; Delay making the workspace fullscreen until Emacs becomes idle
-    (run-with-idle-timer 0 nil #'set-frame-parameter
-                         frame 'fullscreen 'fullboth)
+    (exwm--defer 0 #'set-frame-parameter frame 'fullscreen 'fullboth)
     ;; Update EWMH properties.
     (exwm-workspace--update-ewmh-props)
     (if exwm-workspace--create-silently

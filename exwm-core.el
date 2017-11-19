@@ -75,6 +75,15 @@
                                            xcb:EventMask:StructureNotify))))
   (xcb:flush exwm--connection))
 
+(defmacro exwm--defer (secs function &rest args)
+  "Defer the action until SECS seconds later.
+
+The action is to call FUNCTION with arguments ARGS."
+  `(run-with-idle-timer (time-add (or (current-idle-time) 0) ,secs)
+                        nil
+                        ,function
+                        ,@args))
+
 (defconst exwm--client-event-mask
   (eval-when-compile
     (logior xcb:EventMask:StructureNotify xcb:EventMask:PropertyChange))
