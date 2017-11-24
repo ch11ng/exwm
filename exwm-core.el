@@ -76,10 +76,12 @@
   (xcb:flush exwm--connection))
 
 (defmacro exwm--defer (secs function &rest args)
-  "Defer the action until SECS seconds later.
+  "Defer the execution of FUNCTION.
 
-The action is to call FUNCTION with arguments ARGS."
-  `(run-with-idle-timer (time-add (or (current-idle-time) 0) ,secs)
+The action is to call FUNCTION with arguments ARGS.  If Emacs is not idle,
+defer the action until Emacs is idle.  Otherwise, defer the action until at
+least SECS seconds later."
+  `(run-with-idle-timer (time-add (or (current-idle-time) (- ,secs)) ,secs)
                         nil
                         ,function
                         ,@args))

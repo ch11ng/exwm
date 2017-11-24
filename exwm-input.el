@@ -116,18 +116,16 @@ ARGS are additional arguments to CALLBACK."
                (cdr exwm-input--timestamp-callback))
         (setq exwm-input--timestamp-callback nil)))))
 
-(defun exwm-input--on-FocusIn (&rest _args)
+(defun exwm-input--on-FocusIn (data _synthetic)
   "Handle FocusIn events."
-  ;; Not sure if this is the right thing to do but the point is the
-  ;; input focus should not stay at the root window or any container,
-  ;; or the result would be unpredictable.  `x-focus-frame' would
-  ;; first set the input focus to the (previously) selected frame, and
-  ;; then `select-window' would further update the input focus if the
-  ;; selected window is displaying an `exwm-mode' buffer.  Perhaps we
-  ;; should carefully filter out FocusIn events with certain 'detail'
-  ;; and 'mode' combinations, but this just works.
-  (x-focus-frame (selected-frame))
-  (select-window (selected-window)))
+  (let ((obj (make-instance 'xcb:FocusIn)))
+    (xcb:unmarshal obj data)
+    (with-slots (mode) obj
+      ;; Revert input focus back to Emacs frame / X window when it's set on
+      ;; the root window or some workspace container.
+      (when (eq mode xcb:NotifyMode:Normal)
+        (x-focus-frame (selected-frame))
+        (select-window (selected-window))))))
 
 (defun exwm-input--on-workspace-list-change ()
   "Run in `exwm-input--update-global-prefix-keys'."
@@ -139,7 +137,6 @@ ARGS are additional arguments to CALLBACK."
           (make-instance 'xcb:ChangeWindowAttributes
                          :window (frame-parameter f 'exwm-workspace)
                          :value-mask xcb:CW:EventMask
-                         ;; There should no other event selected there.
                          :event-mask xcb:EventMask:FocusChange))))
   (exwm-input--update-global-prefix-keys)
   (xcb:flush exwm--connection))
@@ -193,9 +190,11 @@ This value should always be overwritten.")
     (when exwm-input--update-focus-timer
       (cancel-timer exwm-input--update-focus-timer))
     (setq exwm-input--update-focus-timer
-          (exwm--defer exwm-input--update-focus-interval
-                       #'exwm-input--update-focus-commit
-                       exwm-input--update-focus-window))))
+          ;; Attempt to accumulate successive events close enough.
+          (run-with-timer exwm-input--update-focus-interval
+                          nil
+                          #'exwm-input--update-focus-commit
+                          exwm-input--update-focus-window))))
 
 (declare-function exwm-layout--iconic-state-p "exwm-layout.el" (&optional id))
 (declare-function exwm-layout--set-state "exwm-layout.el" (id state))
