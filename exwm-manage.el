@@ -405,11 +405,12 @@ manager is shutting down."
         (xcb:flush exwm--connection))
       (let ((kill-buffer-func
              (lambda (buffer)
-               (let ((kill-buffer-query-functions nil))
-                 (when exwm--floating-frame
-                   (select-window
-                    (frame-selected-window exwm-workspace--current)))
-                 (kill-buffer buffer)))))
+               (when (buffer-local-value 'exwm--floating-frame buffer)
+                 (select-window
+                  (frame-selected-window exwm-workspace--current)))
+               (with-current-buffer buffer
+                 (let ((kill-buffer-query-functions nil))
+                   (kill-buffer buffer))))))
         (exwm--defer 0 kill-buffer-func buffer)
         (when (active-minibuffer-window)
           (exit-minibuffer))))))
