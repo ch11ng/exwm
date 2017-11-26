@@ -127,6 +127,10 @@ ARGS are additional arguments to CALLBACK."
         (x-focus-frame (selected-frame))
         (select-window (selected-window))))))
 
+(defun exwm-input--on-keysyms-update ()
+  (let ((exwm-input--global-prefix-keys nil))
+    (exwm-input--update-global-prefix-keys)))
+
 (defun exwm-input--on-workspace-list-change ()
   "Run in `exwm-input--update-global-prefix-keys'."
   (dolist (f exwm-workspace--list)
@@ -702,7 +706,7 @@ Its usage is the same with `exwm-input-set-simulation-keys'."
 (defun exwm-input--init ()
   "Initialize the keyboard module."
   ;; Refresh keyboard mapping
-  (xcb:keysyms:init exwm--connection)
+  (xcb:keysyms:init exwm--connection #'exwm-input--on-keysyms-update)
   ;; Create the X window and intern the atom used to fetch timestamp.
   (setq exwm-input--timestamp-window (xcb:generate-id exwm--connection))
   (xcb:+request exwm--connection
