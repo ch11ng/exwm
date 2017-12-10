@@ -53,6 +53,16 @@
 (defvar exwm-workspace--minibuffer)
 (defvar exwm-workspace--list)
 
+(defvar exwm-input--global-keys nil "Global key bindings.")
+(defvar exwm-input--global-prefix-keys nil
+  "List of prefix keys of global key bindings.")
+(defvar exwm-input-prefix-keys
+  '(?\C-c ?\C-x ?\C-u ?\C-h ?\M-x ?\M-` ?\M-& ?\M-:)
+  "List of prefix keys EXWM should forward to Emacs when in line-mode.")
+(defvar exwm-input--simulation-keys nil "Simulation keys in line-mode.")
+(defvar exwm-input--simulation-prefix-keys nil
+  "List of prefix keys of simulation keys in line-mode.")
+
 (defun exwm-input--set-focus (id)
   "Set input focus to window ID in a proper way."
   (when (exwm--id->buffer id)
@@ -332,16 +342,6 @@ This value should always be overwritten.")
     (if (eq major-mode 'exwm-mode)
         (funcall exwm--on-KeyPress obj data)
       (exwm-input--on-KeyPress-char-mode obj))))
-
-(defvar exwm-input--global-keys nil "Global key bindings.")
-(defvar exwm-input--global-prefix-keys nil
-  "List of prefix keys of global key bindings.")
-(defvar exwm-input-prefix-keys
-  '(?\C-c ?\C-x ?\C-u ?\C-h ?\M-x ?\M-` ?\M-& ?\M-:)
-  "List of prefix keys EXWM should forward to Emacs when in line-mode.")
-(defvar exwm-input--simulation-keys nil "Simulation keys in line-mode.")
-(defvar exwm-input--simulation-prefix-keys nil
-  "List of prefix keys of simulation keys in line-mode.")
 
 (defun exwm-input--update-global-prefix-keys ()
   "Update `exwm-input--global-prefix-keys'."
