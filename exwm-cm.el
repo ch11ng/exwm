@@ -146,6 +146,7 @@ The value is between 0 (fully transparent) to #xFFFFFFFF (opaque)."
     (when reply
       (slot-value reply 'value))))
 
+;;;###autoload
 (defun exwm-cm-set-opacity (xwin opacity)
   "Set the opacity of X window XWIN to OPACITY.
 
@@ -1759,17 +1760,20 @@ Create implicit workspace frame container")))
   (add-hook 'exwm-init-hook #'exwm-cm--init t)
   (add-hook 'exwm-exit-hook #'exwm-cm--exit t))
 
+;;;###autoload
 (defun exwm-cm-start ()
   "Start EXWM compositing manager."
   (interactive)
   (unless exwm-cm--conn
     (exwm-cm--init)))
 
+;;;###autoload
 (defun exwm-cm-stop ()
   "Stop EXWM compositing manager."
   (interactive)
   (exwm-cm--exit))
 
+;;;###autoload
 (defun exwm-cm-toggle ()
   "Toggle the running state of EXWM compositing manager."
   (interactive)

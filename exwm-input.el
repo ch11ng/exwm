@@ -435,6 +435,7 @@ This value should always be overwritten.")
                 (user-error "[EXWM] Failed to grab key: %s"
                             (single-key-description k))))))))))
 
+;;;###autoload
 (defun exwm-input-set-key (key command)
   "Set a global key binding."
   (interactive "KSet key globally: \nCSet key %s to command: ")
