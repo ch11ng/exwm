@@ -137,6 +137,48 @@ ARGS are additional arguments to CALLBACK."
         (x-focus-frame (selected-frame))
         (select-window (selected-window))))))
 
+(defun exwm-input--on-EnterNotify (data _synthetic)
+  "Handle EnterNotify events."
+  (let ((evt (make-instance 'xcb:EnterNotify))
+        buffer window frame frame-xid edges fake-evt)
+    (xcb:unmarshal evt data)
+    (with-slots (time root event root-x root-y event-x event-y state) evt
+      (setq buffer (exwm--id->buffer event)
+            window (get-buffer-window buffer t))
+      (when (and buffer window (not (eq window (selected-window))))
+        (setq frame (window-frame window)
+              frame-xid (frame-parameter frame 'exwm-id))
+        (unless (eq frame exwm-workspace--current)
+          (if (exwm-workspace--workspace-p frame)
+              ;; The X window is on another workspace.
+              (exwm-workspace-switch frame)
+            (with-current-buffer buffer
+              (when (and (eq major-mode 'exwm-mode)
+                         (not (eq exwm--frame exwm-workspace--current)))
+                ;; The floating X window is on another workspace.
+                (exwm-workspace-switch exwm--frame)))))
+        ;; Send a fake MotionNotify event to Emacs.
+        (setq edges (window-inside-pixel-edges window)
+              fake-evt (make-instance 'xcb:MotionNotify
+                                      :detail 0
+                                      :time time
+                                      :root root
+                                      :event frame-xid
+                                      :child xcb:Window:None
+                                      :root-x root-x
+                                      :root-y root-y
+                                      :event-x (+ event-x (elt edges 0))
+                                      :event-y (+ event-y (elt edges 1))
+                                      :state state
+                                      :same-screen 1))
+        (xcb:+request exwm--connection
+            (make-instance 'xcb:SendEvent
+                           :propagate 0
+                           :destination frame-xid
+                           :event-mask xcb:EventMask:NoEvent
+                           :event (xcb:marshal fake-evt exwm--connection)))
+        (xcb:flush exwm--connection)))))
+
 (defun exwm-input--on-keysyms-update ()
   (let ((exwm-input--global-prefix-keys nil))
     (exwm-input--update-global-prefix-keys)))
@@ -741,6 +783,9 @@ Its usage is the same with `exwm-input-set-simulation-keys'."
   (xcb:+event exwm--connection 'xcb:MotionNotify
               #'exwm-floating--do-moveresize)
   (xcb:+event exwm--connection 'xcb:FocusIn #'exwm-input--on-FocusIn)
+  (when mouse-autoselect-window
+    (xcb:+event exwm--connection 'xcb:EnterNotify
+                #'exwm-input--on-EnterNotify))
   ;; The input focus should be set on the frame when minibuffer is active.
   (add-hook 'minibuffer-setup-hook #'exwm-input--on-minibuffer-setup)
   ;; Control `exwm-input--during-command'

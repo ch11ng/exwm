@@ -86,9 +86,10 @@ least SECS seconds later."
                         ,function
                         ,@args))
 
-(defconst exwm--client-event-mask
-  (eval-when-compile
-    (logior xcb:EventMask:StructureNotify xcb:EventMask:PropertyChange))
+(defconst exwm--client-event-mask (logior xcb:EventMask:StructureNotify
+                                          xcb:EventMask:PropertyChange
+                                          (if mouse-autoselect-window
+                                              xcb:EventMask:EnterWindow 0))
   "Event mask set on all managed windows.")
 
 (defvar exwm-input-line-mode-passthrough)
