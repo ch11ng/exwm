@@ -471,10 +471,25 @@ This value should always be overwritten.")
 (defvar exwm-input--temp-line-mode nil
   "Non-nil indicates it's in temporary line-mode for char-mode.")
 
+(cl-defun exwm-input--translate (key)
+  (let (translation)
+    (dolist (map (list input-decode-map
+                       local-function-key-map
+                       key-translation-map))
+      (setq translation (lookup-key map key))
+      (if (functionp translation)
+          (cl-return-from exwm-input--translate (funcall translation nil))
+        (when (vectorp translation)
+          (cl-return-from exwm-input--translate translation)))))
+  key)
+
 (defun exwm-input--cache-event (event)
   "Cache EVENT."
   (setq exwm-input--line-mode-cache
         (vconcat exwm-input--line-mode-cache (vector event)))
+  ;; Attempt to translate this key sequence.
+  (setq exwm-input--line-mode-cache
+        (exwm-input--translate exwm-input--line-mode-cache))
   ;; When the key sequence is complete.
   (unless (keymapp (key-binding exwm-input--line-mode-cache))
     (setq exwm-input--line-mode-cache nil)
