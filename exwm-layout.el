@@ -28,6 +28,7 @@
 (require 'exwm-core)
 
 (defvar exwm-floating-border-width)
+(defvar exwm-workspace--id-struts-alist)
 
 (defun exwm-layout--resize-container (id container x y width height
                                          &optional container-only)
@@ -259,6 +260,13 @@
     (exwm-layout--show exwm--id)
     (xcb:+request exwm--connection
         (make-instance 'xcb:ewmh:set-_NET_WM_STATE :window exwm--id :data []))
+    ;; Raise X windows with struts set again.
+    (dolist (pair exwm-workspace--id-struts-alist)
+      (xcb:+request exwm--connection
+          (make-instance 'xcb:ConfigureWindow
+                         :window (car pair)
+                         :value-mask xcb:ConfigWindow:StackMode
+                         :stack-mode xcb:StackMode:Above)))
     (xcb:flush exwm--connection)
     (setq exwm--ewmh-state
           (delq xcb:Atom:_NET_WM_STATE_FULLSCREEN exwm--ewmh-state))
