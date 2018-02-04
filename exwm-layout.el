@@ -470,7 +470,7 @@ windows."
               (setq width nil)
             (setq width (max (+ exwm--normal-hints-min-width margin)
                              (+ width delta))))))
-      (when width
+      (when (and width (> width 0))
         (setf (slot-value exwm--geometry 'width) width)
         (xcb:+request exwm--connection
             (make-instance 'xcb:ConfigureWindow
@@ -503,7 +503,7 @@ windows."
               (setq height nil)
             (setq height (max (+ exwm--normal-hints-min-height margin)
                               (+ height delta))))))
-      (when height
+      (when (and height (> height 0))
         (setf (slot-value exwm--geometry 'height) height)
         (xcb:+request exwm--connection
             (make-instance 'xcb:ConfigureWindow

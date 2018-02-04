@@ -601,8 +601,8 @@ context of the corresponding buffer.")
                                (eval-when-compile
                                  (logior xcb:ConfigWindow:Width
                                          xcb:ConfigWindow:Height)))
-            width (aref result 4)
-            height (aref result 5))
+            width (max 1 (aref result 4))
+            height (max 1 (aref result 5)))
       (setq buffer-or-id (aref result 0))
       (setq container-or-id
             (if (bufferp buffer-or-id)
