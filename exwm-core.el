@@ -46,6 +46,8 @@
 (defvar exwm--connection nil "X connection.")
 (defvar exwm--root nil "Root window.")
 (defvar exwm--id-buffer-alist nil "Alist of (<X window ID> . <Emacs buffer>).")
+(defvar exwm--guide-window nil
+  "An X window separating workspaces and X windows.")
 
 (defsubst exwm--id->buffer (id)
   "X window ID => Emacs buffer."
@@ -75,6 +77,20 @@
                                            xcb:EventMask:StructureNotify))))
   (xcb:flush exwm--connection))
 
+(defun exwm--set-geometry (xwin x y width height)
+  "Set the geometry of X window XWIN to WIDTHxHEIGHT+X+Y.
+
+Nil can be passed as placeholder."
+  (exwm--log "Setting #x%x to %sx%s+%s+%s" xwin width height x y)
+  (xcb:+request exwm--connection
+      (make-instance 'xcb:ConfigureWindow
+                     :window xwin
+                     :value-mask (logior (if x xcb:ConfigWindow:X 0)
+                                         (if y xcb:ConfigWindow:Y 0)
+                                         (if width xcb:ConfigWindow:Width 0)
+                                         (if height xcb:ConfigWindow:Height 0))
+                     :x x :y y :width width :height height)))
+
 (defmacro exwm--defer (secs function &rest args)
   "Defer the execution of FUNCTION.
 
@@ -103,11 +119,10 @@ least SECS seconds later."
 
 ;; Internal variables
 (defvar-local exwm--id nil)               ;window ID
-(defvar-local exwm--container nil)        ;container
 (defvar-local exwm--frame nil)            ;workspace frame
 (defvar-local exwm--floating-frame nil)   ;floating frame
 (defvar-local exwm--mode-line-format nil) ;save mode-line-format
-(defvar-local exwm--floating-frame-position nil) ;used in fullscreen
+(defvar-local exwm--floating-frame-position nil) ;set when hidden.
 (defvar-local exwm--fixed-size nil)              ;fixed size
 (defvar-local exwm--keyboard-grabbed nil)        ;Keyboard grabbed.
 (defvar-local exwm--on-KeyPress         ;KeyPress event handler
@@ -271,6 +286,7 @@ least SECS seconds later."
   (push `(executing-kbd-macro . ,exwm--kmacro-map)
         minor-mode-overriding-map-alist)
   (setq buffer-read-only t
+        cursor-type nil
         left-margin-width nil
         right-margin-width nil
         left-fringe-width 0

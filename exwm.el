@@ -36,7 +36,6 @@
 ;; + Dynamic workspace support
 ;; + ICCCM/EWMH compliance
 ;; + (Optional) RandR (multi-monitor) support
-;; + (Optional) Built-in compositing manager
 ;; + (Optional) Built-in system tray
 
 ;; Installation & configuration
@@ -509,7 +508,7 @@
                             xcb:Atom:_NET_ACTIVE_WINDOW
                             ;; xcb:Atom:_NET_WORKAREA
                             xcb:Atom:_NET_SUPPORTING_WM_CHECK
-                            xcb:Atom:_NET_VIRTUAL_ROOTS
+                            ;; xcb:Atom:_NET_VIRTUAL_ROOTS
                             ;; xcb:Atom:_NET_DESKTOP_LAYOUT
                             ;; xcb:Atom:_NET_SHOWING_DESKTOP
 
@@ -593,13 +592,14 @@
                             xcb:Atom:_NET_WM_FULL_PLACEMENT)))
   ;; Create a child window for setting _NET_SUPPORTING_WM_CHECK
   (let ((new-id (xcb:generate-id exwm--connection)))
+    (setq exwm--guide-window new-id)
     (xcb:+request exwm--connection
         (make-instance 'xcb:CreateWindow
                        :depth 0
                        :wid new-id
                        :parent exwm--root
-                       :x 0
-                       :y 0
+                       :x -1
+                       :y -1
                        :width 1
                        :height 1
                        :border-width 0
@@ -636,7 +636,6 @@
               xcb:Atom:_NET_CURRENT_DESKTOP
               xcb:Atom:_NET_ACTIVE_WINDOW
               xcb:Atom:_NET_SUPPORTING_WM_CHECK
-              xcb:Atom:_NET_VIRTUAL_ROOTS
               ;; TODO: Keep this list synchronized with that in
               ;;       `exwm--init-icccm-ewmh'.
               ))
@@ -688,6 +687,7 @@
         (exwm-input--init)
         (exwm--unlock)
         (exwm-workspace--post-init)
+        (exwm-input--post-init)
         ;; Manage existing windows
         (exwm-manage--scan)
         (run-hooks 'exwm-init-hook)))))

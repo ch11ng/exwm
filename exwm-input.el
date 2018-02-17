@@ -63,6 +63,8 @@
 (defvar exwm-input--simulation-prefix-keys nil
   "List of prefix keys of simulation keys in line-mode.")
 
+(declare-function exwm-layout--show "exwm-layout.el" (id &optional window))
+
 (defun exwm-input--set-focus (id)
   "Set input focus to window ID in a proper way."
   (when (exwm--id->buffer id)
@@ -183,20 +185,6 @@ ARGS are additional arguments to CALLBACK."
   (let ((exwm-input--global-prefix-keys nil))
     (exwm-input--update-global-prefix-keys)))
 
-(defun exwm-input--on-workspace-list-change ()
-  "Run in `exwm-input--update-global-prefix-keys'."
-  (dolist (f exwm-workspace--list)
-    ;; Reuse the 'exwm-grabbed' frame parameter set in
-    ;; `exwm-input--update-global-prefix-keys'.
-    (unless (frame-parameter f 'exwm-grabbed)
-      (xcb:+request exwm--connection
-          (make-instance 'xcb:ChangeWindowAttributes
-                         :window (frame-parameter f 'exwm-workspace)
-                         :value-mask xcb:CW:EventMask
-                         :event-mask xcb:EventMask:FocusChange))))
-  (exwm-input--update-global-prefix-keys)
-  (xcb:flush exwm--connection))
-
 (declare-function exwm-workspace--client-p "exwm-workspace.el"
                   (&optional frame))
 
@@ -253,7 +241,6 @@ This value should always be overwritten.")
                           exwm-input--update-focus-window))))
 
 (declare-function exwm-layout--iconic-state-p "exwm-layout.el" (&optional id))
-(declare-function exwm-layout--set-state "exwm-layout.el" (id state))
 (declare-function exwm-workspace--minibuffer-own-frame-p "exwm-workspace.el")
 (declare-function exwm-workspace-switch "exwm-workspace.el"
                   (frame-or-index &optional force))
@@ -276,19 +263,27 @@ This value should always be overwritten.")
                 (set-frame-parameter exwm--frame 'exwm-selected-window window)
                 (exwm--defer 0 #'exwm-workspace-switch exwm--frame))
             (exwm--log "Set focus on #x%x" exwm--id)
-            (exwm-input--set-focus exwm--id)
             (when exwm--floating-frame
-              ;; Adjust stacking orders of the floating container.
+              ;; Adjust stacking orders of the floating X window.
               (xcb:+request exwm--connection
                   (make-instance 'xcb:ConfigureWindow
-                                 :window exwm--container
+                                 :window exwm--id
                                  :value-mask xcb:ConfigWindow:StackMode
-                                 :stack-mode xcb:StackMode:Above))
+                                 :stack-mode xcb:StackMode:TopIf))
+              (xcb:+request exwm--connection
+                  (make-instance 'xcb:ConfigureWindow
+                                 :window (frame-parameter exwm--floating-frame
+                                                          'exwm-container)
+                                 :value-mask (logior
+                                              xcb:ConfigWindow:Sibling
+                                              xcb:ConfigWindow:StackMode)
+                                 :sibling exwm--id
+                                 :stack-mode xcb:StackMode:Below))
               ;; This floating X window might be hide by `exwm-floating-hide'.
               (when (exwm-layout--iconic-state-p)
-                (exwm-layout--set-state exwm--id
-                                        xcb:icccm:WM_STATE:NormalState))
-              (xcb:flush exwm--connection)))
+                (exwm-layout--show exwm--id window))
+              (xcb:flush exwm--connection))
+            (exwm-input--set-focus exwm--id))
         (when (eq (selected-window) window)
           (exwm--log "Focus on %s" window)
           (if (and (exwm-workspace--workspace-p (selected-frame))
@@ -389,51 +384,38 @@ This value should always be overwritten.")
   "Update `exwm-input--global-prefix-keys'."
   (when exwm--connection
     (let ((original exwm-input--global-prefix-keys)
-          keysym keycode ungrab-key grab-key workspace)
+          keysym keycode grab-key)
       (setq exwm-input--global-prefix-keys nil)
       (dolist (i exwm-input--global-keys)
         (cl-pushnew (elt i 0) exwm-input--global-prefix-keys))
       ;; Stop here if the global prefix keys are update-to-date and
       ;; there's no new workspace.
-      (unless (and (equal original exwm-input--global-prefix-keys)
-                   (cl-every (lambda (w) (frame-parameter w 'exwm-grabbed))
-                             exwm-workspace--list))
-        (setq ungrab-key (make-instance 'xcb:UngrabKey
-                                        :key xcb:Grab:Any :grab-window nil
-                                        :modifiers xcb:ModMask:Any)
-              grab-key (make-instance 'xcb:GrabKey
+      (unless (equal original exwm-input--global-prefix-keys)
+        (setq grab-key (make-instance 'xcb:GrabKey
                                       :owner-events 0
-                                      :grab-window nil
+                                      :grab-window exwm--root
                                       :modifiers nil
                                       :key nil
                                       :pointer-mode xcb:GrabMode:Async
                                       :keyboard-mode xcb:GrabMode:Async))
-        (dolist (w exwm-workspace--list)
-          (setq workspace (frame-parameter w 'exwm-workspace))
-          (setf (slot-value ungrab-key 'grab-window) workspace)
-          (if (xcb:+request-checked+request-check exwm--connection ungrab-key)
-              (exwm--log "Failed to ungrab keys")
-            ;; Label this frame.
-            (set-frame-parameter w 'exwm-grabbed t)
-            (dolist (k exwm-input--global-prefix-keys)
-              (setq keysym (xcb:keysyms:event->keysym exwm--connection k)
-                    keycode (xcb:keysyms:keysym->keycode exwm--connection
-                                                         (car keysym)))
-              (setf (slot-value grab-key 'grab-window) workspace
-                    (slot-value grab-key 'modifiers) (cdr keysym)
-                    (slot-value grab-key 'key) keycode)
-              (when (or (= 0 keycode)
-                        (xcb:+request-checked+request-check exwm--connection
-                            grab-key)
-                        ;; Also grab this key with num-lock mask set.
-                        (when (/= 0 xcb:keysyms:num-lock-mask)
-                          (setf (slot-value grab-key 'modifiers)
-                                (logior (cdr keysym)
-                                        xcb:keysyms:num-lock-mask))
-                          (xcb:+request-checked+request-check exwm--connection
-                              grab-key)))
-                (user-error "[EXWM] Failed to grab key: %s"
-                            (single-key-description k))))))))))
+        (dolist (k exwm-input--global-prefix-keys)
+          (setq keysym (xcb:keysyms:event->keysym exwm--connection k)
+                keycode (xcb:keysyms:keysym->keycode exwm--connection
+                                                     (car keysym)))
+          (setf (slot-value grab-key 'modifiers) (cdr keysym)
+                (slot-value grab-key 'key) keycode)
+          (when (or (= 0 keycode)
+                    (xcb:+request-checked+request-check exwm--connection
+                        grab-key)
+                    ;; Also grab this key with num-lock mask set.
+                    (when (/= 0 xcb:keysyms:num-lock-mask)
+                      (setf (slot-value grab-key 'modifiers)
+                            (logior (cdr keysym)
+                                    xcb:keysyms:num-lock-mask))
+                      (xcb:+request-checked+request-check exwm--connection
+                          grab-key)))
+            (user-error "[EXWM] Failed to grab key: %s"
+                        (single-key-description k))))))))
 
 ;;;###autoload
 (defun exwm-input-set-key (key command)
@@ -808,23 +790,17 @@ Its usage is the same with `exwm-input-set-simulation-keys'."
   (add-hook 'pre-command-hook #'exwm-input--on-pre-command)
   (add-hook 'post-command-hook #'exwm-input--on-post-command)
   ;; Update focus when buffer list updates
-  (add-hook 'buffer-list-update-hook #'exwm-input--on-buffer-list-update)
-  ;; Re-grab global keys.
-  (add-hook 'exwm-workspace-list-change-hook
-            #'exwm-input--on-workspace-list-change)
-  (exwm-input--on-workspace-list-change)
-  ;; Prevent frame parameters introduced by this module from being
-  ;; saved/restored.
-  (dolist (i '(exwm-grabbed))
-    (push (cons i :never) frameset-filter-alist)))
+  (add-hook 'buffer-list-update-hook #'exwm-input--on-buffer-list-update))
+
+(defun exwm-input--post-init ()
+  "The second stage in the initialization of the input module."
+  (exwm-input--update-global-prefix-keys))
 
 (defun exwm-input--exit ()
   "Exit the input module."
   (remove-hook 'pre-command-hook #'exwm-input--on-pre-command)
   (remove-hook 'post-command-hook #'exwm-input--on-post-command)
   (remove-hook 'buffer-list-update-hook #'exwm-input--on-buffer-list-update)
-  (remove-hook 'exwm-workspace-list-change-hook
-               #'exwm-input--on-workspace-list-change)
   (when exwm-input--update-focus-defer-timer
     (cancel-timer exwm-input--update-focus-defer-timer))
   (when exwm-input--update-focus-timer

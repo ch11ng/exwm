@@ -92,8 +92,6 @@ corresponding buffer.")
                      :window exwm--root
                      :data (vconcat (mapcar #'car exwm--id-buffer-alist)))))
 
-(defvar exwm-floating--border-colormap)
-(defvar exwm-floating--border-pixel)
 (defvar exwm-workspace--current)
 (defvar exwm-workspace--switch-history-outdated)
 (defvar exwm-workspace-current-index)
@@ -137,7 +135,8 @@ corresponding buffer.")
       (setq exwm--id-buffer-alist
             (nconc exwm--id-buffer-alist `((,id . ,(current-buffer)))))
       (exwm-mode)
-      (setq exwm--id id)
+      (setq exwm--id id
+            exwm--frame exwm-workspace--current)
       (exwm--update-window-type id)
       (exwm--update-class id)
       (exwm--update-transient-for id)
@@ -180,38 +179,13 @@ corresponding buffer.")
         (xcb:+request exwm--connection
             (make-instance 'xcb:MapWindow :window id))
         (with-slots (x y width height) exwm--geometry
-          ;; Reparent to virtual root
-          (unless (or (memq xcb:Atom:_NET_WM_WINDOW_TYPE_DESKTOP
-                            exwm-window-type)
-                      (memq xcb:Atom:_NET_WM_WINDOW_TYPE_DOCK
-                            exwm-window-type))
-            (let ((workspace (frame-parameter exwm-workspace--current
-                                              'exwm-workspace))
-                  workarea)
-              (when (and (/= x 0)
-                         (/= y 0))
-                (setq workarea (elt exwm-workspace--workareas
-                                    exwm-workspace-current-index)
-                      x (- x (aref workarea 0))
-                      y (- y (aref workarea 1))))
-              (xcb:+request exwm--connection
-                  (make-instance 'xcb:ReparentWindow
-                                 :window id
-                                 :parent workspace
-                                 :x x :y y))))
           ;; Center window of type _NET_WM_WINDOW_TYPE_SPLASH
           (when (memq xcb:Atom:_NET_WM_WINDOW_TYPE_SPLASH exwm-window-type)
-            (xcb:+request exwm--connection
-                (make-instance 'xcb:ConfigureWindow
-                               :window id
-                               :value-mask (eval-when-compile
-                                             (logior xcb:ConfigWindow:X
-                                                     xcb:ConfigWindow:Y))
-                               :x (/ (- (exwm-workspace--current-width) width)
-                                     2)
-                               :y (/ (- (exwm-workspace--current-height)
-                                        height)
-                                     2)))))
+            (exwm--set-geometry id
+                                (/ (- (exwm-workspace--current-width) width) 2)
+                                (/ (- (exwm-workspace--current-height) height)
+                                   2)
+                                nil nil)))
         ;; Check for desktop.
         (when (memq xcb:Atom:_NET_WM_WINDOW_TYPE_DESKTOP exwm-window-type)
           ;; There should be only one desktop X window.
@@ -229,41 +203,6 @@ corresponding buffer.")
         (throw 'return 'ignored))
       ;; Manage the window
       (exwm--log "Manage #x%x" id)
-      ;; Create a new container as the parent of this X window
-      (setq exwm--container (xcb:generate-id exwm--connection))
-      (xcb:+request exwm--connection
-          (make-instance 'xcb:CreateWindow
-                         :depth 0
-                         :wid exwm--container
-                         :parent (frame-parameter exwm-workspace--current
-                                                  'exwm-workspace)
-                         :x 0
-                         :y 0
-                         :width 1
-                         :height 1
-                         :border-width 0
-                         :class xcb:WindowClass:InputOutput
-                         :visual 0
-                         :value-mask (logior xcb:CW:BackPixmap
-                                             (if exwm-floating--border-pixel
-                                                 xcb:CW:BorderPixel 0)
-                                             xcb:CW:OverrideRedirect
-                                             xcb:CW:EventMask
-                                             (if exwm-floating--border-colormap
-                                                 xcb:CW:Colormap 0))
-                         :background-pixmap xcb:BackPixmap:ParentRelative
-                         :border-pixel exwm-floating--border-pixel
-                         :override-redirect 1
-                         :event-mask xcb:EventMask:SubstructureRedirect
-                         :colormap exwm-floating--border-colormap))
-      (exwm--debug
-       (xcb:+request exwm--connection
-           (make-instance 'xcb:ewmh:set-_NET_WM_NAME
-                          :window exwm--container
-                          :data (format "EXWM container for 0x%x" id))))
-      (xcb:+request exwm--connection
-          (make-instance 'xcb:ReparentWindow
-                         :window id :parent exwm--container :x 0 :y 0))
       (xcb:+request exwm--connection    ;remove border
           (make-instance 'xcb:ConfigureWindow
                          :window id :value-mask xcb:ConfigWindow:BorderWidth
@@ -340,12 +279,6 @@ manager is shutting down."
         (exwm-workspace--set-fullscreen f)))
     (when (buffer-live-p buffer)
       (with-current-buffer buffer
-        ;; Flickering seems unavoidable here if the DestroyWindow request is
-        ;; not initiated by us.
-        ;; What we can do is to hide the its container ASAP.
-        (xcb:+request exwm--connection
-            (make-instance 'xcb:UnmapWindow :window exwm--container))
-        (xcb:flush exwm--connection)
         ;; Unmap the X window.
         (xcb:+request exwm--connection
             (make-instance 'xcb:UnmapWindow :window id))
@@ -353,30 +286,10 @@ manager is shutting down."
         (setq exwm-workspace--switch-history-outdated t)
         ;;
         (when withdraw-only
-          ;; Reparent back to root
           (xcb:+request exwm--connection
               (make-instance 'xcb:ChangeWindowAttributes
                              :window id :value-mask xcb:CW:EventMask
                              :event-mask xcb:EventMask:NoEvent))
-          (let (x y geometry geometry-parent)
-            (if (not exwm--floating-frame)
-                (setq x 0 y 0)          ;the position does not matter
-              (setq geometry-parent
-                    (xcb:+request-unchecked+reply exwm--connection
-                        (make-instance 'xcb:GetGeometry
-                                       :drawable exwm--container))
-                    geometry (xcb:+request-unchecked+reply exwm--connection
-                                 (make-instance 'xcb:GetGeometry
-                                                :drawable id)))
-              (if (not (and geometry-parent geometry))
-                  (setq x 0 y 0)        ;e.g. have been destroyed
-                (setq x (+ (slot-value geometry-parent 'x)
-                           (slot-value geometry 'x))
-                      y (+ (slot-value geometry-parent 'y)
-                           (slot-value geometry 'y)))))
-            (xcb:+request exwm--connection
-                (make-instance 'xcb:ReparentWindow
-                               :window id :parent exwm--root :x x :y y)))
           ;; Delete WM_STATE property
           (xcb:+request exwm--connection
               (make-instance 'xcb:DeleteProperty
@@ -388,19 +301,20 @@ manager is shutting down."
                                :window id
                                :property xcb:Atom:_NET_WM_DESKTOP))))
         (when exwm--floating-frame
-          ;; Unmap the floating frame before destroying the containers.
-          (let ((window (frame-parameter exwm--floating-frame 'exwm-outer-id)))
+          ;; Unmap the floating frame before destroying its container.
+          (let ((window (frame-parameter exwm--floating-frame 'exwm-outer-id))
+                (container (frame-parameter exwm--floating-frame
+                                            'exwm-container)))
             (xcb:+request exwm--connection
                 (make-instance 'xcb:UnmapWindow :window window))
             (xcb:+request exwm--connection
                 (make-instance 'xcb:ReparentWindow
-                               :window window :parent exwm--root :x 0 :y 0))))
+                               :window window :parent exwm--root :x 0 :y 0))
+            (xcb:+request exwm--connection
+                (make-instance 'xcb:DestroyWindow :window container))))
         ;; Restore the workspace if this X window is currently fullscreen.
         (when (memq xcb:Atom:_NET_WM_STATE_FULLSCREEN exwm--ewmh-state)
           (exwm-workspace--set-fullscreen exwm--frame))
-        ;; Destroy the X window container (and the frame container if any).
-        (xcb:+request exwm--connection
-            (make-instance 'xcb:DestroyWindow :window exwm--container))
         (exwm-manage--set-client-list)
         (xcb:flush exwm--connection))
       (let ((kill-buffer-func
@@ -444,38 +358,28 @@ manager is shutting down."
   "Run in `kill-buffer-query-functions'."
   (catch 'return
     (when (or (not exwm--id)
-              (not exwm--container)
               (xcb:+request-checked+request-check exwm--connection
                   (make-instance 'xcb:MapWindow
                                  :window exwm--id)))
       ;; The X window is no longer alive so just close the buffer.
-      ;; Destroy the container.
-      ;; Hide the container to prevent flickering.
-      (when exwm--container
-        (xcb:+request exwm--connection
-            (make-instance 'xcb:UnmapWindow
-                           :window exwm--container))
-        (xcb:flush exwm--connection))
       (when exwm--floating-frame
-        (let ((window (frame-parameter exwm--floating-frame 'exwm-outer-id)))
+        (let ((window (frame-parameter exwm--floating-frame 'exwm-outer-id))
+              (container (frame-parameter exwm--floating-frame
+                                          'exwm-container)))
           (xcb:+request exwm--connection
               (make-instance 'xcb:UnmapWindow :window window))
           (xcb:+request exwm--connection
               (make-instance 'xcb:ReparentWindow
                              :window window
                              :parent exwm--root
-                             :x 0 :y 0))))
-      (when exwm--container
-        (xcb:+request exwm--connection
-            (make-instance 'xcb:DestroyWindow
-                           :window exwm--container)))
+                             :x 0 :y 0))
+          (xcb:+request exwm--connection
+              (make-instance 'xcb:DestroyWindow
+                             :window container))))
       (xcb:flush exwm--connection)
       (throw 'return t))
     (unless (memq xcb:Atom:WM_DELETE_WINDOW exwm--protocols)
       ;; The X window does not support WM_DELETE_WINDOW; destroy it.
-      ;; Hide the container to prevent flickering.
-      (xcb:+request exwm--connection
-          (make-instance 'xcb:UnmapWindow :window exwm--container))
       (xcb:+request exwm--connection
           (make-instance 'xcb:DestroyWindow :window exwm--id))
       (xcb:flush exwm--connection)
@@ -529,13 +433,6 @@ Would you like to kill it? "
 (defun exwm-manage--kill-client (&optional id)
   "Kill an X client."
   (unless id (setq id (exwm--buffer->id (current-buffer))))
-  ;; Hide the container to prevent flickering.
-  (let ((buffer (exwm--id->buffer id)))
-    (when buffer
-      (with-current-buffer buffer
-        (xcb:+request exwm--connection
-            (make-instance 'xcb:UnmapWindow :window exwm--container))
-        (xcb:flush exwm--connection))))
   (let* ((response (xcb:+request-unchecked+reply exwm--connection
                        (make-instance 'xcb:ewmh:get-_NET_WM_PID :window id)))
          (pid (and response (slot-value response 'value)))

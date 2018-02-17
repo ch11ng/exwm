@@ -30,27 +30,6 @@
 (defvar exwm-floating-border-width)
 (defvar exwm-workspace--id-struts-alist)
 
-(defun exwm-layout--resize-container (id container x y width height
-                                         &optional container-only)
-  "Resize a container (and its content unless CONTAINER-ONLY is non-nil)."
-  (xcb:+request exwm--connection
-      (make-instance 'xcb:ConfigureWindow
-                     :window container
-                     :value-mask (eval-when-compile
-                                   (logior xcb:ConfigWindow:X
-                                           xcb:ConfigWindow:Y
-                                           xcb:ConfigWindow:Width
-                                           xcb:ConfigWindow:Height))
-                     :x x :y y :width width :height height))
-  (unless container-only
-    (xcb:+request exwm--connection
-        (make-instance 'xcb:ConfigureWindow
-                       :window id
-                       :value-mask (eval-when-compile
-                                     (logior xcb:ConfigWindow:Width
-                                             xcb:ConfigWindow:Height))
-                       :width width :height height))))
-
 (defun exwm-layout--set-state (id state)
   "Set WM_STATE."
   (xcb:+request exwm--connection
@@ -73,72 +52,24 @@
          (y (pop edges))
          (width (- (pop edges) x))
          (height (- (pop edges) y))
-         (edges (window-inside-pixel-edges window))
-         (relative-x (pop edges))
-         (relative-y (pop edges))
-         frame-width frame-height)
+         frame-x frame-y frame-width frame-height)
     (with-current-buffer (exwm--id->buffer id)
-      (if (not exwm--floating-frame)
-          (exwm-layout--resize-container id exwm--container
-                                         relative-x relative-y width height
-                                         ;; Keep the size of the X window if
-                                         ;; it's the minibuffer that resized.
-                                         (and
-                                          (active-minibuffer-window)
-                                          (< 1 (window-height
-                                                (active-minibuffer-window)))))
-        ;; A floating X window is of the same size as the Emacs window,
-        ;; whereas its container is of the same size as the Emacs frame.
+      (when exwm--floating-frame
         (setq frame-width (frame-pixel-width exwm--floating-frame)
               frame-height (frame-pixel-height exwm--floating-frame))
-        (xcb:+request exwm--connection
-            (make-instance 'xcb:ConfigureWindow
-                           :window exwm--container
-                           :value-mask (logior xcb:ConfigWindow:Width
-                                               xcb:ConfigWindow:Height)
-                           :width frame-width
-                           :height frame-height))
-        (xcb:+request exwm--connection
-            (make-instance 'xcb:ConfigureWindow
-                           :window (frame-parameter exwm--floating-frame
-                                                    'exwm-container)
-                           :value-mask (logior xcb:ConfigWindow:Width
-                                               xcb:ConfigWindow:Height)
-                           :width frame-width
-                           :height frame-height))
-        (xcb:+request exwm--connection
-            (make-instance 'xcb:ConfigureWindow
-                           :window exwm--id
-                           :value-mask (logior xcb:ConfigWindow:X
-                                               xcb:ConfigWindow:Y
-                                               xcb:ConfigWindow:Width
-                                               xcb:ConfigWindow:Height)
-                           :x relative-x
-                           :y relative-y
-                           :width width
-                           :height height)))
-      ;; Make the resizing take effect.
-      (xcb:flush exwm--connection)
+        (when exwm--floating-frame-position
+          (setq frame-x (elt exwm--floating-frame-position 0)
+                frame-y (elt exwm--floating-frame-position 1)
+                ;; The frame was placed at (-1, -1).
+                x (+ x frame-x 1)
+                y (+ y frame-y 1))
+          (setq exwm--floating-frame-position nil))
+        (exwm--set-geometry (frame-parameter exwm--floating-frame
+                                             'exwm-container)
+                            frame-x frame-y frame-width frame-height))
+      (exwm--set-geometry id x y width height)
       (xcb:+request exwm--connection (make-instance 'xcb:MapWindow :window id))
-      (xcb:+request exwm--connection
-          (make-instance 'xcb:MapWindow :window exwm--container))
-      (exwm-layout--set-state id xcb:icccm:WM_STATE:NormalState))
-    (xcb:+request exwm--connection
-        (make-instance 'xcb:SendEvent
-                       :propagate 0 :destination id
-                       :event-mask xcb:EventMask:StructureNotify
-                       :event (xcb:marshal
-                               (make-instance 'xcb:ConfigureNotify
-                                              :event id
-                                              :window id
-                                              :above-sibling xcb:Window:None
-                                              :x x
-                                              :y y
-                                              :width width
-                                              :height height
-                                              :border-width 0
-                                              :override-redirect 0)
-                               exwm--connection))))
+      (exwm-layout--set-state id xcb:icccm:WM_STATE:NormalState)))
   (xcb:flush exwm--connection))
 
 (defun exwm-layout--hide (id)
@@ -146,6 +77,15 @@
   (with-current-buffer (exwm--id->buffer id)
     (unless (exwm-layout--iconic-state-p) ;already hidden
       (exwm--log "Hide #x%x" id)
+      (when exwm--floating-frame
+        (let* ((container (frame-parameter exwm--floating-frame
+                                           'exwm-container))
+               (geometry (xcb:+request-unchecked+reply exwm--connection
+                             (make-instance 'xcb:GetGeometry
+                                            :drawable container))))
+          (setq exwm--floating-frame-position
+                (vector (slot-value geometry 'x) (slot-value geometry 'y)))
+          (exwm--set-geometry container -1 -1 1 1)))
       (xcb:+request exwm--connection
           (make-instance 'xcb:ChangeWindowAttributes
                          :window id :value-mask xcb:CW:EventMask
@@ -156,8 +96,6 @@
           (make-instance 'xcb:ChangeWindowAttributes
                          :window id :value-mask xcb:CW:EventMask
                          :event-mask exwm--client-event-mask))
-      (xcb:+request exwm--connection
-          (make-instance 'xcb:UnmapWindow :window exwm--container))
       (exwm-layout--set-state id xcb:icccm:WM_STATE:IconicState)
       (xcb:flush exwm--connection))))
 
@@ -167,9 +105,7 @@
 (declare-function exwm-input-release-keyboard "exwm-input.el")
 (declare-function exwm-workspace--current-height "exwm-workspace.el")
 (declare-function exwm-workspace--current-width  "exwm-workspace.el")
-(declare-function exwm-workspace--get-geometry "exwm-workspace.el" (frame))
 (declare-function exwm-workspace--minibuffer-own-frame-p "exwm-workspace.el")
-(declare-function exwm-workspace--set-fullscreen "exwm-workspace.el" (frame))
 (declare-function exwm-workspace-move-window "exwm-workspace.el"
                   (frame-or-index &optional id))
 
@@ -180,41 +116,16 @@
   (with-current-buffer (if id (exwm--id->buffer id) (window-buffer))
     (when (memq xcb:Atom:_NET_WM_STATE_FULLSCREEN exwm--ewmh-state)
       (user-error "Already in full-screen mode"))
-    ;; Save the position of floating frame.
-    (when exwm--floating-frame
-      (let* ((geometry (xcb:+request-unchecked+reply exwm--connection
-                           (make-instance 'xcb:GetGeometry
-                                          :drawable exwm--container))))
-        (setq exwm--floating-frame-position
-              (vector (slot-value geometry 'x) (slot-value geometry 'y)))))
-    ;; Expand the workspace to fill the whole screen.
-    (with-slots (x y width height) (exwm-workspace--get-geometry exwm--frame)
-      (exwm-layout--resize-container nil
-                                     (frame-parameter exwm--frame
-                                                      'exwm-workspace)
-                                     x y width height
-                                     t))
-    ;; Raise the workspace container (in case there are docks).
-    (xcb:+request exwm--connection
-        (make-instance 'xcb:ConfigureWindow
-                       :window (frame-parameter exwm--frame 'exwm-workspace)
-                       :value-mask xcb:ConfigWindow:StackMode
-                       :stack-mode xcb:StackMode:Above))
-    ;; Expand the X window and its container to fill the whole screen.
+    ;; Expand the X window to fill the whole screen.
     ;; Rationale: Floating X windows may not be positioned at (0, 0)
     ;; due to the extra border.
-    (exwm-layout--resize-container nil exwm--container 0 0
-                                   (exwm-workspace--current-width)
-                                   (exwm-workspace--current-height)
-                                   t)
-    (exwm-layout--resize-container nil exwm--id 0 0
-                                   (exwm-workspace--current-width)
-                                   (exwm-workspace--current-height)
-                                   t)
+    (exwm--set-geometry exwm--id 0 0
+                        (exwm-workspace--current-width)
+                        (exwm-workspace--current-height))
     ;; Raise the X window.
     (xcb:+request exwm--connection
         (make-instance 'xcb:ConfigureWindow
-                       :window exwm--container
+                       :window exwm--id
                        :value-mask (logior xcb:ConfigWindow:BorderWidth
                                            xcb:ConfigWindow:StackMode)
                        :border-width 0
@@ -234,39 +145,20 @@
   (with-current-buffer (if id (exwm--id->buffer id) (window-buffer))
     (unless (memq xcb:Atom:_NET_WM_STATE_FULLSCREEN exwm--ewmh-state)
       (user-error "Not in full-screen mode"))
-    ;; Restore the size of this workspace.
-    (exwm-workspace--set-fullscreen exwm--frame)
     (if exwm--floating-frame
-        ;; Restore the floating frame.
-        (xcb:+request exwm--connection
-            (make-instance 'xcb:ConfigureWindow
-                           :window exwm--container
-                           :value-mask (eval-when-compile
-                                         (logior xcb:ConfigWindow:X
-                                                 xcb:ConfigWindow:Y
-                                                 xcb:ConfigWindow:BorderWidth))
-                           :x (elt exwm--floating-frame-position 0)
-                           :y (elt exwm--floating-frame-position 1)
-                           :border-width exwm-floating-border-width))
-      ;; Put the X window just above the Emacs frame.
+        (exwm-layout--show exwm--id (frame-root-window exwm--floating-frame))
       (xcb:+request exwm--connection
           (make-instance 'xcb:ConfigureWindow
-                         :window exwm--container
+                         :window exwm--id
                          :value-mask (logior xcb:ConfigWindow:Sibling
                                              xcb:ConfigWindow:StackMode)
-                         :sibling (frame-parameter exwm-workspace--current
-                                                   'exwm-container)
-                         :stack-mode xcb:StackMode:Above)))
-    (exwm-layout--show exwm--id)
+                         :sibling exwm--guide-window
+                         :stack-mode xcb:StackMode:Above))
+      (let ((window (get-buffer-window nil t)))
+        (when window
+          (exwm-layout--show exwm--id window))))
     (xcb:+request exwm--connection
         (make-instance 'xcb:ewmh:set-_NET_WM_STATE :window exwm--id :data []))
-    ;; Raise X windows with struts set again.
-    (dolist (pair exwm-workspace--id-struts-alist)
-      (xcb:+request exwm--connection
-          (make-instance 'xcb:ConfigureWindow
-                         :window (car pair)
-                         :value-mask xcb:ConfigWindow:StackMode
-                         :stack-mode xcb:StackMode:Above)))
     (xcb:flush exwm--connection)
     (setq exwm--ewmh-state
           (delq xcb:Atom:_NET_WM_STATE_FULLSCREEN exwm--ewmh-state))
