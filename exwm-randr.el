@@ -52,6 +52,9 @@
 
 (defvar exwm-randr-workspace-output-plist nil)
 
+(defvar exwm-randr-default-output nil
+  "Default output to put new workspace on.")
+
 (defvar exwm-randr-refresh-hook nil
   "Normal hook run when the RandR module just refreshed.")
 
@@ -100,7 +103,8 @@
         ;; Not all workspaces are fullscreen; reset this counter.
         (setq exwm-workspace--fullscreen-frame-count 0))
       (dotimes (i (exwm-workspace--count))
-        (let* ((output (plist-get exwm-randr-workspace-output-plist i))
+        (let* ((output (or (plist-get exwm-randr-workspace-output-plist i)
+			   exwm-randr-default-output))
                (geometry (lax-plist-get output-plist output))
                (frame (elt exwm-workspace--list i)))
           (unless geometry
