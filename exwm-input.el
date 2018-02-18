@@ -38,32 +38,119 @@
 (require 'xcb-keysyms)
 (require 'exwm-core)
 
-(defvar exwm-input-move-event 's-down-mouse-1
-  "Emacs event to start moving a window.")
-(defvar exwm-input-resize-event 's-down-mouse-3
-  "Emacs event to start resizing a window.")
+(defgroup exwm-input nil
+  "Input."
+  :version "25.3"
+  :group 'exwm)
 
-(defvar exwm-input--timestamp-window nil)
-(defvar exwm-input--timestamp-atom nil)
-(defvar exwm-input--timestamp-callback nil)
+(defcustom exwm-input-prefix-keys
+  '(?\C-c ?\C-x ?\C-u ?\C-h ?\M-x ?\M-` ?\M-& ?\M-:)
+  "List of prefix keys EXWM should forward to Emacs when in line-mode."
+  :type '(repeat key-sequence)
+  :get (lambda (symbol)
+         (mapcar #'vector (default-value symbol)))
+  :set (lambda (symbol value)
+         (set symbol (mapcar (lambda (i)
+                               (if (sequencep i)
+                                   (aref i 0)
+                                 i))
+                             value))))
 
-(defvar exwm-workspace--current)
-(defvar exwm-workspace--switch-history-outdated)
-(defvar exwm-workspace-current-index)
-(defvar exwm-workspace--minibuffer)
-(defvar exwm-workspace--list)
+(defcustom exwm-input-move-event 's-down-mouse-1
+  "Emacs event to start moving a window."
+  :type 'key-sequence
+  :get (lambda (symbol)
+         (let ((value (default-value symbol)))
+           (if (mouse-event-p value)
+               value
+             (vector value))))
+  :set (lambda (symbol value)
+         (set symbol (if (sequencep value)
+                         (aref value 0)
+                       value))))
+
+(defcustom exwm-input-resize-event 's-down-mouse-3
+  "Emacs event to start resizing a window."
+  :type 'key-sequence
+  :get (lambda (symbol)
+         (let ((value (default-value symbol)))
+           (if (mouse-event-p value)
+               value
+             (vector value))))
+  :set (lambda (symbol value)
+         (set symbol (if (sequencep value)
+                         (aref value 0)
+                       value))))
+
+(defcustom exwm-input-line-mode-passthrough nil
+  "Non-nil makes 'line-mode' forwards all events to Emacs."
+  :type 'boolean)
+
+;; Input focus update requests should be accumulated for a short time
+;; interval so that only the last one need to be processed.  This not
+;; improves the overall performance, but avoids the problem of input
+;; focus loop, which is a result of the interaction with Emacs frames.
+;;
+;; FIXME: The time interval is hard to decide and perhaps machine-dependent.
+;;        A value too small can cause redundant updates of input focus,
+;;        and even worse, dead loops.  OTOH a large value would bring
+;;        laggy experience.
+(defconst exwm-input--update-focus-interval 0.01
+  "Time interval (in seconds) for accumulating input focus update requests.")
+
+(defvar exwm-input--during-command nil
+  "Indicate whether between `pre-command-hook' and `post-command-hook'.")
 
 (defvar exwm-input--global-keys nil "Global key bindings.")
+
 (defvar exwm-input--global-prefix-keys nil
   "List of prefix keys of global key bindings.")
-(defvar exwm-input-prefix-keys
-  '(?\C-c ?\C-x ?\C-u ?\C-h ?\M-x ?\M-` ?\M-& ?\M-:)
-  "List of prefix keys EXWM should forward to Emacs when in line-mode.")
+
+(defvar exwm-input--line-mode-cache nil "Cache for incomplete key sequence.")
+
+(defvar exwm-input--local-simulation-keys nil
+  "Whether simulation keys are local.")
+
 (defvar exwm-input--simulation-keys nil "Simulation keys in line-mode.")
+
 (defvar exwm-input--simulation-prefix-keys nil
   "List of prefix keys of simulation keys in line-mode.")
 
+(defvar exwm-input--temp-line-mode nil
+  "Non-nil indicates it's in temporary line-mode for char-mode.")
+
+(defvar exwm-input--timestamp-atom nil)
+
+(defvar exwm-input--timestamp-callback nil)
+
+(defvar exwm-input--timestamp-window nil)
+
+(defvar exwm-input--update-focus-defer-timer nil "Timer for polling the lock.")
+
+(defvar exwm-input--update-focus-lock nil
+  "Lock for solving input focus update contention.")
+
+(defvar exwm-input--update-focus-timer nil
+  "Timer for deferring the update of input focus.")
+
+(defvar exwm-input--update-focus-window nil "The (Emacs) window to be focused.
+This value should always be overwritten.")
+
+(defvar exwm-workspace--current)
+(declare-function exwm-floating--do-moveresize "exwm-floating.el"
+                  (data _synthetic))
+(declare-function exwm-floating--start-moveresize "exwm-floating.el"
+                  (id &optional type))
+(declare-function exwm-floating--stop-moveresize "exwm-floating.el"
+                  (&rest _args))
+(declare-function exwm-layout--iconic-state-p "exwm-layout.el" (&optional id))
 (declare-function exwm-layout--show "exwm-layout.el" (id &optional window))
+(declare-function exwm-workspace--client-p "exwm-workspace.el"
+                  (&optional frame))
+(declare-function exwm-workspace--minibuffer-own-frame-p "exwm-workspace.el")
+(declare-function exwm-workspace--workspace-p "exwm-workspace.el" (workspace))
+(declare-function exwm-workspace-switch "exwm-workspace.el"
+                  (frame-or-index &optional force))
 
 (defun exwm-input--set-focus (id)
   "Set input focus to window ID in a proper way."
@@ -185,13 +272,6 @@ ARGS are additional arguments to CALLBACK."
   (let ((exwm-input--global-prefix-keys nil))
     (exwm-input--update-global-prefix-keys)))
 
-(declare-function exwm-workspace--client-p "exwm-workspace.el"
-                  (&optional frame))
-
-(defvar exwm-input--update-focus-window nil "The (Emacs) window to be focused.
-
-This value should always be overwritten.")
-
 (defun exwm-input--on-buffer-list-update ()
   "Run in `buffer-list-update-hook' to track input focus."
   (when (and (not (eq this-command #'handle-switch-frame))
@@ -204,24 +284,6 @@ This value should always be overwritten.")
     (redirect-frame-focus (selected-frame) nil)
     (setq exwm-input--update-focus-window (selected-window))
     (exwm-input--update-focus-defer)))
-
-;; Input focus update requests should be accumulated for a short time
-;; interval so that only the last one need to be processed.  This not
-;; improves the overall performance, but avoids the problem of input
-;; focus loop, which is a result of the interaction with Emacs frames.
-;;
-;; FIXME: The time interval is hard to decide and perhaps machine-dependent.
-;;        A value too small can cause redundant updates of input focus,
-;;        and even worse, dead loops.  OTOH a large value would bring
-;;        laggy experience.
-(defconst exwm-input--update-focus-interval 0.01
-  "Time interval (in seconds) for accumulating input focus update requests.")
-
-(defvar exwm-input--update-focus-lock nil
-  "Lock for solving input focus update contention.")
-(defvar exwm-input--update-focus-defer-timer nil "Timer for polling the lock.")
-(defvar exwm-input--update-focus-timer nil
-  "Timer for deferring the update of input focus.")
 
 (defun exwm-input--update-focus-defer ()
   "Defer updating input focus."
@@ -239,12 +301,6 @@ This value should always be overwritten.")
                           nil
                           #'exwm-input--update-focus-commit
                           exwm-input--update-focus-window))))
-
-(declare-function exwm-layout--iconic-state-p "exwm-layout.el" (&optional id))
-(declare-function exwm-workspace--minibuffer-own-frame-p "exwm-workspace.el")
-(declare-function exwm-workspace-switch "exwm-workspace.el"
-                  (frame-or-index &optional force))
-(declare-function exwm-workspace--workspace-p "exwm-workspace.el" (workspace))
 
 (defun exwm-input--update-focus-commit (window)
   "Commit updating input focus."
@@ -316,10 +372,6 @@ This value should always be overwritten.")
       (make-instance 'xcb:ewmh:set-_NET_ACTIVE_WINDOW
                      :window exwm--root
                      :data (or id xcb:Window:None))))
-
-(declare-function exwm-floating--start-moveresize "exwm-floating.el"
-                  (id &optional type))
-(declare-function exwm-workspace--position "exwm-workspace.el" (frame))
 
 (defun exwm-input--on-ButtonPress (data _synthetic)
   "Handle ButtonPress event."
@@ -419,7 +471,10 @@ This value should always be overwritten.")
 
 ;;;###autoload
 (defun exwm-input-set-key (key command)
-  "Set a global key binding."
+  "Set a global key binding.
+
+The new key binding only takes effect in real time when this command is
+called interactively.  Only invoke it non-interactively in configuration."
   (interactive "KSet key globally: \nCSet key %s to command: ")
   (global-set-key key command)
   (cl-pushnew key exwm-input--global-keys)
@@ -436,22 +491,6 @@ This value should always be overwritten.")
     (defsubst exwm-input--unread-event (event)
       (setq unread-command-events
             (append unread-command-events `((t . ,event)))))))
-
-(defvar exwm-input-command-whitelist nil
-  "A list of commands that when active all keys should be forwarded to Emacs.")
-(make-obsolete-variable 'exwm-input-command-whitelist
-                        "This variable can be safely removed." "25.1")
-
-(defvar exwm-input--during-command nil
-  "Indicate whether between `pre-command-hook' and `post-command-hook'.")
-
-(defvar exwm-input-line-mode-passthrough nil
-  "Non-nil makes 'line-mode' forwards all events to Emacs.")
-
-(defvar exwm-input--line-mode-cache nil "Cache for incomplete key sequence.")
-
-(defvar exwm-input--temp-line-mode nil
-  "Non-nil indicates it's in temporary line-mode for char-mode.")
 
 (cl-defun exwm-input--translate (key)
   (let (translation)
@@ -606,7 +645,8 @@ This value should always be overwritten.")
 ;;;###autoload
 (defun exwm-input-grab-keyboard (&optional id)
   "Switch to line-mode."
-  (interactive (list (exwm--buffer->id (window-buffer))))
+  (interactive (list (when (derived-mode-p 'exwm-mode)
+                       (exwm--buffer->id (window-buffer)))))
   (when id
     (with-current-buffer (exwm--id->buffer id)
       (exwm-input--grab-keyboard id)
@@ -617,7 +657,8 @@ This value should always be overwritten.")
 ;;;###autoload
 (defun exwm-input-release-keyboard (&optional id)
   "Switch to char-mode."
-  (interactive (list (exwm--buffer->id (window-buffer))))
+  (interactive (list (when (derived-mode-p 'exwm-mode)
+                       (exwm--buffer->id (window-buffer)))))
   (when id
     (with-current-buffer (exwm--id->buffer id)
       (exwm-input--release-keyboard id)
@@ -628,7 +669,8 @@ This value should always be overwritten.")
 ;;;###autoload
 (defun exwm-input-toggle-keyboard (&optional id)
   "Toggle between 'line-mode' and 'char-mode'."
-  (interactive (list (exwm--buffer->id (window-buffer))))
+  (interactive (list (when (derived-mode-p 'exwm-mode)
+                       (exwm--buffer->id (window-buffer)))))
   (when id
     (with-current-buffer (exwm--id->buffer id)
       (if exwm--keyboard-grabbed
@@ -664,9 +706,14 @@ This value should always be overwritten.")
     (xcb:flush exwm--connection)))
 
 ;;;###autoload
-(defun exwm-input-send-next-key (times)
-  "Send next key to client window."
+(cl-defun exwm-input-send-next-key (times)
+  "Send next key to client window.
+
+EXWM will prompt for the key to send.  This command can be prefixed to send
+multiple keys."
   (interactive "p")
+  (unless (derived-mode-p 'exwm-mode)
+    (cl-return-from 'exwm-input-send-next-key))
   (when (> times 12) (setq times 12))
   (let (key keys)
     (dotimes (i times)
@@ -685,9 +732,6 @@ This value should always be overwritten.")
 ;;   (interactive)
 ;;   (unless (listp last-input-event)      ;not a key event
 ;;     (exwm-input--fake-key last-input-event)))
-
-(defvar exwm-input--local-simulation-keys nil
-  "Whether simulation keys are local.")
 
 (defun exwm-input--update-simulation-prefix-keys ()
   "Update the list of prefix keys of simulation keys."
@@ -718,9 +762,13 @@ Its usage is the same with `exwm-input-set-simulation-keys'."
     (exwm-input-set-simulation-keys simulation-keys)))
 
 ;;;###autoload
-(defun exwm-input-send-simulation-key (times)
-  "Fake a key event according to last input key sequence."
+(cl-defun exwm-input-send-simulation-key (times)
+  "Fake a key event according to the last input key sequence.
+
+Sending multiple fake keys at once is only supported by Emacs 27 and later."
   (interactive "p")
+  (unless (derived-mode-p 'exwm-mode)
+    (cl-return-from 'exwm-input-send-simulation-key))
   (let ((pair (assoc (this-single-command-keys) exwm-input--simulation-keys)))
     (when pair
       (setq pair (cdr pair))
@@ -737,11 +785,6 @@ Its usage is the same with `exwm-input-set-simulation-keys'."
 (defun exwm-input--on-post-command ()
   "Run in `post-command-hook'."
   (setq exwm-input--during-command nil))
-
-(declare-function exwm-floating--stop-moveresize "exwm-floating.el"
-                  (&rest _args))
-(declare-function exwm-floating--do-moveresize "exwm-floating.el"
-                  (data _synthetic))
 
 (defun exwm-input--init ()
   "Initialize the keyboard module."

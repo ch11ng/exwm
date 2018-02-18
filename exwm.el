@@ -72,9 +72,41 @@
 (require 'exwm-manage)
 (require 'exwm-input)
 
+(defgroup exwm nil
+  "Emacs X Window Manager."
+  :tag "EXWM"
+  :version "25.3"
+  :group 'applications
+  :prefix "exwm-")
+
+(defcustom exwm-init-hook nil
+  "Normal hook run when EXWM has just finished initialization."
+  :type 'hook)
+
+(defcustom exwm-exit-hook nil
+  "Normal hook run just before EXWM exits."
+  :type 'hook)
+
+(defcustom exwm-update-class-hook nil
+  "Normal hook run when window class is updated."
+  :type 'hook)
+
+(defcustom exwm-update-title-hook nil
+  "Normal hook run when window title is updated."
+  :type 'hook)
+
+(defcustom exwm-blocking-subrs '(x-file-dialog x-popup-dialog x-select-font)
+  "Subrs (primitives) that would normally block EXWM."
+  :type '(repeat function))
+
+(defconst exwm--server-name "server-exwm"
+  "Name of the subordinate Emacs server.")
+
+(defvar exwm--server-process nil "Process of the subordinate Emacs server.")
+
 ;;;###autoload
 (defun exwm-reset ()
-  "Reset window to standard state: non-fullscreen, line-mode."
+  "Reset the state of the selected window (non-fullscreen, line-mode, etc)."
   (interactive)
   (with-current-buffer (window-buffer)
     (when (eq major-mode 'exwm-mode)
@@ -123,9 +155,6 @@
         (when reply                     ;nil when destroyed
           (setq exwm-window-type (append (slot-value reply 'value) nil)))))))
 
-(defvar exwm-update-class-hook nil
-  "Normal hook run when window class is updated.")
-
 (defun exwm--update-class (id &optional force)
   "Update WM_CLASS."
   (with-current-buffer (exwm--id->buffer id)
@@ -137,9 +166,6 @@
                 exwm-class-name (slot-value reply 'class-name))
           (when (and exwm-instance-name exwm-class-name)
             (run-hooks 'exwm-update-class-hook)))))))
-
-(defvar exwm-update-title-hook nil
-  "Normal hook run when window title is updated.")
 
 (defun exwm--update-utf8-title (id &optional force)
   "Update _NET_WM_NAME."
@@ -645,9 +671,6 @@
                        :property p))
     (xcb:flush exwm--connection)))
 
-(defvar exwm-init-hook nil
-  "Normal hook run when EXWM has just finished initialization.")
-
 (defun exwm-init (&optional frame)
   "Initialize EXWM."
   (if frame
@@ -692,8 +715,6 @@
         (exwm-manage--scan)
         (run-hooks 'exwm-init-hook)))))
 
-(defvar exwm-exit-hook nil "Normal hook run just before EXWM exits.")
-
 (defun exwm--exit ()
   "Exit EXWM."
   (run-hooks 'exwm-exit-hook)
@@ -704,9 +725,6 @@
   (exwm-floating--exit)
   (exwm-layout--exit)
   (exwm--exit-icccm-ewmh))
-
-(defvar exwm-blocking-subrs '(x-file-dialog x-popup-dialog x-select-font)
-  "Subrs (primitives) that would normally block EXWM.")
 
 (defun exwm-enable (&optional undo)
   "Enable/Disable EXWM."
@@ -733,10 +751,6 @@
      (add-hook 'kill-emacs-hook #'exwm--server-stop)
      (dolist (i exwm-blocking-subrs)
        (advice-add i :around #'exwm--server-eval-at)))))
-
-(defconst exwm--server-name "server-exwm"
-  "Name of the subordinate Emacs server.")
-(defvar exwm--server-process nil "Process of the subordinate Emacs server.")
 
 (defun exwm--server-stop ()
   "Stop the subordinate Emacs server."
@@ -783,13 +797,6 @@
                (`subr (make-symbol (subr-name result)))
                ;; For other types, return the value as-is.
                (t result))))))
-
-(define-obsolete-function-alias 'exwm-enable-ido-workaround 'exwm-config-ido
-  "25.1" "Enable workarounds for Ido.")
-
-(defun exwm-disable-ido-workaround ()
-  "This function does nothing actually."
-  (declare (obsolete nil "25.1")))
 
 
 

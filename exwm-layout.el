@@ -27,8 +27,35 @@
 
 (require 'exwm-core)
 
-(defvar exwm-floating-border-width)
-(defvar exwm-workspace--id-struts-alist)
+(defgroup exwm-layout nil
+  "Layout."
+  :version "25.3"
+  :group 'exwm)
+
+(defcustom exwm-layout-show-all-buffers nil
+  "Non-nil to allow switching to buffers on other workspaces."
+  :type 'boolean)
+
+(defvar exwm-layout--other-buffer-exclude-buffers nil
+  "List of buffers that should not be selected by `other-buffer'.")
+
+(defvar exwm-layout--other-buffer-exclude-exwm-mode-buffers nil
+  "When non-nil, prevent EXWM buffers from being selected by `other-buffer'.")
+
+(defvar exwm-layout--timer nil "Timer used to track echo area changes.")
+
+(defvar exwm-workspace--current)
+(declare-function exwm-input-grab-keyboard "exwm-input.el")
+(declare-function exwm-input-release-keyboard "exwm-input.el")
+(declare-function exwm-workspace--client-p "exwm-workspace.el"
+                  (&optional frame))
+(declare-function exwm-workspace--current-height "exwm-workspace.el")
+(declare-function exwm-workspace--current-width  "exwm-workspace.el")
+(declare-function exwm-workspace--minibuffer-own-frame-p "exwm-workspace.el")
+(declare-function exwm-workspace--workspace-p "exwm-workspace.el"
+                  (workspace))
+(declare-function exwm-workspace-move-window "exwm-workspace.el"
+                  (frame-or-index &optional id))
 
 (defun exwm-layout--set-state (id state)
   "Set WM_STATE."
@@ -99,23 +126,14 @@
       (exwm-layout--set-state id xcb:icccm:WM_STATE:IconicState)
       (xcb:flush exwm--connection))))
 
-(defvar exwm-workspace--current)
-
-(declare-function exwm-input-grab-keyboard "exwm-input.el")
-(declare-function exwm-input-release-keyboard "exwm-input.el")
-(declare-function exwm-workspace--current-height "exwm-workspace.el")
-(declare-function exwm-workspace--current-width  "exwm-workspace.el")
-(declare-function exwm-workspace--minibuffer-own-frame-p "exwm-workspace.el")
-(declare-function exwm-workspace-move-window "exwm-workspace.el"
-                  (frame-or-index &optional id))
-
 ;;;###autoload
-(defun exwm-layout-set-fullscreen (&optional id)
+(cl-defun exwm-layout-set-fullscreen (&optional id)
   "Make window ID fullscreen."
   (interactive)
+  (unless (and (or id (derived-mode-p 'exwm-mode))
+               (not (memq xcb:Atom:_NET_WM_STATE_FULLSCREEN exwm--ewmh-state)))
+    (cl-return-from 'exwm-layout-set-fullscreen))
   (with-current-buffer (if id (exwm--id->buffer id) (window-buffer))
-    (when (memq xcb:Atom:_NET_WM_STATE_FULLSCREEN exwm--ewmh-state)
-      (user-error "Already in full-screen mode"))
     ;; Expand the X window to fill the whole screen.
     ;; Rationale: Floating X windows may not be positioned at (0, 0)
     ;; due to the extra border.
@@ -139,12 +157,13 @@
     (call-interactively #'exwm-input-release-keyboard)))
 
 ;;;###autoload
-(defun exwm-layout-unset-fullscreen (&optional id)
+(cl-defun exwm-layout-unset-fullscreen (&optional id)
   "Restore window from fullscreen state."
   (interactive)
+  (unless (and (or id (derived-mode-p 'exwm-mode))
+               (memq xcb:Atom:_NET_WM_STATE_FULLSCREEN exwm--ewmh-state))
+    (cl-return-from 'exwm-layout-unset-fullscreen))
   (with-current-buffer (if id (exwm--id->buffer id) (window-buffer))
-    (unless (memq xcb:Atom:_NET_WM_STATE_FULLSCREEN exwm--ewmh-state)
-      (user-error "Not in full-screen mode"))
     (if exwm--floating-frame
         (exwm-layout--show exwm--id (frame-root-window exwm--floating-frame))
       (xcb:+request exwm--connection
@@ -165,20 +184,16 @@
     (call-interactively #'exwm-input-grab-keyboard)))
 
 ;;;###autoload
-(defun exwm-layout-toggle-fullscreen (&optional id)
+(cl-defun exwm-layout-toggle-fullscreen (&optional id)
   "Toggle fullscreen mode."
   (interactive (list (exwm--buffer->id (window-buffer))))
+  (unless (or id (derived-mode-p 'exwm-mode))
+    (cl-return-from 'exwm-layout-toggle-fullscreen))
   (when id
     (with-current-buffer (exwm--id->buffer id)
       (if (memq xcb:Atom:_NET_WM_STATE_FULLSCREEN exwm--ewmh-state)
           (exwm-reset)
         (exwm-layout-set-fullscreen id)))))
-
-(defvar exwm-layout--other-buffer-exclude-exwm-mode-buffers nil
-  "When non-nil, prevent EXWM buffers from being selected by `other-buffer'.")
-
-(defvar exwm-layout--other-buffer-exclude-buffers nil
-  "List of buffers that should not be selected by `other-buffer'.")
 
 (defun exwm-layout--other-buffer-predicate (buffer)
   "Return non-nil when the BUFFER may be displayed in selected frame.
@@ -200,11 +215,6 @@ selected by `other-buffer'."
            (not (memq buffer exwm-layout--other-buffer-exclude-buffers))
            ;; Do not select if already shown in some window.
            (not (get-buffer-window buffer t)))))
-
-(defvar exwm-layout-show-all-buffers nil
-  "Non-nil to allow switching to buffers on other workspaces.")
-(declare-function exwm-workspace--workspace-p "exwm-workspace.el"
-                  (workspace))
 
 (defun exwm-layout--set-client-list-stacking ()
   "Set _NET_CLIENT_LIST_STACKING."
@@ -300,9 +310,6 @@ selected by `other-buffer'."
               (switch-to-prev-buffer window)))))
       (exwm-layout--set-client-list-stacking)
       (xcb:flush exwm--connection))))
-
-(declare-function exwm-workspace--client-p "exwm-workspace.el"
-                  (&optional frame))
 
 (defun exwm-layout--on-minibuffer-setup ()
   "Refresh layout when minibuffer grows."
@@ -478,8 +485,6 @@ See also `exwm-layout-enlarge-window'."
     (if mode-line-format
         (exwm-layout-hide-mode-line)
       (exwm-layout-show-mode-line))))
-
-(defvar exwm-layout--timer nil "Timer used to track echo area changes.")
 
 (defun exwm-layout--init ()
   "Initialize layout module."

@@ -29,16 +29,110 @@
 
 (require 'exwm-core)
 
-(defvar exwm-manage--desktop)
+(defgroup exwm-workspace nil
+  "Workspace."
+  :version "25.3"
+  :group 'exwm)
 
-(defvar exwm-workspace-number 1 "Initial number of workspaces.")
-(defvar exwm-workspace--list nil "List of all workspaces (Emacs frames).")
-(defvar exwm-workspace--current nil "Current active workspace.")
-(defvar exwm-workspace-current-index 0 "Index of current active workspace.")
-(defvar exwm-workspace-index-map #'number-to-string
+(defcustom exwm-workspace-switch-hook nil
+  "Normal hook run after switching workspace."
+  :type 'hook)
+
+(defcustom exwm-workspace-list-change-hook nil
+  "Normal hook run when the workspace list is changed (workspace added,
+deleted, moved, etc)."
+  :type 'hook)
+
+(defcustom exwm-workspace-show-all-buffers nil
+  "Non-nil to show buffers on other workspaces."
+  :type 'boolean)
+
+(defcustom exwm-workspace-number 1
+  "Initial number of workspaces."
+  :type 'integer)
+
+(defcustom exwm-workspace-index-map #'number-to-string
   "Function for mapping a workspace index to a string for display.
 
-By default `number-to-string' is applied which yields 0 1 2 ... .")
+By default `number-to-string' is applied which yields 0 1 2 ... ."
+  :type 'function)
+
+(defcustom exwm-workspace-minibuffer-position nil
+  "Position of the minibuffer frame."
+  :type '(choice (const :tag "Bottom (fixed)" nil)
+                 (const :tag "Bottom (auto-hide)" bottom)
+                 (const :tag "Top (auto-hide)" top)))
+
+(defcustom exwm-workspace-display-echo-area-timeout 1
+  "Timeout for displaying echo area."
+  :type 'integer)
+
+(defcustom exwm-workspace-switch-create-limit 10
+  "Number of workspaces `exwm-workspace-switch-create' allowed to create
+each time."
+  :type 'integer)
+
+(defvar exwm-workspace-current-index 0 "Index of current active workspace.")
+
+(defvar exwm-workspace--attached-minibuffer-height 0
+  "Height (in pixel) of the attached minibuffer.
+
+If the minibuffer is detached, this value is 0.")
+
+(defvar exwm-workspace--client nil
+  "The 'client' frame parameter of emacsclient frames.")
+
+(defvar exwm-workspace--create-silently nil
+  "When non-nil workspaces are created in the background (not switched to).
+
+Please manually run the hook `exwm-workspace-list-change-hook' afterwards.")
+
+(defvar exwm-workspace--current nil "Current active workspace.")
+
+(defvar exwm-workspace--display-echo-area-timer nil
+  "Timer for auto-hiding echo area.")
+
+(defvar exwm-workspace--id-struts-alist nil "Alist of X window and struts.")
+
+(defvar exwm-workspace--fullscreen-frame-count 0
+  "Count the fullscreen workspace frames.")
+
+(defvar exwm-workspace--list nil "List of all workspaces (Emacs frames).")
+
+(defvar exwm-workspace--minibuffer nil
+  "The minibuffer frame shared among all frames.")
+
+(defvar exwm-workspace--prompt-add-allowed nil
+  "Non-nil to allow adding workspace from the prompt.")
+
+(defvar exwm-workspace--prompt-delete-allowed nil
+  "Non-nil to allow deleting workspace from the prompt.")
+
+(defvar exwm-workspace--struts nil "Areas occupied by struts.")
+
+(defvar exwm-workspace--switch-history nil
+  "History for `read-from-minibuffer' to interactively switch workspace.")
+
+(defvar exwm-workspace--switch-history-outdated nil
+  "Non-nil to indicate `exwm-workspace--switch-history' is outdated.")
+
+(defvar exwm-workspace--timer nil "Timer used to track echo area changes.")
+
+(defvar exwm-workspace--update-workareas-hook nil
+  "Normal hook run when workareas get updated.")
+
+(defvar exwm-workspace--workareas nil "Workareas (struts excluded).")
+
+(defvar exwm-input--during-command)
+(defvar exwm-layout-show-all-buffers)
+(defvar exwm-manage--desktop)
+(declare-function exwm--exit "exwm.el")
+(declare-function exwm-input--on-buffer-list-update "exwm-input.el" ())
+(declare-function exwm-layout--hide "exwm-layout.el" (id))
+(declare-function exwm-layout--other-buffer-predicate "exwm-layout.el"
+                  (buffer))
+(declare-function exwm-layout--refresh "exwm-layout.el")
+(declare-function exwm-layout--show "exwm-layout.el" (id &optional window))
 
 (defsubst exwm-workspace--position (frame)
   "Retrieve index of given FRAME in workspace list.
@@ -57,20 +151,6 @@ NIL if FRAME is not a workspace"
 (defsubst exwm-workspace--client-p (&optional frame)
   "Return non-nil if FRAME is an emacsclient frame."
   (frame-parameter frame 'client))
-
-(defun exwm-workspace--workspace-from-frame-or-index (frame-or-index)
-  "Retrieve the workspace frame from FRAME-OR-INDEX."
-  (cond
-   ((framep frame-or-index)
-    (unless (exwm-workspace--position frame-or-index)
-      (user-error "[EXWM] Frame is not a workspace %S" frame-or-index))
-    frame-or-index)
-   ((integerp frame-or-index)
-    (unless (and (<= 0 frame-or-index)
-                 (< frame-or-index (exwm-workspace--count)))
-      (user-error "[EXWM] Workspace index out of range: %d" frame-or-index))
-    (elt exwm-workspace--list frame-or-index))
-   (t (user-error "[EXWM] Invalid workspace: %s" frame-or-index))))
 
 (defvar exwm-workspace--switch-map
   (let ((map (make-sparse-keymap)))
@@ -98,10 +178,19 @@ NIL if FRAME is not a workspace"
     map)
   "Keymap used for interactively switch workspace.")
 
-(defvar exwm-workspace--switch-history nil
-  "History for `read-from-minibuffer' to interactively switch workspace.")
-(defvar exwm-workspace--switch-history-outdated nil
-  "Non-nil to indicate `exwm-workspace--switch-history' is outdated.")
+(defun exwm-workspace--workspace-from-frame-or-index (frame-or-index)
+  "Retrieve the workspace frame from FRAME-OR-INDEX."
+  (cond
+   ((framep frame-or-index)
+    (unless (exwm-workspace--position frame-or-index)
+      (user-error "[EXWM] Frame is not a workspace %S" frame-or-index))
+    frame-or-index)
+   ((integerp frame-or-index)
+    (unless (and (<= 0 frame-or-index)
+                 (< frame-or-index (exwm-workspace--count)))
+      (user-error "[EXWM] Workspace index out of range: %d" frame-or-index))
+    (elt exwm-workspace--list frame-or-index))
+   (t (user-error "[EXWM] Invalid workspace: %s" frame-or-index))))
 
 (defun exwm-workspace--prompt-for-workspace (&optional prompt)
   "Prompt for a workspace, returning the workspace frame."
@@ -116,15 +205,6 @@ NIL if FRAME is not a workspace"
          (workspace-idx (cl-position history-idx exwm-workspace--switch-history
                                      :test #'equal)))
     (elt exwm-workspace--list workspace-idx)))
-
-(defvar exwm-workspace--prompt-add-allowed nil
-  "Non-nil to allow adding workspace from the prompt.")
-(defvar exwm-workspace--prompt-delete-allowed nil
-  "Non-nil to allow deleting workspace from the prompt.")
-(defvar exwm-workspace--create-silently nil
-  "When non-nil workspaces are created in the background (not switched to).
-
-Please manually run the hook `exwm-workspace-list-change-hook' afterwards.")
 
 (defun exwm-workspace--prompt-add ()
   "Add workspace from the prompt."
@@ -182,20 +262,6 @@ Please manually run the hook `exwm-workspace-list-change-hook' afterwards.")
                 sequence ""))
              sequence)))))
 
-(defvar exwm-workspace-show-all-buffers nil
-  "Non-nil to show buffers on other workspaces.")
-(defvar exwm-workspace--minibuffer nil
-  "The minibuffer frame shared among all frames.")
-(defvar exwm-workspace-minibuffer-position nil
-  "Position of the minibuffer frame.
-
-Value nil means to use the default position which is fixed at bottom, while
-'top and 'bottom mean to use an auto-hiding minibuffer.")
-(defvar exwm-workspace-display-echo-area-timeout 1
-  "Timeout for displaying echo area.")
-(defvar exwm-workspace--display-echo-area-timer nil
-  "Timer for auto-hiding echo area.")
-
 ;;;###autoload
 (defun exwm-workspace--get-geometry (frame)
   "Return the geometry of frame FRAME."
@@ -227,9 +293,6 @@ Value nil means to use the default position which is fixed at bottom, while
   "Reports whether the minibuffer is displayed in its own frame."
   (memq exwm-workspace-minibuffer-position '(top bottom)))
 
-(defvar exwm-workspace--id-struts-alist nil "Alist of X window and struts.")
-(defvar exwm-workspace--struts nil "Areas occupied by struts.")
-
 (defun exwm-workspace--update-struts ()
   "Update `exwm-workspace--struts'."
   (setq exwm-workspace--struts nil)
@@ -249,10 +312,6 @@ Value nil means to use the default position which is fixed at bottom, while
                 (push struts* exwm-workspace--struts)
               (setq exwm-workspace--struts
                     (append exwm-workspace--struts (list struts*))))))))))
-
-(defvar exwm-workspace--workareas nil "Workareas (struts excluded).")
-(defvar exwm-workspace--update-workareas-hook nil
-  "Normal hook run when workareas get updated.")
 
 (defun exwm-workspace--update-workareas ()
   "Update `exwm-workspace--workareas'."
@@ -318,9 +377,6 @@ Value nil means to use the default position which is fixed at bottom, while
     (xcb:flush exwm--connection))
   (run-hooks 'exwm-workspace--update-workareas-hook))
 
-(defvar exwm-workspace--fullscreen-frame-count 0
-  "Count the fullscreen workspace frames.")
-
 (defun exwm-workspace--set-fullscreen (frame)
   "Make frame FRAME fullscreen according to `exwm-workspace--workareas'."
   (let ((workarea (elt exwm-workspace--workareas
@@ -341,11 +397,6 @@ Value nil means to use the default position which is fixed at bottom, while
   ;; This is only used for workspace initialization.
   (when exwm-workspace--fullscreen-frame-count
     (cl-incf exwm-workspace--fullscreen-frame-count)))
-
-(defvar exwm-workspace--attached-minibuffer-height 0
-  "Height (in pixel) of the attached minibuffer.
-
-If the minibuffer is detached, this value is 0.")
 
 (defun exwm-workspace--resize-minibuffer-frame ()
   "Resize minibuffer (and its container) to fit the size of workspace."
@@ -434,14 +485,13 @@ PREFIX-DIGITS is a list of the digits introduced so far."
   (goto-history-element (1+ n))
   (exit-minibuffer))
 
-(defvar exwm-workspace-switch-hook nil
-  "Normal hook run after switching workspace.")
-
 ;;;###autoload
 (defun exwm-workspace-switch (frame-or-index &optional force)
-  "Switch to workspace INDEX.  Query for FRAME-OR-INDEX if it's not specified.
+  "Switch to workspace INDEX (0-based).
 
-The optional FORCE option is for internal use only."
+Query for the index if not specified when called interactively.  Passing a
+workspace frame as the first option or making use of the rest options are
+for internal use only."
   (interactive
    (list
     (unless (and (eq major-mode 'exwm-mode)
@@ -518,13 +568,11 @@ The optional FORCE option is for internal use only."
     (run-hooks 'focus-in-hook)
     (run-hooks 'exwm-workspace-switch-hook)))
 
-(defvar exwm-workspace-switch-create-limit 10
-  "Number of workspaces `exwm-workspace-switch-create' allowed to create
-each time.")
-
 ;;;###autoload
 (defun exwm-workspace-switch-create (frame-or-index)
-  "Switch to workspace FRAME-OR-INDEX, creating it if it does not exist yet."
+  "Switch to workspace INDEX or creating it first if it does not exist yet.
+
+Passing a workspace frame as the first option is for internal use only."
   (interactive)
   (if (or (framep frame-or-index)
           (< frame-or-index (exwm-workspace--count)))
@@ -536,10 +584,6 @@ each time.")
         (make-frame))
       (run-hooks 'exwm-workspace-list-change-hook))
     (exwm-workspace-switch frame-or-index)))
-
-(defvar exwm-workspace-list-change-hook nil
-  "Normal hook run when the workspace list is changed (workspace added,
-deleted, moved, etc).")
 
 ;;;###autoload
 (defun exwm-workspace-swap (workspace1 workspace2)
@@ -579,6 +623,7 @@ deleted, moved, etc).")
 ;;;###autoload
 (defun exwm-workspace-move (workspace nth)
   "Move WORKSPACE to the NTH position.
+
 When called interactively, prompt for a workspace and move current one just
 before it."
   (interactive
@@ -644,13 +689,6 @@ INDEX must not exceed the current number of workspaces."
         (make-instance 'xcb:ewmh:set-_NET_WM_DESKTOP
                        :window id
                        :data (exwm-workspace--position exwm--frame)))))
-
-(declare-function exwm-input--on-buffer-list-update "exwm-input.el" ())
-(declare-function exwm-layout--show "exwm-layout.el" (id &optional window))
-(declare-function exwm-layout--hide "exwm-layout.el" (id))
-(declare-function exwm-layout--refresh "exwm-layout.el")
-(declare-function exwm-layout--other-buffer-predicate "exwm-layout.el"
-                  (buffer))
 
 ;;;###autoload
 (defun exwm-workspace-move-window (frame-or-index &optional id)
@@ -779,8 +817,6 @@ INDEX must not exceed the current number of workspaces."
         (exwm-workspace--set-desktop id)
         (xcb:flush exwm--connection)))
     (setq exwm-workspace--switch-history-outdated t)))
-
-(defvar exwm-layout-show-all-buffers)
 
 ;;;###autoload
 (defun exwm-workspace-switch-to-buffer (buffer-or-name)
@@ -1049,8 +1085,6 @@ Please check `exwm-workspace--minibuffer-own-frame-p' first."
     (remove-hook 'post-command-hook #'exwm-workspace--update-minibuffer-height)
     (exwm-workspace--hide-minibuffer)))
 
-(defvar exwm-input--during-command)
-
 (defun exwm-workspace--on-echo-area-dirty ()
   "Run when new message arrives to show the echo area and its container."
   (when (and (not (active-minibuffer-window))
@@ -1074,12 +1108,6 @@ Please check `exwm-workspace--minibuffer-own-frame-p' first."
     (when exwm-workspace--display-echo-area-timer
       (cancel-timer exwm-workspace--display-echo-area-timer)
       (setq exwm-workspace--display-echo-area-timer nil))))
-
-(defvar exwm-workspace--client nil
-  "The 'client' frame parameter of emacsclient frames.")
-
-(declare-function exwm-manage--unmanage-window "exwm-manage.el")
-(declare-function exwm--exit "exwm.el")
 
 (defun exwm-workspace--confirm-kill-emacs (prompt &optional force)
   "Confirm before exiting Emacs."
@@ -1156,8 +1184,6 @@ Please check `exwm-workspace--minibuffer-own-frame-p' first."
                      :window exwm--root
                      :width (x-display-pixel-width)
                      :height (x-display-pixel-height))))
-
-(defvar exwm-workspace--timer nil "Timer used to track echo area changes.")
 
 (defun exwm-workspace--add-frame-as-workspace (frame)
   "Configure frame FRAME to be treated as a workspace."

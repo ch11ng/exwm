@@ -28,16 +28,65 @@
 
 (require 'exwm-core)
 
-(defvar exwm-manage-force-tiling nil
-  "Non-nil to force managing all X windows in tiling layout.
+(defgroup exwm-manage nil
+  "Manage."
+  :version "25.3"
+  :group 'exwm)
 
-You can still make the X windows floating afterwards.")
-
-(defvar exwm-manage-finish-hook nil
+(defcustom exwm-manage-finish-hook nil
   "Normal hook run after a window is just managed, in the context of the
-corresponding buffer.")
+corresponding buffer."
+  :type 'hook)
+
+(defcustom exwm-manage-force-tiling nil
+  "Non-nil to force managing all X windows in tiling layout.
+You can still make the X windows floating afterwards."
+  :type 'boolean)
+
+;; FIXME: Make the following values as small as possible.
+(defconst exwm-manage--height-delta-min 5)
+(defconst exwm-manage--width-delta-min 5)
+
+;; The _MOTIF_WM_HINTS atom (see <Xm/MwmUtil.h> for more details)
+;; It's currently only used in 'exwm-manage' module
+(defvar exwm-manage--_MOTIF_WM_HINTS nil "_MOTIF_WM_HINTS atom.")
 
 (defvar exwm-manage--desktop nil "The desktop X window.")
+
+(defvar exwm-manage--frame-outer-id-list nil
+  "List of window-outer-id's of all frames.")
+
+(defvar exwm-manage--ping-lock nil
+  "Non-nil indicates EXWM is pinging a window.")
+
+(defvar exwm-manage-ping-timeout 3 "Seconds to wait before killing a client.")
+
+(defvar exwm-workspace--current)
+(defvar exwm-workspace--id-struts-alist)
+(defvar exwm-workspace--list)
+(defvar exwm-workspace--switch-history-outdated)
+(defvar exwm-workspace-current-index)
+(declare-function exwm--update-class "exwm.el" (id &optional force))
+(declare-function exwm--update-hints "exwm.el" (id &optional force))
+(declare-function exwm--update-normal-hints "exwm.el" (id &optional force))
+(declare-function exwm--update-protocols "exwm.el" (id &optional force))
+(declare-function exwm--update-struts "exwm.el" (id))
+(declare-function exwm--update-title "exwm.el" (id))
+(declare-function exwm--update-transient-for "exwm.el" (id &optional force))
+(declare-function exwm--update-window-type "exwm.el" (id &optional force))
+(declare-function exwm-floating--set-floating "exwm-floating.el" (id))
+(declare-function exwm-floating--unset-floating "exwm-floating.el" (id))
+(declare-function exwm-input-grab-keyboard "exwm-input.el")
+(declare-function exwm-layout--iconic-state-p "exwm-layout.el" (&optional id))
+(declare-function exwm-workspace--count "exwm-workspace.el" ())
+(declare-function exwm-workspace--current-height "exwm-workspace.el")
+(declare-function exwm-workspace--current-width  "exwm-workspace.el")
+(declare-function exwm-workspace--set-desktop "exwm-workspace.el" (id))
+(declare-function exwm-workspace--set-fullscreen "exwm-workspace.el" (frame))
+(declare-function exwm-workspace--update-struts "exwm-workspace.el" ())
+(declare-function exwm-workspace--update-workareas "exwm-workspace.el" ())
+(declare-function exwm-workspace-move-window "exwm-workspace.el"
+                  (frame-or-index &optional id))
 
 (defun exwm-manage--update-geometry (id &optional force)
   "Update window geometry."
@@ -57,10 +106,6 @@ corresponding buffer.")
                                       :window id))))
         (when reply
           (setq exwm--ewmh-state (append (slot-value reply 'value) nil)))))))
-
-;; The _MOTIF_WM_HINTS atom (see <Xm/MwmUtil.h> for more details)
-;; It's currently only used in 'exwm-manage' module
-(defvar exwm-manage--_MOTIF_WM_HINTS nil "_MOTIF_WM_HINTS atom.")
 
 (defun exwm-manage--update-mwm-hints (id &optional force)
   "Update _MOTIF_WM_HINTS."
@@ -91,29 +136,6 @@ corresponding buffer.")
       (make-instance 'xcb:ewmh:set-_NET_CLIENT_LIST
                      :window exwm--root
                      :data (vconcat (mapcar #'car exwm--id-buffer-alist)))))
-
-(defvar exwm-workspace--current)
-(defvar exwm-workspace--switch-history-outdated)
-(defvar exwm-workspace-current-index)
-(defvar exwm-workspace--workareas)
-
-(declare-function exwm--update-window-type "exwm.el" (id &optional force))
-(declare-function exwm--update-class "exwm.el" (id &optional force))
-(declare-function exwm--update-transient-for "exwm.el" (id &optional force))
-(declare-function exwm--update-normal-hints "exwm.el" (id &optional force))
-(declare-function exwm--update-title "exwm.el" (id))
-(declare-function exwm--update-hints "exwm.el" (id &optional force))
-(declare-function exwm--update-protocols "exwm.el" (id &optional force))
-(declare-function exwm--update-struts "exwm.el" (id))
-(declare-function exwm-floating--set-floating "exwm-floating.el" (id))
-(declare-function exwm-floating--unset-floating "exwm-floating.el" (id))
-(declare-function exwm-input-grab-keyboard "exwm-input.el")
-(declare-function exwm-workspace--current-height "exwm-workspace.el")
-(declare-function exwm-workspace--current-width  "exwm-workspace.el")
-(declare-function exwm-workspace--set-desktop "exwm-workspace.el" (id))
-(declare-function exwm-workspace--count "exwm-workspace.el" ())
-(declare-function exwm-workspace-move-window "exwm-workspace.el"
-                  (frame-or-index &optional id))
 
 (defun exwm-manage--manage-window (id)
   "Manage window ID."
@@ -251,13 +273,6 @@ corresponding buffer.")
           (exwm-layout-set-fullscreen id))
         (run-hooks 'exwm-manage-finish-hook)))))
 
-(defvar exwm-workspace--id-struts-alist)
-(defvar exwm-workspace--list)
-
-(declare-function exwm-workspace--update-struts "exwm-workspace.el" ())
-(declare-function exwm-workspace--update-workareas "exwm-workspace.el" ())
-(declare-function exwm-workspace--set-fullscreen "exwm-workspace.el" (frame))
-
 (defun exwm-manage--unmanage-window (id &optional withdraw-only)
   "Unmanage window ID.
 
@@ -349,10 +364,6 @@ manager is shutting down."
                                :window i))
             (xcb:flush exwm--connection)
             (exwm-manage--manage-window i)))))))
-
-(defvar exwm-manage--ping-lock nil
-  "Non-nil indicates EXWM is pinging a window.")
-(defvar exwm-manage-ping-timeout 3 "Seconds to wait before killing a client.")
 
 (defun exwm-manage--kill-buffer-query-function ()
   "Run in `kill-buffer-query-functions'."
@@ -446,13 +457,6 @@ Would you like to kill it? "
                       `(lambda ()
                          (xcb:+request exwm--connection ,request))))
     (xcb:flush exwm--connection)))
-
-;; FIXME: Make the following values as small as possible.
-(defconst exwm-manage--width-delta-min 5)
-(defconst exwm-manage--height-delta-min 5)
-
-(defvar exwm-manage--frame-outer-id-list nil
-  "List of window-outer-id's of all frames.")
 
 (defun exwm-manage--add-frame (frame)
   "Run in `after-make-frame-functions'."
@@ -559,8 +563,6 @@ border-width: %d; sibling: #x%x; stack-mode: %d"
                                :sibling sibling
                                :stack-mode stack-mode)))))))
   (xcb:flush exwm--connection))
-
-(declare-function exwm-layout--iconic-state-p "exwm-layout.el" (&optional id))
 
 (defun exwm-manage--on-MapRequest (data _synthetic)
   "Handle MapRequest event."

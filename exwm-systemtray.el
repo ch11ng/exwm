@@ -50,22 +50,38 @@
    (owner :initarg :owner :type xcb:WINDOW))      ;new slot
   :documentation "A systemtray client message.")
 
+(defgroup exwm-systemtray nil
+  "System tray."
+  :version "25.3"
+  :group 'exwm)
+
+(defcustom exwm-systemtray-height nil
+  "System tray height.
+
+You shall use the default value if using auto-hide minibuffer."
+  :type 'integer)
+
+(defcustom exwm-systemtray-icon-gap 2
+  "Gap between icons."
+  :type 'integer)
+
 ;; GTK icons require at least 16 pixels to show normally.
 (defconst exwm-systemtray--icon-min-size 16 "Minimum icon size.")
 
-(defvar exwm-systemtray-height nil "System tray height.
-
-You shall use the default value if using auto-hide minibuffer.")
-
-(defvar exwm-systemtray-icon-gap 2 "Gap between icons.")
-
 (defvar exwm-systemtray--connection nil "The X connection.")
-(defvar exwm-systemtray--list nil "The icon list.")
-(defvar exwm-systemtray--selection-owner-window nil
-  "The selection owner window.")
+
 (defvar exwm-systemtray--embedder nil "The embedder window.")
 
+(defvar exwm-systemtray--list nil "The icon list.")
+
+(defvar exwm-systemtray--selection-owner-window nil
+  "The selection owner window.")
+
 (defvar exwm-workspace--current)
+(defvar exwm-workspace--minibuffer)
+(defvar exwm-workspace--workareas)
+(defvar exwm-workspace-current-index)
+(defvar xcb:Atom:_NET_SYSTEM_TRAY_S0)
 (declare-function exwm-workspace--current-height "exwm-workspace.el")
 (declare-function exwm-workspace--current-width  "exwm-workspace.el")
 (declare-function exwm-workspace--minibuffer-own-frame-p "exwm-workspace.el")
@@ -304,9 +320,6 @@ You shall use the default value if using auto-hide minibuffer.")
                        :event (xcb:marshal obj exwm-systemtray--connection))))
   (xcb:flush exwm-systemtray--connection))
 
-(defvar exwm-workspace--workareas)
-(defvar exwm-workspace-current-index)
-
 (defun exwm-systemtray--on-workspace-switch ()
   "Reparent/Refresh the system tray in `exwm-workspace-switch-hook'."
   (unless (exwm-workspace--minibuffer-own-frame-p)
@@ -338,9 +351,6 @@ You shall use the default value if using auto-hide minibuffer.")
 
 (defalias 'exwm-systemtray--on-struts-update
   #'exwm-systemtray--on-randr-refresh)
-
-(defvar xcb:Atom:_NET_SYSTEM_TRAY_S0)
-(defvar exwm-workspace--minibuffer)
 
 (cl-defun exwm-systemtray--init ()
   "Initialize system tray module."

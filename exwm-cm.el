@@ -21,7 +21,7 @@
 
 ;;; Commentary:
 
-;; This module is obsolete since EXWM now supports third-porty compositors.
+;; This module is obsolete since EXWM now supports third-party compositors.
 
 ;;; Code:
 

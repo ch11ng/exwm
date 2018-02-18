@@ -35,6 +35,32 @@
 (eval-and-compile
   (defvar exwm-debug-on nil "Non-nil to turn on debug for EXWM."))
 
+(defvar exwm--connection nil "X connection.")
+
+(defvar exwm--guide-window nil
+  "An X window separating workspaces and X windows.")
+
+(defvar exwm--id-buffer-alist nil "Alist of (<X window ID> . <Emacs buffer>).")
+
+(defvar exwm--root nil "Root window.")
+
+(defvar exwm-input--global-prefix-keys)
+(defvar exwm-input--simulation-prefix-keys)
+(defvar exwm-input-line-mode-passthrough)
+(defvar exwm-input-prefix-keys)
+(declare-function exwm-input--fake-key "exwm-input.el" (event))
+(declare-function exwm-input--on-KeyPress-line-mode "exwm-input.el"
+                  (key-press raw-data))
+(declare-function exwm-floating-hide "exwm-floating.el")
+(declare-function exwm-floating-toggle-floating "exwm-floating.el")
+(declare-function exwm-input-release-keyboard "exwm-input.el")
+(declare-function exwm-input-send-next-key "exwm-input.el" (times))
+(declare-function exwm-layout-set-fullscreen "exwm-layout.el" (&optional id))
+(declare-function exwm-layout-toggle-mode-line "exwm-layout.el")
+(declare-function exwm-manage--kill-buffer-query-function "exwm-manage.el")
+(declare-function exwm-workspace-move-window "exwm-workspace.el"
+                  (frame-or-index &optional id))
+
 (defmacro exwm--log (format-string &rest args)
   "Print debug message."
   (when exwm-debug-on
@@ -42,12 +68,6 @@
 
 (defmacro exwm--debug (&rest forms)
   (when exwm-debug-on `(progn ,@forms)))
-
-(defvar exwm--connection nil "X connection.")
-(defvar exwm--root nil "Root window.")
-(defvar exwm--id-buffer-alist nil "Alist of (<X window ID> . <Emacs buffer>).")
-(defvar exwm--guide-window nil
-  "An X window separating workspaces and X windows.")
 
 (defsubst exwm--id->buffer (id)
   "X window ID => Emacs buffer."
@@ -108,15 +128,6 @@ least SECS seconds later."
                                               xcb:EventMask:EnterWindow 0))
   "Event mask set on all managed windows.")
 
-(defvar exwm-input-line-mode-passthrough)
-(defvar exwm-input--global-prefix-keys)
-(defvar exwm-input-prefix-keys)
-(defvar exwm-input--simulation-prefix-keys)
-
-(declare-function exwm-input--fake-key "exwm-input.el" (event))
-(declare-function exwm-input--on-KeyPress-line-mode "exwm-input.el"
-                  (key-press raw-data))
-
 ;; Internal variables
 (defvar-local exwm--id nil)               ;window ID
 (defvar-local exwm--frame nil)            ;workspace frame
@@ -153,15 +164,6 @@ least SECS seconds later."
 (defvar-local exwm--hints-urgency nil)
 ;; _MOTIF_WM_HINTS
 (defvar-local exwm--mwm-hints-decorations t)
-
-(declare-function exwm-floating-hide "exwm-floating.el")
-(declare-function exwm-floating-toggle-floating "exwm-floating.el")
-(declare-function exwm-input-release-keyboard "exwm-input.el")
-(declare-function exwm-input-send-next-key "exwm-input.el" (times))
-(declare-function exwm-layout-set-fullscreen "exwm-layout.el" (&optional id))
-(declare-function exwm-layout-toggle-mode-line "exwm-layout.el")
-(declare-function exwm-workspace-move-window "exwm-workspace.el"
-                  (frame-or-index &optional id))
 
 (defvar exwm-mode-map
   (let ((map (make-sparse-keymap)))
@@ -263,8 +265,6 @@ least SECS seconds later."
                      (exwm-workspace-switch ,i))
                    (/= ,i exwm-workspace-current-index)])
                (number-sequence 0 (1- (exwm-workspace--count))))))))
-
-(declare-function exwm-manage--kill-buffer-query-function "exwm-manage.el")
 
 (define-derived-mode exwm-mode nil "EXWM"
   "Major mode for managing X windows.

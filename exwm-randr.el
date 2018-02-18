@@ -50,19 +50,42 @@
 (require 'xcb-randr)
 (require 'exwm-core)
 
-(defvar exwm-randr-workspace-output-plist nil)
+(defgroup exwm-randr nil
+  "RandR."
+  :version "25.3"
+  :group 'exwm)
 
-(defvar exwm-randr-refresh-hook nil
-  "Normal hook run when the RandR module just refreshed.")
+(defcustom exwm-randr-refresh-hook nil
+  "Normal hook run when the RandR module just refreshed."
+  :type 'hook)
+
+(defcustom exwm-randr-screen-change-hook nil
+  "Normal hook run when screen changes."
+  :type 'hook)
+
+(defcustom exwm-randr-workspace-output-plist nil
+  "Plist mapping workspace to output.
+
+If an output is not available, the workspaces mapped to it are displayed on
+the primary output until it becomes available.  Unspecified workspaces are
+all mapped to the primary output.  For example, with the following value
+workspace other than 1 and 3 would always be displayed on the primary output
+where workspace 1 and 3 would be displayed on their corresponding output
+whenever the outputs are available.
+
+  '(1 \"HDMI-1\" 3 \"DP-1\")
+
+The outputs available can be identified by running the 'xrandr' utility with
+the first one in result being the primary output."
+  :type '(plist :key-type integer :value-type string))
 
 (defvar exwm-workspace--fullscreen-frame-count)
 (defvar exwm-workspace--list)
-
 (declare-function exwm-workspace--count "exwm-workspace.el")
-(declare-function exwm-workspace--set-fullscreen "exwm-workspace.el" (frame))
-(declare-function exwm-workspace--update-workareas "exwm-workspace.el" ())
-(declare-function exwm-workspace--show-minibuffer "exwm-workspace.el" ())
 (declare-function exwm-workspace--set-desktop-geometry "exwm-workspace.el" ())
+(declare-function exwm-workspace--set-fullscreen "exwm-workspace.el" (frame))
+(declare-function exwm-workspace--show-minibuffer "exwm-workspace.el" ())
+(declare-function exwm-workspace--update-workareas "exwm-workspace.el" ())
 
 (defun exwm-randr--refresh ()
   "Refresh workspaces according to the updated RandR info."
@@ -121,9 +144,6 @@
       (exwm-workspace--set-desktop-geometry)
       (xcb:flush exwm--connection)
       (run-hooks 'exwm-randr-refresh-hook))))
-
-(defvar exwm-randr-screen-change-hook nil
-  "Normal hook run when screen changes.")
 
 (defun exwm-randr--init ()
   "Initialize RandR extension and EXWM RandR module."

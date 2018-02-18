@@ -29,22 +29,35 @@
 (require 'xcb-cursor)
 (require 'exwm-core)
 
-(defvar exwm-floating-border-width 1 "Border width of the floating window.")
-(defvar exwm-floating-border-color "navy"
-  "Border color of the floating window.")
-(defvar exwm-floating--border-pixel nil
-  "Border pixel drawn around floating X windows.")
+(defgroup exwm-floating nil
+  "Floating."
+  :version "25.3"
+  :group 'exwm)
+
+(defcustom exwm-floating-setup-hook nil
+  "Normal hook run when an X window has been made floating, in the
+context of the corresponding buffer."
+  :type 'hook)
+
+(defcustom exwm-floating-exit-hook nil
+  "Normal hook run when an X window has exited floating state, in the
+context of the corresponding buffer."
+  :type 'hook)
+
+(defcustom exwm-floating-border-color "navy"
+  "Border color of floating windows."
+  :type 'color)
+
+(defcustom exwm-floating-border-width 1
+  "Border width of floating windows."
+  :type 'integer)
+
 (defvar exwm-floating--border-colormap nil
   "Colormap used by the border pixel.
 
 This is also used by X window containers.")
-
-(defvar exwm-floating-setup-hook nil
-  "Normal hook run when an X window has been made floating, in the
-context of the corresponding buffer.")
-(defvar exwm-floating-exit-hook nil
-  "Normal hook run when an X window has exited floating state, in the
-context of the corresponding buffer.")
+(defvar exwm-floating--border-pixel nil
+  "Border pixel drawn around floating X windows.")
 
 ;; Cursors for moving/resizing a window
 (defvar exwm-floating--cursor-move nil)
@@ -56,6 +69,18 @@ context of the corresponding buffer.")
 (defvar exwm-floating--cursor-bottom nil)
 (defvar exwm-floating--cursor-bottom-left nil)
 (defvar exwm-floating--cursor-left nil)
+
+(defvar exwm-floating--moveresize-calculate nil
+  "Calculate move/resize parameters [buffer event-mask x y width height].")
+
+(defvar exwm-workspace--current)
+(defvar exwm-workspace--workareas)
+(declare-function exwm-layout--hide "exwm-layout.el" (id))
+(declare-function exwm-layout--iconic-state-p "exwm-layout.el" (&optional id))
+(declare-function exwm-layout--refresh "exwm-layout.el" ())
+(declare-function exwm-layout--show "exwm-layout.el" (id &optional window))
+(declare-function exwm-workspace--minibuffer-own-frame-p "exwm-workspace.el")
+(declare-function exwm-workspace--position "exwm-workspace.el" (frame))
 
 (defun exwm-floating--set-allowed-actions (id tilling)
   "Set _NET_WM_ALLOWED_ACTIONS."
@@ -73,16 +98,6 @@ context of the corresponding buffer.")
                                      xcb:Atom:_NET_WM_ACTION_FULLSCREEN
                                      xcb:Atom:_NET_WM_ACTION_CHANGE_DESKTOP
                                      xcb:Atom:_NET_WM_ACTION_CLOSE)))))
-
-(defvar exwm-workspace--current)
-(defvar exwm-workspace--workareas)
-
-(declare-function exwm-layout--refresh "exwm-layout.el" ())
-(declare-function exwm-layout--show "exwm-layout.el" (id &optional window))
-(declare-function exwm-layout--hide "exwm-layout.el" (id))
-(declare-function exwm-layout--iconic-state-p "exwm-layout.el" (&optional id))
-(declare-function exwm-workspace--minibuffer-own-frame-p "exwm-workspace.el")
-(declare-function exwm-workspace--position "exwm-workspace.el" (frame))
 
 (defun exwm-floating--set-floating (id)
   "Make window ID floating."
@@ -331,15 +346,15 @@ context of the corresponding buffer.")
     (run-hooks 'exwm-floating-exit-hook)))
 
 ;;;###autoload
-(defun exwm-floating-toggle-floating ()
+(cl-defun exwm-floating-toggle-floating ()
   "Toggle the current window between floating and non-floating states."
   (interactive)
+  (unless (derived-mode-p 'exwm-mode)
+    (cl-return-from 'exwm-floating-toggle-floating))
   (with-current-buffer (window-buffer)
     (if exwm--floating-frame
         (exwm-floating--unset-floating exwm--id)
       (exwm-floating--set-floating exwm--id))))
-
-(declare-function exwm-layout--set-state "exwm-layout.el" (id state))
 
 ;;;###autoload
 (defun exwm-floating-hide ()
@@ -349,14 +364,6 @@ context of the corresponding buffer.")
              exwm--floating-frame)
     (exwm-layout--hide exwm--id)
     (select-frame-set-input-focus exwm-workspace--current)))
-
-(define-obsolete-function-alias 'exwm-floating-hide-mode-line
-  'exwm-layout-hide-mode-line "25.1" "Hide mode-line of a floating frame.")
-(define-obsolete-function-alias 'exwm-floating-show-mode-line
-  'exwm-layout-show-mode-line "25.1" "Show mode-line of a floating frame.")
-
-(defvar exwm-floating--moveresize-calculate nil
-  "Calculate move/resize parameters [buffer event-mask x y width height].")
 
 (defun exwm-floating--start-moveresize (id &optional type)
   "Start move/resize."
