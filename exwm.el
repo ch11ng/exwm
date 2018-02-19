@@ -145,6 +145,32 @@
           (while (= ?R (shell-command-on-region (point) (point) args))))
         (kill-emacs))))))
 
+(defun exwm--update-desktop (xwin)
+  "Update _NET_WM_DESKTOP."
+  (with-current-buffer (exwm--id->buffer xwin)
+    (let ((reply (xcb:+request-unchecked+reply exwm--connection
+                     (make-instance 'xcb:ewmh:get-_NET_WM_DESKTOP
+                                    :window xwin)))
+          desktop)
+      (when reply
+        (setq desktop (slot-value reply 'value))
+        (cond
+         ((eq desktop #xffffffff)
+          (unless (or (not exwm--floating-frame)
+                      (eq exwm--frame exwm-workspace--current)
+                      (and exwm--desktop
+                           (= desktop exwm--desktop)))
+            (exwm-layout--show xwin (frame-root-window exwm--floating-frame)))
+          (setq exwm--desktop desktop))
+         ((and desktop
+               (< desktop (exwm-workspace--count))
+               (if exwm--desktop
+                   (/= desktop exwm--desktop)
+                 (/= desktop (exwm-workspace--position exwm--frame))))
+          (exwm-workspace-move-window desktop xwin))
+         (t
+          (exwm-workspace--set-desktop xwin)))))))
+
 (defun exwm--update-window-type (id &optional force)
   "Update _NET_WM_WINDOW_TYPE."
   (with-current-buffer (exwm--id->buffer id)

@@ -102,7 +102,9 @@
 (defun exwm-layout--hide (id)
   "Hide window ID."
   (with-current-buffer (exwm--id->buffer id)
-    (unless (exwm-layout--iconic-state-p) ;already hidden
+    (unless (or (exwm-layout--iconic-state-p)
+                (and exwm--floating-frame
+                     (eq #xffffffff exwm--desktop)))
       (exwm--log "Hide #x%x" id)
       (when exwm--floating-frame
         (let* ((container (frame-parameter exwm--floating-frame

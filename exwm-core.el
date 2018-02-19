@@ -139,6 +139,7 @@ least SECS seconds later."
 (defvar-local exwm--on-KeyPress         ;KeyPress event handler
   #'exwm-input--on-KeyPress-line-mode)
 ;; Properties
+(defvar-local exwm--desktop nil "_NET_WM_DESKTOP.")
 (defvar-local exwm-window-type nil "_NET_WM_WINDOW_TYPE.")
 (defvar-local exwm--geometry nil)
 (defvar-local exwm-class-name nil "Class name in WM_CLASS.")

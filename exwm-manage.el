@@ -73,6 +73,7 @@ You can still make the X windows floating afterwards."
 (declare-function exwm--update-struts "exwm.el" (id))
 (declare-function exwm--update-title "exwm.el" (id))
 (declare-function exwm--update-transient-for "exwm.el" (id &optional force))
+(declare-function exwm--update-desktop "exwm.el" (id &optional force))
 (declare-function exwm--update-window-type "exwm.el" (id &optional force))
 (declare-function exwm-floating--set-floating "exwm-floating.el" (id))
 (declare-function exwm-floating--unset-floating "exwm-floating.el" (id))
@@ -252,19 +253,7 @@ You can still make the X windows floating afterwards."
         (exwm-floating--unset-floating id))
       (exwm-input-grab-keyboard id)
       (setq exwm-workspace--switch-history-outdated t)
-      ;; Set _NET_WM_DESKTOP or move window.
-      (let ((reply (xcb:+request-unchecked+reply exwm--connection
-                       (make-instance 'xcb:ewmh:get-_NET_WM_DESKTOP
-                                      :window id)))
-            desktop)
-        (when reply
-          (setq desktop (slot-value reply 'value)))
-        (if (and desktop
-                 (/= desktop exwm-workspace-current-index)
-                 ;; Check the range.
-                 (< desktop (exwm-workspace--count)))
-            (exwm-workspace-move-window desktop id)
-          (exwm-workspace--set-desktop id)))
+      (exwm--update-desktop id)
       (exwm-manage--update-ewmh-state id)
       (with-current-buffer (exwm--id->buffer id)
         (when (memq xcb:Atom:_NET_WM_STATE_FULLSCREEN exwm--ewmh-state)

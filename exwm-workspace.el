@@ -685,10 +685,12 @@ INDEX must not exceed the current number of workspaces."
 (defun exwm-workspace--set-desktop (id)
   "Set _NET_WM_DESKTOP for X window ID."
   (with-current-buffer (exwm--id->buffer id)
-    (xcb:+request exwm--connection
-        (make-instance 'xcb:ewmh:set-_NET_WM_DESKTOP
-                       :window id
-                       :data (exwm-workspace--position exwm--frame)))))
+    (let ((desktop (exwm-workspace--position exwm--frame)))
+      (setq exwm--desktop desktop)
+      (xcb:+request exwm--connection
+          (make-instance 'xcb:ewmh:set-_NET_WM_DESKTOP
+                         :window id
+                         :data desktop)))))
 
 ;;;###autoload
 (defun exwm-workspace-move-window (frame-or-index &optional id)
