@@ -49,8 +49,6 @@
 (declare-function exwm-input-release-keyboard "exwm-input.el")
 (declare-function exwm-workspace--client-p "exwm-workspace.el"
                   (&optional frame))
-(declare-function exwm-workspace--current-height "exwm-workspace.el")
-(declare-function exwm-workspace--current-width  "exwm-workspace.el")
 (declare-function exwm-workspace--minibuffer-own-frame-p "exwm-workspace.el")
 (declare-function exwm-workspace--workspace-p "exwm-workspace.el"
                   (workspace))
@@ -137,11 +135,8 @@
     (cl-return-from 'exwm-layout-set-fullscreen))
   (with-current-buffer (if id (exwm--id->buffer id) (window-buffer))
     ;; Expand the X window to fill the whole screen.
-    ;; Rationale: Floating X windows may not be positioned at (0, 0)
-    ;; due to the extra border.
-    (exwm--set-geometry exwm--id 0 0
-                        (exwm-workspace--current-width)
-                        (exwm-workspace--current-height))
+    (with-slots (x y width height) (exwm-workspace--get-geometry exwm--frame)
+      (exwm--set-geometry exwm--id x y width height))
     ;; Raise the X window.
     (xcb:+request exwm--connection
         (make-instance 'xcb:ConfigureWindow

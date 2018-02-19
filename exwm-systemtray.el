@@ -82,8 +82,6 @@ You shall use the default value if using auto-hide minibuffer."
 (defvar exwm-workspace--workareas)
 (defvar exwm-workspace-current-index)
 (defvar xcb:Atom:_NET_SYSTEM_TRAY_S0)
-(declare-function exwm-workspace--current-height "exwm-workspace.el")
-(declare-function exwm-workspace--current-width  "exwm-workspace.el")
 (declare-function exwm-workspace--minibuffer-own-frame-p "exwm-workspace.el")
 
 (defun exwm-systemtray--embed (icon)
@@ -205,13 +203,15 @@ You shall use the default value if using auto-hide minibuffer."
         (setq x (+ x (slot-value (cdr pair) 'width)
                    exwm-systemtray-icon-gap))
         (setq map t)))
-    (xcb:+request exwm-systemtray--connection
-        (make-instance 'xcb:ConfigureWindow
-                       :window exwm-systemtray--embedder
-                       :value-mask (logior xcb:ConfigWindow:X
-                                           xcb:ConfigWindow:Width)
-                       :x (- (exwm-workspace--current-width) x)
-                       :width x))
+    (let ((workarea (elt exwm-workspace--workareas
+                         exwm-workspace-current-index)))
+      (xcb:+request exwm-systemtray--connection
+          (make-instance 'xcb:ConfigureWindow
+                         :window exwm-systemtray--embedder
+                         :value-mask (logior xcb:ConfigWindow:X
+                                             xcb:ConfigWindow:Width)
+                         :x (- (aref workarea 2) x)
+                         :width x)))
     (when map
       (xcb:+request exwm-systemtray--connection
           (make-instance 'xcb:MapWindow :window exwm-systemtray--embedder))))
@@ -434,9 +434,11 @@ You shall use the default value if using auto-hide minibuffer."
                     (- (line-pixel-height) exwm-systemtray-height)
                   ;; Vertically centered.
                   (/ (- (line-pixel-height) exwm-systemtray-height) 2)))
-      (setq frame exwm-workspace--current
-            ;; Bottom aligned.
-            y (- (exwm-workspace--current-height) exwm-systemtray-height)))
+      (let ((workarea (elt exwm-workspace--workareas
+                           exwm-workspace-current-index)))
+        (setq frame exwm-workspace--current
+              ;; Bottom aligned.
+              y (- (aref workarea 3) exwm-systemtray-height))))
     (setq parent (string-to-number (frame-parameter frame 'window-id))
           depth (slot-value (xcb:+request-unchecked+reply
                                 exwm-systemtray--connection

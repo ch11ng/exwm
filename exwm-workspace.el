@@ -273,14 +273,6 @@ NIL if FRAME is not a workspace"
                      :height (x-display-pixel-height))))
 
 ;;;###autoload
-(defun exwm-workspace--current-width ()
-  "Return the width of current workspace."
-  (let ((geometry (frame-parameter exwm-workspace--current 'exwm-geometry)))
-    (if geometry
-        (slot-value geometry 'width)
-      (x-display-pixel-width))))
-
-;;;###autoload
 (defun exwm-workspace--current-height ()
   "Return the height of current workspace."
   (let ((geometry (frame-parameter exwm-workspace--current 'exwm-geometry)))
@@ -536,14 +528,23 @@ for internal use only."
         ;; Set a default minibuffer frame.
         (setq default-minibuffer-frame frame))
       ;; Show/Hide X windows.
-      (dolist (i exwm--id-buffer-alist)
-        (with-current-buffer (cdr i)
-          (if (eq old-frame exwm--frame)
-              (exwm-layout--hide exwm--id)
-            (when (eq frame exwm--frame)
-              (let ((window (get-buffer-window nil t)))
-                (when window
-                  (exwm-layout--show exwm--id window)))))))
+      (let ((hide-x-windows-on-old-frame
+             (with-slots ((x1 x)
+                          (y1 y))
+                 (exwm-workspace--get-geometry frame)
+               (with-slots ((x2 x)
+                            (y2 y))
+                   (exwm-workspace--get-geometry old-frame)
+                 (and (= x1 x2) (= y1 y2))))))
+        (dolist (i exwm--id-buffer-alist)
+          (with-current-buffer (cdr i)
+            (if (eq old-frame exwm--frame)
+                (when hide-x-windows-on-old-frame
+                  (exwm-layout--hide exwm--id))
+              (when (eq frame exwm--frame)
+                (let ((window (get-buffer-window nil t)))
+                  (when window
+                    (exwm-layout--show exwm--id window))))))))
       ;; Hide windows in other workspaces by preprending a space
       (unless exwm-workspace-show-all-buffers
         (dolist (i exwm--id-buffer-alist)
@@ -553,6 +554,8 @@ for internal use only."
               (exwm-workspace-rename-buffer (if (eq frame exwm--frame)
                                                 name
                                               (concat " " name)))))))
+      ;; Update frame's timestamp.
+      (set-frame-parameter frame 'exwm-timestamp (float-time))
       ;; Update demands attention flag
       (set-frame-parameter frame 'exwm-urgency nil)
       ;; Update switch workspace history
@@ -700,7 +703,7 @@ INDEX must not exceed the current number of workspaces."
                       (exwm-workspace--prompt-delete-allowed t))
                   (exwm-workspace--prompt-for-workspace "Move to [+/-]: "))))
   (let ((frame (exwm-workspace--workspace-from-frame-or-index frame-or-index))
-        old-frame container)
+        x-old y-old x-new y-new should-hide old-frame container)
     (unless id (setq id (exwm--buffer->id (window-buffer))))
     (with-current-buffer (exwm--id->buffer id)
       (unless (eq exwm--frame frame)
@@ -712,6 +715,36 @@ INDEX must not exceed the current number of workspaces."
                (concat " " name)))))
         (setq old-frame exwm--frame
               exwm--frame frame)
+        ;; Save the positions of new & old frames.
+        (with-slots ((x1 x)
+                     (y1 y))
+            (exwm-workspace--get-geometry old-frame)
+          (with-slots ((x2 x)
+                       (y2 y))
+              (exwm-workspace--get-geometry frame)
+            (setq x-old x1
+                  y-old y1
+                  x-new x2
+                  y-new y2)))
+        (if (and (= x-old x-new)
+                 (= y-old y-new))
+            ;; Switch to a workspace on the same output.
+            (setq should-hide t)
+          ;; Check if this frame has the largest timestamp of that output.
+          (let ((timestamp (frame-parameter frame 'exwm-timestamp))
+                (timestamp-active
+                 (apply #'max
+                        (mapcar (lambda (w)
+                                  (with-slots (x y)
+                                      (exwm-workspace--get-geometry w)
+                                    (if (and (= x x-new)
+                                             (= y y-new))
+                                        (frame-parameter w 'exwm-timestamp)
+                                      -1)))
+                                exwm-workspace--list))))
+            (when (< timestamp timestamp-active)
+              ;; Switch to a workspace not active on another output.
+              (setq should-hide t))))
         (if (not exwm--floating-frame)
             ;; Tiling.
             (progn
@@ -724,31 +757,27 @@ INDEX must not exceed the current number of workspaces."
                                  (exwm--id->buffer id))
               (if (eq frame exwm-workspace--current)
                   (select-window (frame-selected-window frame))
-                (exwm-layout--hide id)))
+                (when should-hide
+                  (exwm-layout--hide id))))
           ;; Floating.
           (setq container (frame-parameter exwm--floating-frame
                                            'exwm-container))
-          (with-slots ((x1 x)
-                       (y1 y))
-              (exwm-workspace--get-geometry old-frame)
-            (with-slots ((x2 x)
-                         (y2 y))
-                (exwm-workspace--get-geometry frame)
-              (unless (and (= x1 x2)
-                           (= y1 y2))
-                (with-slots (x y)
-                    (xcb:+request-unchecked+reply exwm--connection
-                        (make-instance 'xcb:GetGeometry
-                                       :drawable container))
-                  (setq x (+ x (- x2 x1))
-                        y (+ y (- y2 y1)))
-                  (exwm--set-geometry id x y nil nil)
-                  (exwm--set-geometry container x y nil nil)))))
+          (unless (and (= x-old x-new)
+                       (= y-old y-new))
+            (with-slots (x y)
+                (xcb:+request-unchecked+reply exwm--connection
+                    (make-instance 'xcb:GetGeometry
+                                   :drawable container))
+              (setq x (+ x (- x-new x-old))
+                    y (+ y (- y-new y-old)))
+              (exwm--set-geometry id x y nil nil)
+              (exwm--set-geometry container x y nil nil)))
           (if (exwm-workspace--minibuffer-own-frame-p)
               (if (eq frame exwm-workspace--current)
                   (select-window (frame-root-window exwm--floating-frame))
                 (select-window (frame-selected-window exwm-workspace--current))
-                (exwm-layout--hide id))
+                (when should-hide
+                  (exwm-layout--hide id)))
             ;; The frame needs to be recreated since it won't use the
             ;; minibuffer on the new workspace.
             ;; The code is mostly copied from `exwm-floating--set-floating'.
@@ -808,7 +837,8 @@ INDEX must not exceed the current number of workspaces."
               (if (eq frame exwm-workspace--current)
                   (with-current-buffer (exwm--id->buffer id)
                     (select-window (frame-root-window exwm--floating-frame)))
-                (exwm-layout--hide id))))
+                (when should-hide
+                  (exwm-layout--hide id)))))
           ;; Update the 'exwm-selected-window' frame parameter.
           (when (not (eq frame exwm-workspace--current))
             (with-current-buffer (exwm--id->buffer id)
@@ -1486,7 +1516,8 @@ applied to all subsequently created X frames."
   ;; Prevent frame parameters introduced by this module from being
   ;; saved/restored.
   (dolist (i '(exwm-outer-id exwm-id exwm-container exwm-geometry
-                             fullscreen exwm-selected-window exwm-urgency))
+                             exwm-selected-window exwm-timestamp exwm-urgency
+                             fullscreen))
     (push (cons i :never) frameset-filter-alist)))
 
 (defun exwm-workspace--exit ()

@@ -65,6 +65,7 @@ You can still make the X windows floating afterwards."
 (defvar exwm-workspace--id-struts-alist)
 (defvar exwm-workspace--list)
 (defvar exwm-workspace--switch-history-outdated)
+(defvar exwm-workspace--workareas)
 (defvar exwm-workspace-current-index)
 (declare-function exwm--update-class "exwm.el" (id &optional force))
 (declare-function exwm--update-hints "exwm.el" (id &optional force))
@@ -80,8 +81,7 @@ You can still make the X windows floating afterwards."
 (declare-function exwm-input-grab-keyboard "exwm-input.el")
 (declare-function exwm-layout--iconic-state-p "exwm-layout.el" (&optional id))
 (declare-function exwm-workspace--count "exwm-workspace.el" ())
-(declare-function exwm-workspace--current-height "exwm-workspace.el")
-(declare-function exwm-workspace--current-width  "exwm-workspace.el")
+(declare-function exwm-workspace--position "exwm-workspace.el" (frame))
 (declare-function exwm-workspace--set-desktop "exwm-workspace.el" (id))
 (declare-function exwm-workspace--set-fullscreen "exwm-workspace.el" (frame))
 (declare-function exwm-workspace--update-struts "exwm-workspace.el" ())
@@ -204,11 +204,17 @@ You can still make the X windows floating afterwards."
         (with-slots (x y width height) exwm--geometry
           ;; Center window of type _NET_WM_WINDOW_TYPE_SPLASH
           (when (memq xcb:Atom:_NET_WM_WINDOW_TYPE_SPLASH exwm-window-type)
-            (exwm--set-geometry id
-                                (/ (- (exwm-workspace--current-width) width) 2)
-                                (/ (- (exwm-workspace--current-height) height)
-                                   2)
-                                nil nil)))
+            (let* ((workarea (elt exwm-workspace--workareas
+                                  (exwm-workspace--position exwm--frame)))
+                   (x* (aref workarea 0))
+                   (y* (aref workarea 1))
+                   (width* (aref workarea 2))
+                   (height* (aref workarea 3)))
+              (exwm--set-geometry id
+                                  (+ x* (/ (- width* width) 2))
+                                  (+ y* (/ (- height* height) 2))
+                                  nil
+                                  nil))))
         ;; Check for desktop.
         (when (memq xcb:Atom:_NET_WM_WINDOW_TYPE_DESKTOP exwm-window-type)
           ;; There should be only one desktop X window.
@@ -501,9 +507,9 @@ border-width: %d; sibling: #x%x; stack-mode: %d"
           (with-current-buffer buffer
             (setq edges
                   (if (memq xcb:Atom:_NET_WM_STATE_FULLSCREEN exwm--ewmh-state)
-                      (list 0 0
-                            (exwm-workspace--current-width)
-                            (exwm-workspace--current-height))
+                      (with-slots (x y width height)
+                          (exwm-workspace--get-geometry exwm--frame)
+                        (list x y width height))
                     (window-inside-absolute-pixel-edges
                      (get-buffer-window buffer t))))
             (exwm--log "Reply with ConfigureNotify (edges): %s" edges)

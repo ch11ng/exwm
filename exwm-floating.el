@@ -129,52 +129,22 @@ This is also used by X window containers.")
          (y (slot-value exwm--geometry 'y))
          (width (slot-value exwm--geometry 'width))
          (height (slot-value exwm--geometry 'height)))
-    (exwm--log "Floating geometry (original, absolute): %dx%d%+d%+d"
-               width height x y)
-    (when (and (/= x 0)
-               (/= y 0))
-      (let ((workarea (elt exwm-workspace--workareas
-                           (exwm-workspace--position original-frame))))
-        (setq x (- x (aref workarea 0))
-              y (- y (aref workarea 1)))))
-    (exwm--log "Floating geometry (original, relative): %dx%d%+d%+d"
-               width height x y)
+    (exwm--log "Floating geometry (original): %dx%d%+d%+d" width height x y)
     ;; Save frame parameters.
     (set-frame-parameter frame 'exwm-outer-id outer-id)
     (set-frame-parameter frame 'exwm-id window-id)
     (set-frame-parameter frame 'exwm-container frame-container)
     ;; Fix illegal parameters
     ;; FIXME: check normal hints restrictions
-    (let* ((display-width (frame-pixel-width original-frame))
-           (display-height (- (frame-pixel-height original-frame)
-                              (if (exwm-workspace--minibuffer-own-frame-p)
-                                  0
-                                (window-pixel-height (minibuffer-window
-                                                      original-frame)))
-                              (* 2 (window-mode-line-height))
-                              (window-header-line-height window)))
-           (display-height (* 2 (/ display-height 2)))) ;round to even
-      (if (> width display-width)
-          ;; Too wide
-          (progn (setq x 0
-                       width display-width))
-        ;; Invalid width
-        (when (= 0 width) (setq width (/ display-width 2)))
-        ;; Make sure at least half of the window is visible
-        (when (or (> (+ x (/ width 2)) display-width) (> 0 (+ x (/ width 2))))
-          (setq x (/ (- display-width width) 2))))
-      (if (> height display-height)
-          ;; Too tall
-          (setq y 0
-                height display-height)
-        ;; Invalid height
-        (when (= 0 height) (setq height (/ display-height 2)))
-        ;; Make sure at least half of the window is visible
-        (when (or (> (+ y (/ height 2)) display-height)
-                  (> 0 (+ y (/ height 2))))
-          (setq y (/ (- display-height height) 2))))
+    (let* ((workarea (elt exwm-workspace--workareas
+                          (exwm-workspace--position original-frame)))
+           (x* (aref workarea 0))
+           (y* (aref workarea 1))
+           (width* (aref workarea 2))
+           (height* (aref workarea 3)))
       ;; Center floating windows
-      (when (and (= x 0) (= y 0))
+      (when (and (or (= x 0) (= x x*))
+                 (or (= y 0) (= y y*)))
         (let ((buffer (exwm--id->buffer exwm-transient-for))
               window edges)
           (when (and buffer (setq window (get-buffer-window buffer)))
@@ -184,11 +154,29 @@ This is also used by X window containers.")
               (setq edges nil)))
           (if edges
               ;; Put at the center of leading window
-              (setq x (/ (- (elt edges 2) (elt edges 0) width) 2)
-                    y (/ (- (elt edges 3) (elt edges 1) height) 2))
+              (setq x (+ x* (/ (- (elt edges 2) (elt edges 0) width) 2))
+                    y (+ y* (/ (- (elt edges 3) (elt edges 1) height) 2)))
             ;; Put at the center of screen
-            (setq x (/ (- display-width width) 2)
-                  y (/ (- display-height height) 2))))))
+            (setq x (/ (- width* width) 2)
+                  y (/ (- height* height) 2)))))
+      (if (> width width*)
+          ;; Too wide
+          (progn (setq x x*
+                       width width*))
+        ;; Invalid width
+        (when (= 0 width) (setq width (/ width* 2)))
+        ;; Make sure at least half of the window is visible
+        (unless (< x* (+ x (/ width 2)) (+ x* width*))
+          (setq x (+ x* (/ (- width* width) 2)))))
+      (if (> height height*)
+          ;; Too tall
+          (setq y y*
+                height height*)
+        ;; Invalid height
+        (when (= 0 height) (setq height (/ height* 2)))
+        ;; Make sure at least half of the window is visible
+        (unless (< y* (+ y (/ height 2)) (+ y* height*))
+          (setq y (+ y* (/ (- height* height) 2))))))
     (exwm--set-geometry id x y nil nil)
     (xcb:flush exwm--connection)
     (exwm--log "Floating geometry (corrected): %dx%d%+d%+d" width height x y)
