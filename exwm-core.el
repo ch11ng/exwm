@@ -45,7 +45,7 @@
 (defvar exwm--root nil "Root window.")
 
 (defvar exwm-input--global-prefix-keys)
-(defvar exwm-input--simulation-prefix-keys)
+(defvar exwm-input--simulation-keys)
 (defvar exwm-input-line-mode-passthrough)
 (defvar exwm-input-prefix-keys)
 (declare-function exwm-input--fake-key "exwm-input.el" (event))
@@ -189,7 +189,7 @@ least SECS seconds later."
               (active-minibuffer-window)
               (memq last-input-event exwm-input--global-prefix-keys)
               (memq last-input-event exwm-input-prefix-keys)
-              (memq last-input-event exwm-input--simulation-prefix-keys))
+              (gethash last-input-event exwm-input--simulation-keys))
           (set-transient-map (make-composed-keymap (list exwm-mode-map
                                                          global-map)))
           (push last-input-event unread-command-events))
@@ -229,19 +229,20 @@ least SECS seconds later."
     ;; This is merely a reference.
     ("Send simulation key" :filter
      (lambda (&rest _args)
-       (mapcar (lambda (i)
-                 (let ((keys (cdr i)))
-                   (if (vectorp keys)
-                       (setq keys (append keys))
-                     (unless (sequencep keys)
-                       (setq keys (list keys))))
-                   (vector (key-description keys)
-                           `(lambda ()
-                              (interactive)
-                              (dolist (key ',keys)
-                                (exwm-input--fake-key key)))
-                           :keys (key-description (car i)))))
-               exwm-input--simulation-keys)))
+       (let (result)
+         (maphash
+          (lambda (key value)
+            (when (sequencep key)
+              (setq result (append result
+                                   `([
+                                      ,(key-description value)
+                                      (lambda ()
+                                        (interactive)
+                                        (dolist (i ',value)
+                                          (exwm-input--fake-key i)))
+                                      :keys ,(key-description key)])))))
+          exwm-input--simulation-keys)
+         result)))
 
     ["Define global binding" exwm-input-set-key]
 

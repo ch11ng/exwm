@@ -113,9 +113,6 @@
 
 (defvar exwm-input--simulation-keys nil "Simulation keys in line-mode.")
 
-(defvar exwm-input--simulation-prefix-keys nil
-  "List of prefix keys of simulation keys in line-mode.")
-
 (defvar exwm-input--temp-line-mode nil
   "Non-nil indicates it's in temporary line-mode for char-mode.")
 
@@ -537,7 +534,7 @@ called interactively.  Only invoke it non-interactively in configuration."
                      ;;
                      (memq event exwm-input--global-prefix-keys)
                      (memq event exwm-input-prefix-keys)
-                     (memq event exwm-input--simulation-prefix-keys)))
+                     (gethash event exwm-input--simulation-keys)))
         (setq mode xcb:Allow:AsyncKeyboard)
         (exwm-input--cache-event event))
       (unless mode
@@ -733,50 +730,111 @@ multiple keys."
 ;;   (unless (listp last-input-event)      ;not a key event
 ;;     (exwm-input--fake-key last-input-event)))
 
-(defun exwm-input--update-simulation-prefix-keys ()
-  "Update the list of prefix keys of simulation keys."
-  (setq exwm-input--simulation-prefix-keys nil)
-  (dolist (i exwm-input--simulation-keys)
-    (if exwm-input--local-simulation-keys
-        (local-set-key (car i) #'exwm-input-send-simulation-key)
-      (define-key exwm-mode-map (car i) #'exwm-input-send-simulation-key))
-    (cl-pushnew (elt (car i) 0) exwm-input--simulation-prefix-keys)))
-
 (defun exwm-input-set-simulation-keys (simulation-keys)
   "Set simulation keys.
 
-SIMULATION-KEYS is an alist of the form (original-key . simulated-key)."
-  (setq exwm-input--simulation-keys nil)
+SIMULATION-KEYS is an alist of the form (original-key . simulated-key),
+where both original-key and simulated-key are key sequences.
+
+Simulation keys set this way take effect in real time.  For configuration
+it's recommended to customize or set `exwm-input-simulation-keys' instead."
+  ;; Clear keymaps and the hash table.
+  (when (hash-table-p exwm-input--simulation-keys)
+    (maphash (lambda (key _value)
+               (when (sequencep key)
+                 (if exwm-input--local-simulation-keys
+                     (local-unset-key key)
+                   (define-key exwm-mode-map key nil))))
+             exwm-input--simulation-keys)
+    (clrhash exwm-input--simulation-keys))
+  ;; Update the hash table.
+  (setq exwm-input--simulation-keys (make-hash-table :test #'equal))
   (dolist (i simulation-keys)
-    (cl-pushnew `(,(vconcat (car i)) . ,(cdr i)) exwm-input--simulation-keys))
-  (exwm-input--update-simulation-prefix-keys))
+    (let ((original (vconcat (car i)))
+          (simulated (cdr i)))
+      (setq simulated (if (sequencep simulated)
+                          (append simulated nil)
+                        (list simulated)))
+      ;; The key stored is a key sequence (vector).
+      ;; The value stored is a list of key events.
+      (puthash original simulated exwm-input--simulation-keys)
+      ;; Also mark the prefix key as used.
+      (puthash (aref original 0) t exwm-input--simulation-keys)))
+  ;; Update keymaps.
+  (maphash (lambda (key _value)
+             (when (sequencep key)
+               (if exwm-input--local-simulation-keys
+                   (local-set-key key #'exwm-input-send-simulation-key)
+                 (define-key exwm-mode-map key
+                   #'exwm-input-send-simulation-key))))
+           exwm-input--simulation-keys))
+
+(defcustom exwm-input-simulation-keys nil
+  "Simulation keys.
+
+It is an alist of the form (original-key . simulated-key), where both
+original-key and simulated-key are key sequences.  Original-key is what you
+type to an X window in line-mode which then gets translated to simulated-key
+by EXWM and forwarded to the X window.
+
+Notes:
+* Setting the value directly (rather than customizing it) after EXWM
+  finishes initialization has no effect.
+* Original-keys consist of multiple key events are only supported in Emacs
+  27 and later.
+* A minority of applications do not accept simulated keys by default.  It's
+  required to customize them to accept events sent by SendEvent.
+* The predefined examples in the Customize interface are not guaranteed to
+  work for all applications.  This can be tweaked on a per application basis
+  with `exwm-input-set-local-simulation-keys'."
+  :type '(alist :key-type (choice (key-sequence :tag "Original"))
+                :value-type (choice (key-sequence :tag "Move left" [left])
+                                    (key-sequence :tag "Move right" [right])
+                                    (key-sequence :tag "Move up" [up])
+                                    (key-sequence :tag "Move down" [down])
+                                    (key-sequence :tag "Move to BOL" [home])
+                                    (key-sequence :tag "Move to EOL" [end])
+                                    (key-sequence :tag "Page up" [prior])
+                                    (key-sequence :tag "Page down" [next])
+                                    (key-sequence :tag "Copy" [C-c])
+                                    (key-sequence :tag "Paste" [C-v])
+                                    (key-sequence :tag "Delete" [delete])
+                                    (key-sequence :tag "Delete to EOL"
+                                                  [S-end delete])
+                                    (key-sequence :tag "User-defined")))
+  :set (lambda (symbol value)
+         (set symbol value)
+         (exwm-input-set-simulation-keys value)))
+
+(defun exwm-input--unset-simulation-keys ()
+  "Clear simulation keys and key bindings defined."
+  (when (hash-table-p exwm-input--simulation-keys)
+    (maphash (lambda (key _value)
+               (when (sequencep key)
+                 (define-key exwm-mode-map key nil)))
+             exwm-input--simulation-keys)
+    (clrhash exwm-input--simulation-keys)))
 
 (defun exwm-input-set-local-simulation-keys (simulation-keys)
   "Set buffer-local simulation keys.
 
 Its usage is the same with `exwm-input-set-simulation-keys'."
   (make-local-variable 'exwm-input--simulation-keys)
-  (make-local-variable 'exwm-input--simulation-prefix-keys)
   (use-local-map (copy-keymap exwm-mode-map))
   (let ((exwm-input--local-simulation-keys t))
     (exwm-input-set-simulation-keys simulation-keys)))
 
 ;;;###autoload
 (cl-defun exwm-input-send-simulation-key (times)
-  "Fake a key event according to the last input key sequence.
-
-Sending multiple fake keys at once is only supported by Emacs 27 and later."
+  "Fake a key event according to the last input key sequence."
   (interactive "p")
   (unless (derived-mode-p 'exwm-mode)
     (cl-return-from 'exwm-input-send-simulation-key))
-  (let ((pair (assoc (this-single-command-keys) exwm-input--simulation-keys)))
-    (when pair
-      (setq pair (cdr pair))
-      (unless (listp pair)
-        (setq pair (list pair)))
-      (dotimes (_ times)
-        (dolist (j pair)
-          (exwm-input--fake-key j))))))
+  (let ((keys (gethash (this-single-command-keys)
+                       exwm-input--simulation-keys)))
+    (dotimes (_ times)
+      (dolist (key keys)
+        (exwm-input--fake-key key)))))
 
 (defun exwm-input--on-pre-command ()
   "Run in `pre-command-hook'."
@@ -814,6 +872,9 @@ Sending multiple fake keys at once is only supported by Emacs 27 and later."
                                          :name-len (length atom)
                                          :name atom))
                       'atom)))
+  ;; Initialize simulation keys.
+  (when exwm-input-simulation-keys
+    (exwm-input-set-simulation-keys exwm-input-simulation-keys))
   ;; Attach event listeners
   (xcb:+event exwm--connection 'xcb:PropertyNotify
               #'exwm-input--on-PropertyNotify)
@@ -841,6 +902,7 @@ Sending multiple fake keys at once is only supported by Emacs 27 and later."
 
 (defun exwm-input--exit ()
   "Exit the input module."
+  (exwm-input--unset-simulation-keys)
   (remove-hook 'pre-command-hook #'exwm-input--on-pre-command)
   (remove-hook 'post-command-hook #'exwm-input--on-post-command)
   (remove-hook 'buffer-list-update-hook #'exwm-input--on-buffer-list-update)
