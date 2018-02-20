@@ -528,18 +528,14 @@ for internal use only."
         ;; Set a default minibuffer frame.
         (setq default-minibuffer-frame frame))
       ;; Show/Hide X windows.
-      (let ((hide-x-windows-on-old-frame
-             (with-slots ((x1 x)
-                          (y1 y))
-                 (exwm-workspace--get-geometry frame)
-               (with-slots ((x2 x)
-                            (y2 y))
-                   (exwm-workspace--get-geometry old-frame)
-                 (and (= x1 x2) (= y1 y2))))))
+      (let ((hide-old-workspace
+             (and old-frame
+                  (eq (frame-parameter old-frame 'exwm-randr-output)
+                      (frame-parameter frame 'exwm-randr-output)))))
         (dolist (i exwm--id-buffer-alist)
           (with-current-buffer (cdr i)
             (if (eq old-frame exwm--frame)
-                (when hide-x-windows-on-old-frame
+                (when hide-old-workspace
                   (exwm-layout--hide exwm--id))
               (when (eq frame exwm--frame)
                 (let ((window (get-buffer-window nil t)))
@@ -703,7 +699,7 @@ INDEX must not exceed the current number of workspaces."
                       (exwm-workspace--prompt-delete-allowed t))
                   (exwm-workspace--prompt-for-workspace "Move to [+/-]: "))))
   (let ((frame (exwm-workspace--workspace-from-frame-or-index frame-or-index))
-        x-old y-old x-new y-new should-hide old-frame container)
+        should-hide old-frame container)
     (unless id (setq id (exwm--buffer->id (window-buffer))))
     (with-current-buffer (exwm--id->buffer id)
       (unless (eq exwm--frame frame)
@@ -715,33 +711,23 @@ INDEX must not exceed the current number of workspaces."
                (concat " " name)))))
         (setq old-frame exwm--frame
               exwm--frame frame)
-        ;; Save the positions of new & old frames.
-        (with-slots ((x1 x)
-                     (y1 y))
-            (exwm-workspace--get-geometry old-frame)
-          (with-slots ((x2 x)
-                       (y2 y))
-              (exwm-workspace--get-geometry frame)
-            (setq x-old x1
-                  y-old y1
-                  x-new x2
-                  y-new y2)))
-        (if (and (= x-old x-new)
-                 (= y-old y-new))
+        (if (eq (frame-parameter old-frame 'exwm-randr-output)
+                (frame-parameter frame 'exwm-randr-output))
             ;; Switch to a workspace on the same output.
             (setq should-hide t)
           ;; Check if this frame has the largest timestamp of that output.
-          (let ((timestamp (frame-parameter frame 'exwm-timestamp))
-                (timestamp-active
-                 (apply #'max
-                        (mapcar (lambda (w)
-                                  (with-slots (x y)
-                                      (exwm-workspace--get-geometry w)
-                                    (if (and (= x x-new)
-                                             (= y y-new))
-                                        (frame-parameter w 'exwm-timestamp)
-                                      -1)))
-                                exwm-workspace--list))))
+          (let* ((timestamp (frame-parameter frame 'exwm-timestamp))
+                 (output (frame-parameter frame 'exwm-randr-output))
+                 (timestamp-active
+                  (apply #'max
+                         (mapcar
+                          (lambda (w)
+                            (or (when (eq output
+                                          (frame-parameter w
+                                                           'exwm-randr-output))
+                                  (frame-parameter w 'exwm-timestamp))
+                                -1))
+                          exwm-workspace--list))))
             (when (< timestamp timestamp-active)
               ;; Switch to a workspace not active on another output.
               (setq should-hide t))))
@@ -762,14 +748,20 @@ INDEX must not exceed the current number of workspaces."
           ;; Floating.
           (setq container (frame-parameter exwm--floating-frame
                                            'exwm-container))
-          (unless (and (= x-old x-new)
-                       (= y-old y-new))
+          (unless (eq (frame-parameter old-frame 'exwm-randr-output)
+                      (frame-parameter frame 'exwm-randr-output))
             (with-slots (x y)
                 (xcb:+request-unchecked+reply exwm--connection
                     (make-instance 'xcb:GetGeometry
                                    :drawable container))
-              (setq x (+ x (- x-new x-old))
-                    y (+ y (- y-new y-old)))
+              (with-slots ((x1 x)
+                           (y1 y))
+                  (exwm-workspace--get-geometry old-frame)
+                (with-slots ((x2 x)
+                             (y2 y))
+                    (exwm-workspace--get-geometry frame)
+                  (setq x (+ x (- x2 x1))
+                        y (+ y (- y2 y1)))))
               (exwm--set-geometry id x y nil nil)
               (exwm--set-geometry container x y nil nil)))
           (if (exwm-workspace--minibuffer-own-frame-p)

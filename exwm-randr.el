@@ -89,7 +89,7 @@ the first one in result being the primary output."
 
 (defun exwm-randr--refresh ()
   "Refresh workspaces according to the updated RandR info."
-  (let (output-name geometry output-plist default-geometry)
+  (let (output-name geometry output-plist primary-output default-geometry)
     ;; Query all outputs
     (with-slots (config-timestamp outputs)
         (xcb:+request-unchecked+reply exwm--connection
@@ -115,8 +115,9 @@ the first one in result being the primary output."
                                             :x x :y y
                                             :width width :height height)
                     output-plist (plist-put output-plist output-name geometry))
-              (unless default-geometry ;assume the first output as primary
-                (setq default-geometry geometry)))))))
+              (unless primary-output
+                (setq primary-output output-name
+                      default-geometry geometry)))))))
     (exwm--log "(randr) outputs: %s" output-plist)
     (when output-plist
       (when exwm-workspace--fullscreen-frame-count
@@ -128,7 +129,7 @@ the first one in result being the primary output."
                (frame (elt exwm-workspace--list i)))
           (unless geometry
             (setq geometry default-geometry
-                  output nil))
+                  output primary-output))
           (set-frame-parameter frame 'exwm-randr-output output)
           (set-frame-parameter frame 'exwm-geometry geometry)))
       ;; Update workareas.
