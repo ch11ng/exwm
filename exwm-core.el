@@ -93,7 +93,8 @@
                      :window exwm--root
                      :value-mask xcb:CW:EventMask
                      :event-mask (eval-when-compile
-                                   (logior xcb:EventMask:SubstructureRedirect
+                                   (logior xcb:EventMask:FocusChange
+                                           xcb:EventMask:SubstructureRedirect
                                            xcb:EventMask:StructureNotify))))
   (xcb:flush exwm--connection))
 

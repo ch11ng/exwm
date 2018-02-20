@@ -218,10 +218,9 @@ ARGS are additional arguments to CALLBACK."
     (xcb:unmarshal obj data)
     (with-slots (mode) obj
       ;; Revert input focus back to Emacs frame / X window when it's set on
-      ;; the root window or some workspace container.
-      (when (eq mode xcb:NotifyMode:Normal)
-        (x-focus-frame (selected-frame))
-        (select-window (selected-window))))))
+      ;; the root window.
+      (x-focus-frame exwm-workspace--current)
+      (select-window (frame-selected-window exwm-workspace--current)))))
 
 (defun exwm-input--on-EnterNotify (data _synthetic)
   "Handle EnterNotify events."
