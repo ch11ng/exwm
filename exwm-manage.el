@@ -322,9 +322,6 @@ manager is shutting down."
                                :window window :parent exwm--root :x 0 :y 0))
             (xcb:+request exwm--connection
                 (make-instance 'xcb:DestroyWindow :window container))))
-        ;; Restore the workspace if this X window is currently fullscreen.
-        (when (memq xcb:Atom:_NET_WM_STATE_FULLSCREEN exwm--ewmh-state)
-          (exwm-workspace--set-fullscreen exwm--frame))
         (exwm-manage--set-client-list)
         (xcb:flush exwm--connection))
       (let ((kill-buffer-func
