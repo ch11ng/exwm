@@ -89,7 +89,8 @@ the first one in result being the primary output."
 
 (defun exwm-randr--refresh ()
   "Refresh workspaces according to the updated RandR info."
-  (let (output-name geometry output-plist primary-output default-geometry)
+  (let (output-name geometry output-plist primary-output default-geometry
+                    container-output-alist container-frame-alist)
     ;; Query all outputs
     (with-slots (config-timestamp outputs)
         (xcb:+request-unchecked+reply exwm--connection
@@ -126,12 +127,30 @@ the first one in result being the primary output."
       (dotimes (i (exwm-workspace--count))
         (let* ((output (plist-get exwm-randr-workspace-output-plist i))
                (geometry (lax-plist-get output-plist output))
-               (frame (elt exwm-workspace--list i)))
+               (frame (elt exwm-workspace--list i))
+               (container (frame-parameter frame 'exwm-container)))
           (unless geometry
             (setq geometry default-geometry
                   output primary-output))
+          (setq container-output-alist (nconc `((,container . ,output))
+                                              container-output-alist)
+                container-frame-alist (nconc `((,container . ,frame))
+                                             container-frame-alist))
           (set-frame-parameter frame 'exwm-randr-output output)
           (set-frame-parameter frame 'exwm-geometry geometry)))
+      ;; Update the 'exwm-active' frame parameter.
+      (dolist (xwin
+               (reverse
+                (slot-value (xcb:+request-unchecked+reply exwm--connection
+                                (make-instance 'xcb:QueryTree
+                                               :window exwm--root))
+                            'children)))
+        (let ((output (cdr (assq xwin container-output-alist))))
+          (when output
+            (setq container-output-alist
+                  (rassq-delete-all output container-output-alist))
+            (set-frame-parameter (cdr (assq xwin container-frame-alist))
+                                 'exwm-active t))))
       ;; Update workareas.
       (exwm-workspace--update-workareas)
       ;; Resize workspace.

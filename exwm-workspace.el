@@ -513,6 +513,36 @@ for internal use only."
         ;; Save the floating frame window selected on the previous workspace.
         (set-frame-parameter (buffer-local-value 'exwm--frame (window-buffer))
                              'exwm-selected-window (selected-window)))
+      ;; Show/Hide X windows.
+      (let ((output-old (frame-parameter old-frame 'exwm-randr-output))
+            (output-new (frame-parameter frame 'exwm-randr-output))
+            (active-old (frame-parameter old-frame 'exwm-active))
+            (active-new (frame-parameter frame 'exwm-active))
+            workspaces-to-hide)
+        (cond
+         ((not active-old)
+          (set-frame-parameter frame 'exwm-active t))
+         ((eq output-old output-new)
+          (set-frame-parameter old-frame 'exwm-active nil)
+          (set-frame-parameter frame 'exwm-active t)
+          (setq workspaces-to-hide (list old-frame)))
+         (active-new)
+         (t
+          (dolist (w exwm-workspace--list)
+            (when (and (frame-parameter w 'exwm-active)
+                       (eq output-new
+                           (frame-parameter w 'exwm-randr-output)))
+              (set-frame-parameter w 'exwm-active nil)
+              (setq workspaces-to-hide (append workspaces-to-hide (list w)))))
+          (set-frame-parameter frame 'exwm-active t)))
+        (dolist (i exwm--id-buffer-alist)
+          (with-current-buffer (cdr i)
+            (if (memq exwm--frame workspaces-to-hide)
+                (exwm-layout--hide exwm--id)
+              (when (eq frame exwm--frame)
+                (let ((window (get-buffer-window nil t)))
+                  (when window
+                    (exwm-layout--show exwm--id window))))))))
       (select-window window)
       (x-focus-frame (window-frame window)) ;The real input focus.
       (set-frame-parameter frame 'exwm-selected-window nil)
@@ -527,20 +557,6 @@ for internal use only."
           (exwm-workspace--resize-minibuffer-frame)
         ;; Set a default minibuffer frame.
         (setq default-minibuffer-frame frame))
-      ;; Show/Hide X windows.
-      (let ((hide-old-workspace
-             (and old-frame
-                  (eq (frame-parameter old-frame 'exwm-randr-output)
-                      (frame-parameter frame 'exwm-randr-output)))))
-        (dolist (i exwm--id-buffer-alist)
-          (with-current-buffer (cdr i)
-            (if (eq old-frame exwm--frame)
-                (when hide-old-workspace
-                  (exwm-layout--hide exwm--id))
-              (when (eq frame exwm--frame)
-                (let ((window (get-buffer-window nil t)))
-                  (when window
-                    (exwm-layout--show exwm--id window))))))))
       ;; Hide windows in other workspaces by preprending a space
       (unless exwm-workspace-show-all-buffers
         (dolist (i exwm--id-buffer-alist)
@@ -550,8 +566,6 @@ for internal use only."
               (exwm-workspace-rename-buffer (if (eq frame exwm--frame)
                                                 name
                                               (concat " " name)))))))
-      ;; Update frame's timestamp.
-      (set-frame-parameter frame 'exwm-timestamp (float-time))
       ;; Update demands attention flag
       (set-frame-parameter frame 'exwm-urgency nil)
       ;; Update switch workspace history
@@ -699,7 +713,7 @@ INDEX must not exceed the current number of workspaces."
                       (exwm-workspace--prompt-delete-allowed t))
                   (exwm-workspace--prompt-for-workspace "Move to [+/-]: "))))
   (let ((frame (exwm-workspace--workspace-from-frame-or-index frame-or-index))
-        should-hide old-frame container)
+        old-frame container)
     (unless id (setq id (exwm--buffer->id (window-buffer))))
     (with-current-buffer (exwm--id->buffer id)
       (unless (eq exwm--frame frame)
@@ -711,26 +725,6 @@ INDEX must not exceed the current number of workspaces."
                (concat " " name)))))
         (setq old-frame exwm--frame
               exwm--frame frame)
-        (if (eq (frame-parameter old-frame 'exwm-randr-output)
-                (frame-parameter frame 'exwm-randr-output))
-            ;; Switch to a workspace on the same output.
-            (setq should-hide t)
-          ;; Check if this frame has the largest timestamp of that output.
-          (let* ((timestamp (frame-parameter frame 'exwm-timestamp))
-                 (output (frame-parameter frame 'exwm-randr-output))
-                 (timestamp-active
-                  (apply #'max
-                         (mapcar
-                          (lambda (w)
-                            (or (when (eq output
-                                          (frame-parameter w
-                                                           'exwm-randr-output))
-                                  (frame-parameter w 'exwm-timestamp))
-                                -1))
-                          exwm-workspace--list))))
-            (when (< timestamp timestamp-active)
-              ;; Switch to a workspace not active on another output.
-              (setq should-hide t))))
         (if (not exwm--floating-frame)
             ;; Tiling.
             (progn
@@ -743,7 +737,7 @@ INDEX must not exceed the current number of workspaces."
                                  (exwm--id->buffer id))
               (if (eq frame exwm-workspace--current)
                   (select-window (frame-selected-window frame))
-                (when should-hide
+                (unless (frame-parameter frame 'exwm-active)
                   (exwm-layout--hide id))))
           ;; Floating.
           (setq container (frame-parameter exwm--floating-frame
@@ -768,7 +762,7 @@ INDEX must not exceed the current number of workspaces."
               (if (eq frame exwm-workspace--current)
                   (select-window (frame-root-window exwm--floating-frame))
                 (select-window (frame-selected-window exwm-workspace--current))
-                (when should-hide
+                (unless (frame-parameter frame 'exwm-active)
                   (exwm-layout--hide id)))
             ;; The frame needs to be recreated since it won't use the
             ;; minibuffer on the new workspace.
@@ -829,7 +823,7 @@ INDEX must not exceed the current number of workspaces."
               (if (eq frame exwm-workspace--current)
                   (with-current-buffer (exwm--id->buffer id)
                     (select-window (frame-root-window exwm--floating-frame)))
-                (when should-hide
+                (unless (frame-parameter frame 'exwm-active)
                   (exwm-layout--hide id)))))
           ;; Update the 'exwm-selected-window' frame parameter.
           (when (not (eq frame exwm-workspace--current))
@@ -1507,9 +1501,8 @@ applied to all subsequently created X frames."
   (exwm-workspace-switch 0 t)
   ;; Prevent frame parameters introduced by this module from being
   ;; saved/restored.
-  (dolist (i '(exwm-outer-id exwm-id exwm-container exwm-geometry
-                             exwm-selected-window exwm-timestamp exwm-urgency
-                             fullscreen))
+  (dolist (i '(exwm-active exwm-outer-id exwm-id exwm-container exwm-geometry
+                           exwm-selected-window exwm-urgency fullscreen))
     (push (cons i :never) frameset-filter-alist)))
 
 (defun exwm-workspace--exit ()
