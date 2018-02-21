@@ -212,16 +212,6 @@ ARGS are additional arguments to CALLBACK."
                (cdr exwm-input--timestamp-callback))
         (setq exwm-input--timestamp-callback nil)))))
 
-(defun exwm-input--on-FocusIn (data _synthetic)
-  "Handle FocusIn events."
-  (let ((obj (make-instance 'xcb:FocusIn)))
-    (xcb:unmarshal obj data)
-    (with-slots (mode) obj
-      ;; Revert input focus back to Emacs frame / X window when it's set on
-      ;; the root window.
-      (x-focus-frame exwm-workspace--current)
-      (select-window (frame-selected-window exwm-workspace--current)))))
-
 (defun exwm-input--on-EnterNotify (data _synthetic)
   "Handle EnterNotify events."
   (let ((evt (make-instance 'xcb:EnterNotify))
@@ -428,42 +418,51 @@ ARGS are additional arguments to CALLBACK."
         (funcall exwm--on-KeyPress obj data)
       (exwm-input--on-KeyPress-char-mode obj))))
 
+(defun exwm-input--on-CreateNotify (data _synthetic)
+  "Handle CreateNotify events."
+  (let ((evt (make-instance 'xcb:CreateNotify)))
+    (xcb:unmarshal evt data)
+    (with-slots (window) evt
+      (exwm-input--grab-global-prefix-keys window))))
+
 (defun exwm-input--update-global-prefix-keys ()
   "Update `exwm-input--global-prefix-keys'."
   (when exwm--connection
-    (let ((original exwm-input--global-prefix-keys)
-          keysym keycode grab-key)
+    (let ((original exwm-input--global-prefix-keys))
       (setq exwm-input--global-prefix-keys nil)
       (dolist (i exwm-input--global-keys)
         (cl-pushnew (elt i 0) exwm-input--global-prefix-keys))
-      ;; Stop here if the global prefix keys are update-to-date and
-      ;; there's no new workspace.
       (unless (equal original exwm-input--global-prefix-keys)
-        (setq grab-key (make-instance 'xcb:GrabKey
-                                      :owner-events 0
-                                      :grab-window exwm--root
-                                      :modifiers nil
-                                      :key nil
-                                      :pointer-mode xcb:GrabMode:Async
-                                      :keyboard-mode xcb:GrabMode:Async))
-        (dolist (k exwm-input--global-prefix-keys)
-          (setq keysym (xcb:keysyms:event->keysym exwm--connection k)
-                keycode (xcb:keysyms:keysym->keycode exwm--connection
-                                                     (car keysym)))
-          (setf (slot-value grab-key 'modifiers) (cdr keysym)
-                (slot-value grab-key 'key) keycode)
-          (when (or (= 0 keycode)
-                    (xcb:+request-checked+request-check exwm--connection
-                        grab-key)
-                    ;; Also grab this key with num-lock mask set.
-                    (when (/= 0 xcb:keysyms:num-lock-mask)
-                      (setf (slot-value grab-key 'modifiers)
-                            (logior (cdr keysym)
-                                    xcb:keysyms:num-lock-mask))
-                      (xcb:+request-checked+request-check exwm--connection
-                          grab-key)))
-            (user-error "[EXWM] Failed to grab key: %s"
-                        (single-key-description k))))))))
+        (apply #'exwm-input--grab-global-prefix-keys
+               (slot-value (xcb:+request-unchecked+reply exwm--connection
+                               (make-instance 'xcb:QueryTree
+                                              :window exwm--root))
+                           'children))))))
+
+(defun exwm-input--grab-global-prefix-keys (&rest xwins)
+  (let ((req (make-instance 'xcb:GrabKey
+                            :owner-events 0
+                            :grab-window nil
+                            :modifiers nil
+                            :key nil
+                            :pointer-mode xcb:GrabMode:Async
+                            :keyboard-mode xcb:GrabMode:Async))
+        keysym keycode)
+    (dolist (k exwm-input--global-prefix-keys)
+      (setq keysym (xcb:keysyms:event->keysym exwm--connection k)
+            keycode (xcb:keysyms:keysym->keycode exwm--connection
+                                                 (car keysym)))
+      (setf (slot-value req 'modifiers) (cdr keysym)
+            (slot-value req 'key) keycode)
+      (dolist (xwin xwins)
+        (setf (slot-value req 'grab-window) xwin)
+        (xcb:+request exwm--connection req)
+        ;; Also grab this key with num-lock mask set.
+        (when (/= 0 xcb:keysyms:num-lock-mask)
+          (setf (slot-value req 'modifiers)
+                (logior (cdr keysym) xcb:keysyms:num-lock-mask))
+          (xcb:+request exwm--connection req))))
+    (xcb:flush exwm--connection)))
 
 ;;;###autoload
 (defun exwm-input-set-key (key command)
@@ -635,6 +634,7 @@ called interactively.  Only invoke it non-interactively in configuration."
                              :grab-window id
                              :modifiers xcb:ModMask:Any))
       (exwm--log "Failed to release keyboard for #x%x" id))
+    (exwm-input--grab-global-prefix-keys id)
     (with-current-buffer (exwm--id->buffer id)
       (setq exwm--on-KeyPress #'exwm-input--on-KeyPress-char-mode))))
 
@@ -877,13 +877,13 @@ Its usage is the same with `exwm-input-set-simulation-keys'."
   ;; Attach event listeners
   (xcb:+event exwm--connection 'xcb:PropertyNotify
               #'exwm-input--on-PropertyNotify)
+  (xcb:+event exwm--connection 'xcb:CreateNotify #'exwm-input--on-CreateNotify)
   (xcb:+event exwm--connection 'xcb:KeyPress #'exwm-input--on-KeyPress)
   (xcb:+event exwm--connection 'xcb:ButtonPress #'exwm-input--on-ButtonPress)
   (xcb:+event exwm--connection 'xcb:ButtonRelease
               #'exwm-floating--stop-moveresize)
   (xcb:+event exwm--connection 'xcb:MotionNotify
               #'exwm-floating--do-moveresize)
-  (xcb:+event exwm--connection 'xcb:FocusIn #'exwm-input--on-FocusIn)
   (when mouse-autoselect-window
     (xcb:+event exwm--connection 'xcb:EnterNotify
                 #'exwm-input--on-EnterNotify))
