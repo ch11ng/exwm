@@ -369,6 +369,18 @@ NIL if FRAME is not a workspace"
     (xcb:flush exwm--connection))
   (run-hooks 'exwm-workspace--update-workareas-hook))
 
+(defun exwm-workspace--set-active (frame active)
+  "Make frame FRAME active on its output."
+  (set-frame-parameter frame 'exwm-active active)
+  (if active
+      (exwm-workspace--set-fullscreen frame)
+    (exwm--set-geometry (frame-parameter frame 'exwm-container) nil nil 1 1)
+    (xcb:flush exwm--connection)))
+
+(defun exwm-workspace--active-p (frame)
+  "Return non-nil if FRAME is active"
+  (frame-parameter frame 'exwm-active))
+
 (defun exwm-workspace--set-fullscreen (frame)
   "Make frame FRAME fullscreen according to `exwm-workspace--workareas'."
   (let ((workarea (elt exwm-workspace--workareas
@@ -383,7 +395,9 @@ NIL if FRAME is not a workspace"
     (when (and (eq frame exwm-workspace--current)
                (exwm-workspace--minibuffer-own-frame-p))
       (exwm-workspace--resize-minibuffer-frame))
-    (exwm--set-geometry container x y width height)
+    (if (exwm-workspace--active-p frame)
+        (exwm--set-geometry container x y width height)
+      (exwm--set-geometry container x y 1 1))
     (exwm--set-geometry id nil nil width height)
     (xcb:flush exwm--connection))
   ;; This is only used for workspace initialization.
@@ -516,25 +530,25 @@ for internal use only."
       ;; Show/Hide X windows.
       (let ((output-old (frame-parameter old-frame 'exwm-randr-output))
             (output-new (frame-parameter frame 'exwm-randr-output))
-            (active-old (frame-parameter old-frame 'exwm-active))
-            (active-new (frame-parameter frame 'exwm-active))
+            (active-old (exwm-workspace--active-p old-frame))
+            (active-new (exwm-workspace--active-p frame))
             workspaces-to-hide)
         (cond
          ((not active-old)
-          (set-frame-parameter frame 'exwm-active t))
+          (exwm-workspace--set-active frame t))
          ((eq output-old output-new)
-          (set-frame-parameter old-frame 'exwm-active nil)
-          (set-frame-parameter frame 'exwm-active t)
+          (exwm-workspace--set-active old-frame nil)
+          (exwm-workspace--set-active frame t)
           (setq workspaces-to-hide (list old-frame)))
          (active-new)
          (t
           (dolist (w exwm-workspace--list)
-            (when (and (frame-parameter w 'exwm-active)
+            (when (and (exwm-workspace--active-p w)
                        (eq output-new
                            (frame-parameter w 'exwm-randr-output)))
-              (set-frame-parameter w 'exwm-active nil)
+              (exwm-workspace--set-active w nil)
               (setq workspaces-to-hide (append workspaces-to-hide (list w)))))
-          (set-frame-parameter frame 'exwm-active t)))
+          (exwm-workspace--set-active frame t)))
         (dolist (i exwm--id-buffer-alist)
           (with-current-buffer (cdr i)
             (if (memq exwm--frame workspaces-to-hide)
@@ -737,7 +751,7 @@ INDEX must not exceed the current number of workspaces."
                                  (exwm--id->buffer id))
               (if (eq frame exwm-workspace--current)
                   (select-window (frame-selected-window frame))
-                (unless (frame-parameter frame 'exwm-active)
+                (unless (exwm-workspace--active-p frame)
                   (exwm-layout--hide id))))
           ;; Floating.
           (setq container (frame-parameter exwm--floating-frame
@@ -762,7 +776,7 @@ INDEX must not exceed the current number of workspaces."
               (if (eq frame exwm-workspace--current)
                   (select-window (frame-root-window exwm--floating-frame))
                 (select-window (frame-selected-window exwm-workspace--current))
-                (unless (frame-parameter frame 'exwm-active)
+                (unless (exwm-workspace--active-p frame)
                   (exwm-layout--hide id)))
             ;; The frame needs to be recreated since it won't use the
             ;; minibuffer on the new workspace.
@@ -823,7 +837,7 @@ INDEX must not exceed the current number of workspaces."
               (if (eq frame exwm-workspace--current)
                   (with-current-buffer (exwm--id->buffer id)
                     (select-window (frame-root-window exwm--floating-frame)))
-                (unless (frame-parameter frame 'exwm-active)
+                (unless (exwm-workspace--active-p frame)
                   (exwm-layout--hide id)))))
           ;; Update the 'exwm-selected-window' frame parameter.
           (when (not (eq frame exwm-workspace--current))
@@ -935,6 +949,7 @@ Please check `exwm-workspace--minibuffer-own-frame-p' first."
     (redisplay)                       ;FIXME.
     (setq exwm-workspace--attached-minibuffer-height
           (frame-pixel-height exwm-workspace--minibuffer))
+    (exwm-workspace--show-minibuffer)
     (let ((container (frame-parameter exwm-workspace--minibuffer
                                       'exwm-container)))
       (push (cons container
@@ -945,8 +960,7 @@ Please check `exwm-workspace--minibuffer-own-frame-p' first."
       (exwm-workspace--update-struts)
       (exwm-workspace--update-workareas)
       (dolist (f exwm-workspace--list)
-        (exwm-workspace--set-fullscreen f))
-      (exwm-workspace--show-minibuffer))))
+        (exwm-workspace--set-fullscreen f)))))
 
 ;;;###autoload
 (defun exwm-workspace-detach-minibuffer ()
@@ -1050,6 +1064,12 @@ Please check `exwm-workspace--minibuffer-own-frame-p' first."
     (cancel-timer exwm-workspace--display-echo-area-timer)
     (setq exwm-workspace--display-echo-area-timer nil))
   ;; Show the minibuffer frame.
+  (unless (exwm-workspace--minibuffer-attached-p)
+    (exwm--set-geometry (frame-parameter exwm-workspace--minibuffer
+                                         'exwm-container)
+                        nil nil
+                        (frame-pixel-width exwm-workspace--minibuffer)
+                        (frame-pixel-height exwm-workspace--minibuffer)))
   (xcb:+request exwm--connection
       (make-instance 'xcb:ConfigureWindow
                      :window (frame-parameter exwm-workspace--minibuffer
@@ -1061,18 +1081,22 @@ Please check `exwm-workspace--minibuffer-own-frame-p' first."
 (defun exwm-workspace--hide-minibuffer ()
   "Hide the minibuffer frame."
   ;; Hide the minibuffer frame.
-  (xcb:+request exwm--connection
-      (make-instance 'xcb:ConfigureWindow
-                     :window (frame-parameter exwm-workspace--minibuffer
-                                              'exwm-container)
-                     :value-mask (logior (if exwm-manage--desktop
-                                             xcb:ConfigWindow:Sibling
-                                           0)
-                                         xcb:ConfigWindow:StackMode)
-                     :sibling exwm-manage--desktop
-                     :stack-mode (if exwm-manage--desktop
-                                     xcb:StackMode:Above
-                                   xcb:StackMode:Below)))
+  (if (exwm-workspace--minibuffer-attached-p)
+      (xcb:+request exwm--connection
+          (make-instance 'xcb:ConfigureWindow
+                         :window (frame-parameter exwm-workspace--minibuffer
+                                                  'exwm-container)
+                         :value-mask (logior (if exwm-manage--desktop
+                                                 xcb:ConfigWindow:Sibling
+                                               0)
+                                             xcb:ConfigWindow:StackMode)
+                         :sibling exwm-manage--desktop
+                         :stack-mode (if exwm-manage--desktop
+                                         xcb:StackMode:Above
+                                       xcb:StackMode:Below)))
+    (exwm--set-geometry (frame-parameter exwm-workspace--minibuffer
+                                         'exwm-container)
+                        nil nil 1 1))
   (xcb:flush exwm--connection))
 
 (defun exwm-workspace--on-minibuffer-setup ()

@@ -81,7 +81,10 @@ the first one in result being the primary output."
 
 (defvar exwm-workspace--fullscreen-frame-count)
 (defvar exwm-workspace--list)
+(declare-function exwm-workspace--active-p "exwm-workspace.el" (frame))
 (declare-function exwm-workspace--count "exwm-workspace.el")
+(declare-function exwm-workspace--set-active "exwm-workspace.el"
+                  (frame active))
 (declare-function exwm-workspace--set-desktop-geometry "exwm-workspace.el" ())
 (declare-function exwm-workspace--set-fullscreen "exwm-workspace.el" (frame))
 (declare-function exwm-workspace--show-minibuffer "exwm-workspace.el" ())
@@ -138,7 +141,9 @@ the first one in result being the primary output."
                                              container-frame-alist))
           (set-frame-parameter frame 'exwm-randr-output output)
           (set-frame-parameter frame 'exwm-geometry geometry)))
-      ;; Update the 'exwm-active' frame parameter.
+      ;; Update active/inactive workspaces.
+      (dolist (w exwm-workspace--list)
+        (exwm-workspace--set-active w nil))
       (dolist (xwin
                (reverse
                 (slot-value (xcb:+request-unchecked+reply exwm--connection
@@ -149,8 +154,8 @@ the first one in result being the primary output."
           (when output
             (setq container-output-alist
                   (rassq-delete-all output container-output-alist))
-            (set-frame-parameter (cdr (assq xwin container-frame-alist))
-                                 'exwm-active t))))
+            (exwm-workspace--set-active (cdr (assq xwin container-frame-alist))
+                                        t))))
       ;; Update workareas.
       (exwm-workspace--update-workareas)
       ;; Resize workspace.
