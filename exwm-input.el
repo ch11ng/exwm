@@ -754,30 +754,20 @@ multiple keys."
       (setq keys (vconcat keys (vector key)))
       (exwm-input--fake-key key))))
 
-;; (defun exwm-input-send-last-key ()
-;;   (interactive)
-;;   (unless (listp last-input-event)      ;not a key event
-;;     (exwm-input--fake-key last-input-event)))
-
-(defun exwm-input-set-simulation-keys (simulation-keys)
-  "Set simulation keys.
-
-SIMULATION-KEYS is an alist of the form (original-key . simulated-key),
-where both original-key and simulated-key are key sequences.
-
-Simulation keys set this way take effect in real time.  For configuration
-it's recommended to customize or set `exwm-input-simulation-keys' instead."
-  ;; Clear keymaps and the hash table.
-  (when (hash-table-p exwm-input--simulation-keys)
-    (maphash (lambda (key _value)
-               (when (sequencep key)
-                 (if exwm-input--local-simulation-keys
-                     (local-unset-key key)
-                   (define-key exwm-mode-map key nil))))
-             exwm-input--simulation-keys)
-    (clrhash exwm-input--simulation-keys))
-  ;; Update the hash table.
-  (setq exwm-input--simulation-keys (make-hash-table :test #'equal))
+(defun exwm-input--set-simulation-keys (simulation-keys &optional no-refresh)
+  "Set simulation keys."
+  (unless no-refresh
+    ;; Clear keymaps and the hash table.
+    (when (hash-table-p exwm-input--simulation-keys)
+      (maphash (lambda (key _value)
+                 (when (sequencep key)
+                   (if exwm-input--local-simulation-keys
+                       (local-unset-key key)
+                     (define-key exwm-mode-map key nil))))
+               exwm-input--simulation-keys)
+      (clrhash exwm-input--simulation-keys))
+    ;; Update the hash table.
+    (setq exwm-input--simulation-keys (make-hash-table :test #'equal)))
   (dolist (i simulation-keys)
     (let ((original (vconcat (car i)))
           (simulated (cdr i)))
@@ -797,6 +787,11 @@ it's recommended to customize or set `exwm-input-simulation-keys' instead."
                  (define-key exwm-mode-map key
                    #'exwm-input-send-simulation-key))))
            exwm-input--simulation-keys))
+
+(defun exwm-input-set-simulation-keys (simulation-keys)
+  "Please customize or set `exwm-input-simulation-keys' instead."
+  (declare (obsolete nil "26"))
+  (exwm-input--set-simulation-keys simulation-keys))
 
 (defcustom exwm-input-simulation-keys nil
   "Simulation keys.
@@ -833,7 +828,39 @@ Notes:
                                     (key-sequence :tag "User-defined")))
   :set (lambda (symbol value)
          (set symbol value)
-         (exwm-input-set-simulation-keys value)))
+         (exwm-input--set-simulation-keys value)))
+
+(cl-defun exwm-input--read-keys (prompt stop-key)
+  (let ((cursor-in-echo-area t)
+        keys key)
+    (while (not (eq key stop-key))
+      (setq key (read-key (format "%s (terminate with %s): %s"
+                                  prompt
+                                  (key-description (vector stop-key))
+                                  (key-description keys)))
+            keys (vconcat keys (vector key))))
+    (substring keys 0 -1)))
+
+;;;###autoload
+(defun exwm-input-set-simulation-key (original-key simulated-key)
+  "Set a simulation key.
+
+The simulation key takes effect in real time, but is lost when this session
+ends unless it's specifically saved in the Customize interface for
+`exwm-input-simulation-keys'."
+  (interactive
+   (let (original simulated)
+     (setq original (exwm-input--read-keys "Original keys" ?\C-g))
+     (when original
+       (setq simulated (exwm-input--read-keys
+                        (format "Simulate %s as" (key-description original))
+                        ?\C-g)))
+     (list original simulated)))
+  (when (and original-key simulated-key)
+    (let ((entry `((,original-key . ,simulated-key))))
+      (setq exwm-input-simulation-keys (append exwm-input-simulation-keys
+                                               entry))
+      (exwm-input--set-simulation-keys entry t))))
 
 (defun exwm-input--unset-simulation-keys ()
   "Clear simulation keys and key bindings defined."
@@ -847,11 +874,12 @@ Notes:
 (defun exwm-input-set-local-simulation-keys (simulation-keys)
   "Set buffer-local simulation keys.
 
-Its usage is the same with `exwm-input-set-simulation-keys'."
+SIMULATION-KEYS is an alist of the form (original-key . simulated-key),
+where both ORIGINAL-KEY and SIMULATED-KEY are key sequences."
   (make-local-variable 'exwm-input--simulation-keys)
   (use-local-map (copy-keymap exwm-mode-map))
   (let ((exwm-input--local-simulation-keys t))
-    (exwm-input-set-simulation-keys simulation-keys)))
+    (exwm-input--set-simulation-keys simulation-keys)))
 
 ;;;###autoload
 (cl-defun exwm-input-send-simulation-key (times)
@@ -906,7 +934,7 @@ Its usage is the same with `exwm-input-set-simulation-keys'."
     (exwm-input--set-key (car i) (cdr i)))
   ;; Initialize simulation keys.
   (when exwm-input-simulation-keys
-    (exwm-input-set-simulation-keys exwm-input-simulation-keys))
+    (exwm-input--set-simulation-keys exwm-input-simulation-keys))
   ;; Attach event listeners
   (xcb:+event exwm--connection 'xcb:PropertyNotify
               #'exwm-input--on-PropertyNotify)
