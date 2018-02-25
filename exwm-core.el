@@ -189,6 +189,7 @@ least SECS seconds later."
               (active-minibuffer-window)
               (memq last-input-event exwm-input--global-prefix-keys)
               (memq last-input-event exwm-input-prefix-keys)
+              (assq last-input-event (cdr exwm-mode-map))
               (gethash last-input-event exwm-input--simulation-keys))
           (set-transient-map (make-composed-keymap (list exwm-mode-map
                                                          global-map)))
