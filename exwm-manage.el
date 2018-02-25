@@ -43,6 +43,10 @@ corresponding buffer."
 You can still make the X windows floating afterwards."
   :type 'boolean)
 
+(defcustom exwm-manage-ping-timeout 3
+  "Seconds to wait before killing a client."
+  :type 'integer)
+
 ;; FIXME: Make the following values as small as possible.
 (defconst exwm-manage--height-delta-min 5)
 (defconst exwm-manage--width-delta-min 5)
@@ -58,8 +62,6 @@ You can still make the X windows floating afterwards."
 
 (defvar exwm-manage--ping-lock nil
   "Non-nil indicates EXWM is pinging a window.")
-
-(defvar exwm-manage-ping-timeout 3 "Seconds to wait before killing a client.")
 
 (defvar exwm-workspace--current)
 (defvar exwm-workspace--id-struts-alist)
