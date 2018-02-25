@@ -464,15 +464,45 @@ ARGS are additional arguments to CALLBACK."
           (xcb:+request exwm--connection req))))
     (xcb:flush exwm--connection)))
 
+(defun exwm-input--set-key (key command)
+  (global-set-key key command)
+  (cl-pushnew key exwm-input--global-keys))
+
+(defcustom exwm-input-global-keys nil
+  "Global keys.
+
+It is an alist of the form (key . command), meaning giving KEY (a key
+sequence) a global binding as COMMAND.
+
+Notes:
+* Setting the value directly (rather than customizing it) after EXWM
+  finishes initialization has no effect."
+  :type '(alist :key-type key-sequence :value-type function)
+  :set (lambda (symbol value)
+         (when (boundp symbol)
+           (dolist (i (symbol-value symbol))
+             (global-unset-key (car i))))
+         (set symbol value)
+         (setq exwm-input--global-keys nil)
+         (dolist (i value)
+           (exwm-input--set-key (car i) (cdr i)))
+         (when exwm--connection
+           (exwm-input--update-global-prefix-keys))))
+
 ;;;###autoload
 (defun exwm-input-set-key (key command)
   "Set a global key binding.
 
 The new key binding only takes effect in real time when this command is
-called interactively.  Only invoke it non-interactively in configuration."
+called interactively, and is lost when this session ends unless it's
+specifically saved in the Customize interface for `exwm-input-global-keys'.
+
+In configuration you should customize or set `exwm-input-global-keys'
+instead."
   (interactive "KSet key globally: \nCSet key %s to command: ")
-  (global-set-key key command)
-  (cl-pushnew key exwm-input--global-keys)
+  (setq exwm-input-global-keys (append exwm-input-global-keys
+                                       (list (cons key command))))
+  (exwm-input--set-key key command)
   (when (called-interactively-p 'any)
     (exwm-input--update-global-prefix-keys)))
 
@@ -871,6 +901,9 @@ Its usage is the same with `exwm-input-set-simulation-keys'."
                                          :name-len (length atom)
                                          :name atom))
                       'atom)))
+  ;; Initialize global keys.
+  (dolist (i exwm-input-global-keys)
+    (exwm-input--set-key (car i) (cdr i)))
   ;; Initialize simulation keys.
   (when exwm-input-simulation-keys
     (exwm-input-set-simulation-keys exwm-input-simulation-keys))
