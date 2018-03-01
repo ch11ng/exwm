@@ -97,7 +97,7 @@ the first one in result being the primary output."
     ;; Query all outputs
     (with-slots (config-timestamp outputs)
         (xcb:+request-unchecked+reply exwm--connection
-            (make-instance 'xcb:randr:GetScreenResources
+            (make-instance 'xcb:randr:GetScreenResourcesCurrent
                            :window exwm--root))
       (dolist (output outputs)
         (with-slots (crtc connection name)
@@ -178,8 +178,8 @@ the first one in result being the primary output."
     (with-slots (major-version minor-version)
         (xcb:+request-unchecked+reply exwm--connection
             (make-instance 'xcb:randr:QueryVersion
-                           :major-version 1 :minor-version 2))
-      (if (or (/= major-version 1) (< minor-version 2))
+                           :major-version 1 :minor-version 3))
+      (if (or (/= major-version 1) (< minor-version 3))
           (error "[EXWM] The server only support RandR version up to %d.%d"
                  major-version minor-version)
         ;; External monitor(s) may already be connected.
