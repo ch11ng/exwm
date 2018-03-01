@@ -47,6 +47,26 @@ You can still make the X windows floating afterwards."
   "Seconds to wait before killing a client."
   :type 'integer)
 
+(defcustom exwm-manage-configurations nil
+  "Per-application configurations."
+  :type '(alist :key-type (sexp :tag "Matching criterion" nil)
+                :value-type
+                (plist :tag "Configurations"
+                       :key-type
+                       (choice
+                        (const :tag "Floating" floating)
+                        (const :tag "X" x)
+                        (const :tag "Y" y)
+                        (const :tag "Width" width)
+                        (const :tag "Height" height)
+                        (const :tag "Border width" border-width)
+                        (const :tag "Char-mode" char-mode)
+                        (const :tag "Prefix keys" prefix-keys)
+                        (const :tag "Simulation keys" simulation-keys)
+                        ;; For forward compatibility.
+                        (other))
+                       :value-type (sexp :tag "Value" nil))))
+
 ;; FIXME: Make the following values as small as possible.
 (defconst exwm-manage--height-delta-min 5)
 (defconst exwm-manage--width-delta-min 5)
@@ -140,6 +160,14 @@ You can still make the X windows floating afterwards."
                      :window exwm--root
                      :data (vconcat (mapcar #'car exwm--id-buffer-alist)))))
 
+(cl-defun exwm-manage--get-configurations ()
+  "Retrieve configurations for this buffer."
+  (when (derived-mode-p 'exwm-mode)
+    (dolist (i exwm-manage-configurations)
+      (save-current-buffer
+        (when (eval (car i))
+          (cl-return-from exwm-manage--get-configurations (cdr i)))))))
+
 (defun exwm-manage--manage-window (id)
   "Manage window ID."
   (exwm--log "Try to manage #x%x" id)
@@ -169,6 +197,7 @@ You can still make the X windows floating afterwards."
       (exwm--update-hints id)
       (exwm-manage--update-geometry id)
       (exwm-manage--update-mwm-hints id)
+      (setq exwm--configurations (exwm-manage--get-configurations))
       ;; No need to manage (please check OverrideRedirect outside)
       (when (or
              (not
@@ -252,13 +281,20 @@ You can still make the X windows floating afterwards."
       (xcb:flush exwm--connection)
       (exwm--update-title id)
       (exwm--update-protocols id)
-      (if (and (not exwm-manage-force-tiling)
-               (or exwm-transient-for exwm--fixed-size
-                   (memq xcb:Atom:_NET_WM_WINDOW_TYPE_UTILITY exwm-window-type)
-                   (memq xcb:Atom:_NET_WM_WINDOW_TYPE_DIALOG
-                         exwm-window-type)))
-          (exwm-floating--set-floating id)
-        (exwm-floating--unset-floating id))
+      (if (plist-member exwm--configurations 'floating)
+          ;; User has specified whether it should be floating.
+          (if (plist-get exwm--configurations 'floating)
+              (exwm-floating--set-floating id)
+            (exwm-floating--unset-floating id))
+        ;; Try to determine if it should be floating.
+        (if (and (not exwm-manage-force-tiling)
+                 (or exwm-transient-for exwm--fixed-size
+                     (memq xcb:Atom:_NET_WM_WINDOW_TYPE_UTILITY
+                           exwm-window-type)
+                     (memq xcb:Atom:_NET_WM_WINDOW_TYPE_DIALOG
+                           exwm-window-type)))
+            (exwm-floating--set-floating id)
+          (exwm-floating--unset-floating id)))
       (exwm-input-grab-keyboard id)
       (setq exwm-workspace--switch-history-outdated t)
       (exwm--update-desktop id)

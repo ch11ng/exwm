@@ -130,6 +130,7 @@ least SECS seconds later."
 
 ;; Internal variables
 (defvar-local exwm--id nil)               ;window ID
+(defvar-local exwm--configurations nil)   ;initial configurations.
 (defvar-local exwm--frame nil)            ;workspace frame
 (defvar-local exwm--floating-frame nil)   ;floating frame
 (defvar-local exwm--mode-line-format nil) ;save mode-line-format
