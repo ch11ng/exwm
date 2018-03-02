@@ -176,7 +176,32 @@ This is also used by X window containers.")
         (when (= 0 height) (setq height (/ height* 2)))
         ;; Make sure at least half of the window is visible
         (unless (< y* (+ y (/ height 2)) (+ y* height*))
-          (setq y (+ y* (/ (- height* height) 2))))))
+          (setq y (+ y* (/ (- height* height) 2)))))
+      ;; The geometry can be overridden by user options.
+      (let ((x** (plist-get exwm--configurations 'x))
+            (y** (plist-get exwm--configurations 'y))
+            (width** (plist-get exwm--configurations 'width))
+            (height** (plist-get exwm--configurations 'height)))
+        (if (integerp x**)
+            (setq x (+ x* x**))
+          (when (and (floatp x**)
+                     (>= 1 x** 0))
+            (setq x (+ x* (round (* x** width*))))))
+        (if (integerp y**)
+            (setq y (+ y* y**))
+          (when (and (floatp y**)
+                     (>= 1 y** 0))
+            (setq y (+ y* (round (* y** height*))))))
+        (if (integerp width**)
+            (setq width width**)
+          (when (and (floatp width**)
+                     (> 1 width** 0))
+            (setq width (max 1 (round (* width** width*))))))
+        (if (integerp height**)
+            (setq height height**)
+          (when (and (floatp height**)
+                     (> 1 height** 0))
+            (setq height (max 1 (round (* height** height*))))))))
     (exwm--set-geometry id x y nil nil)
     (xcb:flush exwm--connection)
     (exwm--log "Floating geometry (corrected): %dx%d%+d%+d" width height x y)
@@ -189,13 +214,23 @@ This is also used by X window containers.")
            (frame-width (+ width (- (frame-pixel-width frame)
                                     (- (elt edges 2) (elt edges 0)))))
            (frame-height (+ height (- (frame-pixel-height frame)
-                                      (- (elt edges 3) (elt edges 1))))))
-      ;; Check `exwm--mwm-hints-decorations'.
-      (unless exwm--mwm-hints-decorations
-        (setq frame-height (- frame-height (window-mode-line-height
-                                            (frame-root-window frame)))
-              exwm--mode-line-format mode-line-format
-              mode-line-format nil))
+                                      (- (elt edges 3) (elt edges 1)))))
+           (floating-mode-line (plist-get exwm--configurations
+                                          'floating-mode-line)))
+      (if floating-mode-line
+          (setq exwm--mode-line-format (or exwm--mode-line-format
+                                           mode-line-format)
+                mode-line-format floating-mode-line)
+        (if (and (not (plist-member exwm--configurations 'floating-mode-line))
+                 exwm--mwm-hints-decorations)
+            (when exwm--mode-line-format
+              (setq mode-line-format exwm--mode-line-format))
+          ;; The mode-line need to be hidden in floating mode.
+          (setq frame-height (- frame-height (window-mode-line-height
+                                              (frame-root-window frame)))
+                exwm--mode-line-format (or exwm--mode-line-format
+                                           mode-line-format)
+                mode-line-format nil)))
       (set-frame-size frame frame-width frame-height t)
       ;; Create the frame container as the parent of the frame.
       (xcb:+request exwm--connection
@@ -207,7 +242,14 @@ This is also used by X window containers.")
                          :y (- y (elt edges 1))
                          :width width
                          :height height
-                         :border-width exwm-floating-border-width
+                         :border-width
+                         (with-current-buffer (exwm--id->buffer id)
+                           (let ((border-witdh (plist-get exwm--configurations
+                                                          'border-width)))
+                             (if (and (integerp border-witdh)
+                                      (>= border-witdh 0))
+                                 border-witdh
+                               exwm-floating-border-width)))
                          :class xcb:WindowClass:InputOutput
                          :visual 0
                          :value-mask (logior xcb:CW:BackPixmap
@@ -326,7 +368,14 @@ This is also used by X window containers.")
           (delete-frame exwm--floating-frame))))
     (with-current-buffer buffer
       (setq window-size-fixed nil
-            exwm--floating-frame nil))
+            exwm--floating-frame nil)
+      (if (not (plist-member exwm--configurations 'tiling-mode-line))
+          (when exwm--mode-line-format
+            (setq mode-line-format exwm--mode-line-format))
+        (setq exwm--mode-line-format (or exwm--mode-line-format
+                                         mode-line-format)
+              mode-line-format (plist-get exwm--configurations
+                                          'tiling-mode-line))))
     ;; Only show X windows in normal state.
     (unless (exwm-layout--iconic-state-p)
       (pop-to-buffer-same-window buffer)))

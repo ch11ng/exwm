@@ -60,6 +60,9 @@ You can still make the X windows floating afterwards."
                         (const :tag "Width" width)
                         (const :tag "Height" height)
                         (const :tag "Border width" border-width)
+                        (const :tag "Fullscreen" fullscreen)
+                        (const :tag "Floating mode-line" floating-mode-line)
+                        (const :tag "Tiling mode-line" tiling-mode-line)
                         (const :tag "Char-mode" char-mode)
                         (const :tag "Prefix keys" prefix-keys)
                         (const :tag "Simulation keys" simulation-keys)
@@ -83,6 +86,7 @@ You can still make the X windows floating afterwards."
 (defvar exwm-manage--ping-lock nil
   "Non-nil indicates EXWM is pinging a window.")
 
+(defvar exwm-input-prefix-keys)
 (defvar exwm-workspace--current)
 (defvar exwm-workspace--id-struts-alist)
 (defvar exwm-workspace--list)
@@ -101,6 +105,7 @@ You can still make the X windows floating afterwards."
 (declare-function exwm-floating--set-floating "exwm-floating.el" (id))
 (declare-function exwm-floating--unset-floating "exwm-floating.el" (id))
 (declare-function exwm-input-grab-keyboard "exwm-input.el")
+(declare-function exwm-input-set-local-simulation-keys "exwm-input.el")
 (declare-function exwm-layout--iconic-state-p "exwm-layout.el" (&optional id))
 (declare-function exwm-workspace--count "exwm-workspace.el" ())
 (declare-function exwm-workspace--position "exwm-workspace.el" (frame))
@@ -295,14 +300,24 @@ You can still make the X windows floating afterwards."
                            exwm-window-type)))
             (exwm-floating--set-floating id)
           (exwm-floating--unset-floating id)))
-      (exwm-input-grab-keyboard id)
+      (if (plist-get exwm--configurations 'char-mode)
+          (exwm-input-release-keyboard id)
+        (exwm-input-grab-keyboard id))
+      (let ((simulation-keys (plist-get exwm--configurations 'simulation-keys))
+            (prefix-keys (plist-get exwm--configurations 'prefix-keys)))
+        (with-current-buffer (exwm--id->buffer id)
+          (when simulation-keys
+            (exwm-input-set-local-simulation-keys simulation-keys))
+          (when prefix-keys
+            (setq-local exwm-input-prefix-keys prefix-keys))))
       (setq exwm-workspace--switch-history-outdated t)
       (exwm--update-desktop id)
       (exwm-manage--update-ewmh-state id)
       (with-current-buffer (exwm--id->buffer id)
-        (when (memq xcb:Atom:_NET_WM_STATE_FULLSCREEN exwm--ewmh-state)
-          (setq exwm--ewmh-state
-                (delq xcb:Atom:_NET_WM_STATE_FULLSCREEN exwm--ewmh-state))
+        (when (or (plist-get exwm--configurations 'fullscreen)
+                  (memq xcb:Atom:_NET_WM_STATE_FULLSCREEN exwm--ewmh-state))
+          (setq exwm--ewmh-state (delq xcb:Atom:_NET_WM_STATE_FULLSCREEN
+                                       exwm--ewmh-state))
           (exwm-layout-set-fullscreen id))
         (run-hooks 'exwm-manage-finish-hook)))))
 
