@@ -536,7 +536,7 @@ for internal use only."
         (cond
          ((not active-old)
           (exwm-workspace--set-active frame t))
-         ((eq output-old output-new)
+         ((equal output-old output-new)
           (exwm-workspace--set-active old-frame nil)
           (exwm-workspace--set-active frame t)
           (setq workspaces-to-hide (list old-frame)))
@@ -544,8 +544,8 @@ for internal use only."
          (t
           (dolist (w exwm-workspace--list)
             (when (and (exwm-workspace--active-p w)
-                       (eq output-new
-                           (frame-parameter w 'exwm-randr-output)))
+                       (equal output-new
+                              (frame-parameter w 'exwm-randr-output)))
               (exwm-workspace--set-active w nil)
               (setq workspaces-to-hide (append workspaces-to-hide (list w)))))
           (exwm-workspace--set-active frame t)))
@@ -756,8 +756,8 @@ INDEX must not exceed the current number of workspaces."
           ;; Floating.
           (setq container (frame-parameter exwm--floating-frame
                                            'exwm-container))
-          (unless (eq (frame-parameter old-frame 'exwm-randr-output)
-                      (frame-parameter frame 'exwm-randr-output))
+          (unless (equal (frame-parameter old-frame 'exwm-randr-output)
+                         (frame-parameter frame 'exwm-randr-output))
             (with-slots (x y)
                 (xcb:+request-unchecked+reply exwm--connection
                     (make-instance 'xcb:GetGeometry
