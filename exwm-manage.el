@@ -63,6 +63,9 @@ You can still make the X windows floating afterwards."
                         (const :tag "Fullscreen" fullscreen)
                         (const :tag "Floating mode-line" floating-mode-line)
                         (const :tag "Tiling mode-line" tiling-mode-line)
+                        (const :tag "Floating header-line"
+                               floating-header-line)
+                        (const :tag "Tiling header-line" tiling-header-line)
                         (const :tag "Char-mode" char-mode)
                         (const :tag "Prefix keys" prefix-keys)
                         (const :tag "Simulation keys" simulation-keys)

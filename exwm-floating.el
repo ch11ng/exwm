@@ -216,7 +216,9 @@ This is also used by X window containers.")
            (frame-height (+ height (- (frame-pixel-height frame)
                                       (- (elt edges 3) (elt edges 1)))))
            (floating-mode-line (plist-get exwm--configurations
-                                          'floating-mode-line)))
+                                          'floating-mode-line))
+           (floating-header-line (plist-get exwm--configurations
+                                            'floating-header-line)))
       (if floating-mode-line
           (setq exwm--mode-line-format (or exwm--mode-line-format
                                            mode-line-format)
@@ -231,6 +233,16 @@ This is also used by X window containers.")
                 exwm--mode-line-format (or exwm--mode-line-format
                                            mode-line-format)
                 mode-line-format nil)))
+      (if floating-header-line
+          (setq header-line-format floating-header-line)
+        (if (and (not (plist-member exwm--configurations
+                                    'floating-header-line))
+                 exwm--mwm-hints-decorations)
+            (setq header-line-format nil)
+          ;; The header-line need to be hidden in floating header.
+          (setq frame-height (- frame-height (window-header-line-height
+                                              (frame-root-window frame)))
+                header-line-format nil)))
       (set-frame-size frame frame-width frame-height t)
       ;; Create the frame container as the parent of the frame.
       (xcb:+request exwm--connection
@@ -375,7 +387,11 @@ This is also used by X window containers.")
         (setq exwm--mode-line-format (or exwm--mode-line-format
                                          mode-line-format)
               mode-line-format (plist-get exwm--configurations
-                                          'tiling-mode-line))))
+                                          'tiling-mode-line)))
+      (if (not (plist-member exwm--configurations 'tiling-header-line))
+          (setq header-line-format nil)
+        (setq header-line-format (plist-get exwm--configurations
+                                            'tiling-header-line))))
     ;; Only show X windows in normal state.
     (unless (exwm-layout--iconic-state-p)
       (pop-to-buffer-same-window buffer)))
