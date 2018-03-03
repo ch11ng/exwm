@@ -500,12 +500,18 @@ workspace frame as the first option or making use of the rest options are
 for internal use only."
   (interactive
    (list
-    (unless (and (eq major-mode 'exwm-mode)
-                 ;; The prompt is invisible in fullscreen mode.
-                 (memq xcb:Atom:_NET_WM_STATE_FULLSCREEN exwm--ewmh-state))
-      (let ((exwm-workspace--prompt-add-allowed t)
-            (exwm-workspace--prompt-delete-allowed t))
-        (exwm-workspace--prompt-for-workspace "Switch to [+/-]: ")))))
+    (cond
+     ((null current-prefix-arg)
+      (unless (and (eq major-mode 'exwm-mode)
+                   ;; The prompt is invisible in fullscreen mode.
+                   (memq xcb:Atom:_NET_WM_STATE_FULLSCREEN exwm--ewmh-state))
+        (let ((exwm-workspace--prompt-add-allowed t)
+              (exwm-workspace--prompt-delete-allowed t))
+          (exwm-workspace--prompt-for-workspace "Switch to [+/-]: "))))
+     ((and (integerp current-prefix-arg)
+           (<= 0 current-prefix-arg (exwm-workspace--count)))
+      current-prefix-arg)
+     (t 0))))
   (let* ((frame (exwm-workspace--workspace-from-frame-or-index frame-or-index))
          (old-frame exwm-workspace--current)
          (index (exwm-workspace--position frame))
@@ -600,7 +606,14 @@ for internal use only."
   "Switch to workspace INDEX or creating it first if it does not exist yet.
 
 Passing a workspace frame as the first option is for internal use only."
-  (interactive)
+  (interactive
+   (list
+    (cond
+     ((integerp current-prefix-arg)
+      current-prefix-arg)
+     (t 0))))
+  (unless frame-or-index
+    (setq frame-or-index 0))
   (if (or (framep frame-or-index)
           (< frame-or-index (exwm-workspace--count)))
       (exwm-workspace-switch frame-or-index)
@@ -654,12 +667,18 @@ Passing a workspace frame as the first option is for internal use only."
 When called interactively, prompt for a workspace and move current one just
 before it."
   (interactive
-   (unless (and (eq major-mode 'exwm-mode)
-                ;; The prompt is invisible in fullscreen mode.
-                (memq xcb:Atom:_NET_WM_STATE_FULLSCREEN exwm--ewmh-state))
-     (list exwm-workspace--current
-           (exwm-workspace--position
-            (exwm-workspace--prompt-for-workspace "Move workspace to: ")))))
+   (cond
+    ((null current-prefix-arg)
+     (unless (and (eq major-mode 'exwm-mode)
+                  ;; The prompt is invisible in fullscreen mode.
+                  (memq xcb:Atom:_NET_WM_STATE_FULLSCREEN exwm--ewmh-state))
+       (list exwm-workspace--current
+             (exwm-workspace--position
+              (exwm-workspace--prompt-for-workspace "Move workspace to: ")))))
+    ((and (integerp current-prefix-arg)
+          (<= 0 current-prefix-arg (exwm-workspace--count)))
+     (list exwm-workspace--current current-prefix-arg))
+    (t (list exwm-workspace--current 0))))
   (let ((pos (exwm-workspace--position workspace))
         flag start end index)
     (if (= nth pos)
@@ -723,9 +742,15 @@ INDEX must not exceed the current number of workspaces."
 (defun exwm-workspace-move-window (frame-or-index &optional id)
   "Move window ID to workspace FRAME-OR-INDEX."
   (interactive (list
-                (let ((exwm-workspace--prompt-add-allowed t)
-                      (exwm-workspace--prompt-delete-allowed t))
-                  (exwm-workspace--prompt-for-workspace "Move to [+/-]: "))))
+                (cond
+                 ((null current-prefix-arg)
+                  (let ((exwm-workspace--prompt-add-allowed t)
+                        (exwm-workspace--prompt-delete-allowed t))
+                    (exwm-workspace--prompt-for-workspace "Move to [+/-]: ")))
+                 ((and (integerp current-prefix-arg)
+                       (<= 0 current-prefix-arg (exwm-workspace--count)))
+                  current-prefix-arg)
+                 (t 0))))
   (let ((frame (exwm-workspace--workspace-from-frame-or-index frame-or-index))
         old-frame container)
     (unless id (setq id (exwm--buffer->id (window-buffer))))
