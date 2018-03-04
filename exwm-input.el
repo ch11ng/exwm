@@ -762,16 +762,17 @@ multiple keys."
 (defun exwm-input--set-simulation-keys (simulation-keys &optional no-refresh)
   "Set simulation keys."
   (unless no-refresh
-    ;; Clear keymaps and the hash table.
-    (when (hash-table-p exwm-input--simulation-keys)
-      (maphash (lambda (key _value)
-                 (when (sequencep key)
-                   (if exwm-input--local-simulation-keys
-                       (local-unset-key key)
-                     (define-key exwm-mode-map key nil))))
-               exwm-input--simulation-keys)
-      (clrhash exwm-input--simulation-keys))
-    ;; Update the hash table.
+    ;; Unbind simulation keys.
+    (let ((hash (buffer-local-value 'exwm-input--simulation-keys
+                                    (current-buffer))))
+      (when (hash-table-p hash)
+        (maphash (lambda (key _value)
+                   (when (sequencep key)
+                     (if exwm-input--local-simulation-keys
+                         (local-unset-key key)
+                       (define-key exwm-mode-map key nil))))
+                 hash)))
+    ;; Abandon the old hash table.
     (setq exwm-input--simulation-keys (make-hash-table :test #'equal)))
   (dolist (i simulation-keys)
     (let ((original (vconcat (car i)))
