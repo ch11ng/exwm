@@ -767,7 +767,9 @@ INDEX must not exceed the current number of workspaces."
               exwm--frame frame)
         (if (not exwm--floating-frame)
             ;; Tiling.
-            (progn
+            (if (get-buffer-window nil frame)
+                (when (eq frame exwm-workspace--current)
+                  (run-window-configuration-change-hook frame))
               (set-window-buffer (get-buffer-window nil t)
                                  (other-buffer nil t))
               (unless (eq frame exwm-workspace--current)
