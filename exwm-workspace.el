@@ -128,6 +128,7 @@ Please manually run the hook `exwm-workspace-list-change-hook' afterwards.")
 (defvar exwm-manage--desktop)
 (declare-function exwm--exit "exwm.el")
 (declare-function exwm-input--on-buffer-list-update "exwm-input.el" ())
+(declare-function exwm-layout--fullscreen-p "exwm-layout.el" ())
 (declare-function exwm-layout--hide "exwm-layout.el" (id))
 (declare-function exwm-layout--other-buffer-predicate "exwm-layout.el"
                   (buffer))
@@ -504,7 +505,7 @@ for internal use only."
      ((null current-prefix-arg)
       (unless (and (eq major-mode 'exwm-mode)
                    ;; The prompt is invisible in fullscreen mode.
-                   (memq xcb:Atom:_NET_WM_STATE_FULLSCREEN exwm--ewmh-state))
+                   (exwm-layout--fullscreen-p))
         (let ((exwm-workspace--prompt-add-allowed t)
               (exwm-workspace--prompt-delete-allowed t))
           (exwm-workspace--prompt-for-workspace "Switch to [+/-]: "))))
@@ -631,7 +632,7 @@ Passing a workspace frame as the first option is for internal use only."
   (interactive
    (unless (and (eq major-mode 'exwm-mode)
                 ;; The prompt is invisible in fullscreen mode.
-                (memq xcb:Atom:_NET_WM_STATE_FULLSCREEN exwm--ewmh-state))
+                (exwm-layout--fullscreen-p))
      (let (w1 w2)
        (let ((exwm-workspace--prompt-add-allowed t)
              (exwm-workspace--prompt-delete-allowed t))
@@ -671,7 +672,7 @@ before it."
     ((null current-prefix-arg)
      (unless (and (eq major-mode 'exwm-mode)
                   ;; The prompt is invisible in fullscreen mode.
-                  (memq xcb:Atom:_NET_WM_STATE_FULLSCREEN exwm--ewmh-state))
+                  (exwm-layout--fullscreen-p))
        (list exwm-workspace--current
              (exwm-workspace--position
               (exwm-workspace--prompt-for-workspace "Move workspace to: ")))))

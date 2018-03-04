@@ -109,6 +109,7 @@ You can still make the X windows floating afterwards."
 (declare-function exwm-floating--unset-floating "exwm-floating.el" (id))
 (declare-function exwm-input-grab-keyboard "exwm-input.el")
 (declare-function exwm-input-set-local-simulation-keys "exwm-input.el")
+(declare-function exwm-layout--fullscreen-p "exwm-layout.el" ())
 (declare-function exwm-layout--iconic-state-p "exwm-layout.el" (&optional id))
 (declare-function exwm-workspace--count "exwm-workspace.el" ())
 (declare-function exwm-workspace--position "exwm-workspace.el" (frame))
@@ -318,7 +319,7 @@ You can still make the X windows floating afterwards."
       (exwm-manage--update-ewmh-state id)
       (with-current-buffer (exwm--id->buffer id)
         (when (or (plist-get exwm--configurations 'fullscreen)
-                  (memq xcb:Atom:_NET_WM_STATE_FULLSCREEN exwm--ewmh-state))
+                  (exwm-layout--fullscreen-p))
           (setq exwm--ewmh-state (delq xcb:Atom:_NET_WM_STATE_FULLSCREEN
                                        exwm--ewmh-state))
           (exwm-layout-set-fullscreen id))
@@ -533,7 +534,7 @@ border-width: %d; sibling: #x%x; stack-mode: %d"
                  border-width sibling stack-mode)
       (if (and (setq buffer (exwm--id->buffer window))
                (with-current-buffer buffer
-                 (or (memq xcb:Atom:_NET_WM_STATE_FULLSCREEN exwm--ewmh-state)
+                 (or (exwm-layout--fullscreen-p)
                      ;; Make sure it's a floating X window wanting to resize
                      ;; itself.
                      (or (not exwm--floating-frame)
@@ -559,7 +560,7 @@ border-width: %d; sibling: #x%x; stack-mode: %d"
           ;; Send client message for managed windows
           (with-current-buffer buffer
             (setq edges
-                  (if (memq xcb:Atom:_NET_WM_STATE_FULLSCREEN exwm--ewmh-state)
+                  (if (exwm-layout--fullscreen-p)
                       (with-slots (x y width height)
                           (exwm-workspace--get-geometry exwm--frame)
                         (list x y width height))

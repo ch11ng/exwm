@@ -110,7 +110,7 @@
   (interactive)
   (with-current-buffer (window-buffer)
     (when (eq major-mode 'exwm-mode)
-      (when (memq xcb:Atom:_NET_WM_STATE_FULLSCREEN exwm--ewmh-state)
+      (when (exwm-layout--fullscreen-p)
         (exwm-layout-unset-fullscreen))
       ;; Force refresh
       (exwm-layout--refresh)
@@ -484,8 +484,7 @@
               exwm--connection
               (make-instance 'xcb:ewmh:set-_NET_WM_STATE
                              :window id
-                             :data (vector
-                                    xcb:Atom:_NET_WM_STATE_FULLSCREEN)))
+                             :data (vector xcb:Atom:_NET_WM_STATE_FULLSCREEN)))
           (xcb:flush exwm--connection))
         (when buffer                    ;ensure it's managed
           (with-current-buffer buffer
@@ -493,17 +492,14 @@
             (when (or (memq xcb:Atom:_NET_WM_STATE_FULLSCREEN props)
                       (memq xcb:Atom:_NET_WM_STATE_ABOVE props))
               (cond ((= action xcb:ewmh:_NET_WM_STATE_ADD)
-                     (unless (memq xcb:Atom:_NET_WM_STATE_FULLSCREEN
-                                   exwm--ewmh-state)
+                     (unless (exwm-layout--fullscreen-p)
                        (exwm-layout-set-fullscreen id))
                      (push xcb:Atom:_NET_WM_STATE_FULLSCREEN props-new))
                     ((= action xcb:ewmh:_NET_WM_STATE_REMOVE)
-                     (when (memq xcb:Atom:_NET_WM_STATE_FULLSCREEN
-                                 exwm--ewmh-state)
+                     (when (exwm-layout--fullscreen-p)
                        (exwm-layout-unset-fullscreen id)))
                     ((= action xcb:ewmh:_NET_WM_STATE_TOGGLE)
-                     (if (memq xcb:Atom:_NET_WM_STATE_FULLSCREEN
-                               exwm--ewmh-state)
+                     (if (exwm-layout--fullscreen-p)
                          (exwm-layout-unset-fullscreen id)
                        (exwm-layout-set-fullscreen id)
                        (push xcb:Atom:_NET_WM_STATE_FULLSCREEN props-new)))))

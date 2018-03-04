@@ -69,6 +69,10 @@
          (buffer-local-value 'exwm-state (exwm--id->buffer id))
        exwm-state)))
 
+(defun exwm-layout--fullscreen-p ()
+  (when (derived-mode-p 'exwm-mode)
+    (memq xcb:Atom:_NET_WM_STATE_FULLSCREEN exwm--ewmh-state)))
+
 (defun exwm-layout--show (id &optional window)
   "Show window ID exactly fit in the Emacs window WINDOW."
   (exwm--log "Show #x%x in %s" id window)
@@ -92,6 +96,16 @@
         (exwm--set-geometry (frame-parameter exwm--floating-frame
                                              'exwm-container)
                             frame-x frame-y frame-width frame-height))
+      (when (exwm-layout--fullscreen-p)
+        (with-slots ((x* x)
+                     (y* y)
+                     (width* width)
+                     (height* height))
+            (exwm-workspace--get-geometry exwm--frame)
+          (setq x x*
+                y y*
+                width width*
+                height height*)))
       (exwm--set-geometry id x y width height)
       (xcb:+request exwm--connection (make-instance 'xcb:MapWindow :window id))
       (exwm-layout--set-state id xcb:icccm:WM_STATE:NormalState)))
@@ -131,7 +145,7 @@
   "Make window ID fullscreen."
   (interactive)
   (unless (and (or id (derived-mode-p 'exwm-mode))
-               (not (memq xcb:Atom:_NET_WM_STATE_FULLSCREEN exwm--ewmh-state)))
+               (not (exwm-layout--fullscreen-p)))
     (cl-return-from 'exwm-layout-set-fullscreen))
   (with-current-buffer (if id (exwm--id->buffer id) (window-buffer))
     ;; Expand the X window to fill the whole screen.
@@ -158,9 +172,11 @@
   "Restore window from fullscreen state."
   (interactive)
   (unless (and (or id (derived-mode-p 'exwm-mode))
-               (memq xcb:Atom:_NET_WM_STATE_FULLSCREEN exwm--ewmh-state))
+               (exwm-layout--fullscreen-p))
     (cl-return-from 'exwm-layout-unset-fullscreen))
   (with-current-buffer (if id (exwm--id->buffer id) (window-buffer))
+    (setq exwm--ewmh-state
+          (delq xcb:Atom:_NET_WM_STATE_FULLSCREEN exwm--ewmh-state))
     (if exwm--floating-frame
         (exwm-layout--show exwm--id (frame-root-window exwm--floating-frame))
       (xcb:+request exwm--connection
@@ -176,8 +192,6 @@
     (xcb:+request exwm--connection
         (make-instance 'xcb:ewmh:set-_NET_WM_STATE :window exwm--id :data []))
     (xcb:flush exwm--connection)
-    (setq exwm--ewmh-state
-          (delq xcb:Atom:_NET_WM_STATE_FULLSCREEN exwm--ewmh-state))
     (call-interactively #'exwm-input-grab-keyboard)))
 
 ;;;###autoload
@@ -188,7 +202,7 @@
     (cl-return-from 'exwm-layout-toggle-fullscreen))
   (when id
     (with-current-buffer (exwm--id->buffer id)
-      (if (memq xcb:Atom:_NET_WM_STATE_FULLSCREEN exwm--ewmh-state)
+      (if (exwm-layout--fullscreen-p)
           (exwm-reset)
         (exwm-layout-set-fullscreen id)))))
 
