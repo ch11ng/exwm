@@ -566,7 +566,7 @@ instead."
                      ;;
                      (memq event exwm-input--global-prefix-keys)
                      (memq event exwm-input-prefix-keys)
-                     (assq event (cdr exwm-mode-map))
+                     (lookup-key exwm-mode-map (vector event))
                      (gethash event exwm-input--simulation-keys)))
         (setq mode xcb:Allow:AsyncKeyboard)
         (exwm-input--cache-event event))
