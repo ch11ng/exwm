@@ -37,6 +37,15 @@
 
 (defvar exwm--connection nil "X connection.")
 
+(defvar exwm--wmsn-window nil
+  "An X window owning the WM_S0 selection.")
+
+(defvar exwm--wmsn-acquire-timeout 3
+  "Number of seconds to wait for other window managers to release the selection.")
+
+(defvar exwm--wmsn-replace 'ask
+  "Replace existing window manager.")
+
 (defvar exwm--guide-window nil
   "An X window separating workspaces and X windows.")
 

@@ -529,12 +529,26 @@
             (bury-buffer)))))
      (t (exwm--log "Unhandled client message: %s" obj)))))
 
+(defun exwm--on-SelectionClear (data _synthetic)
+  "Handle SelectionClear events."
+  (exwm--log "SelectionClear")
+  (let ((obj (make-instance 'xcb:SelectionClear))
+        owner selection)
+    (xcb:unmarshal obj data)
+    (setq owner (slot-value obj 'owner)
+          selection (slot-value obj 'selection))
+    (when (and (eq owner exwm--wmsn-window)
+               (eq selection xcb:Atom:WM_S0))
+      (exwm-exit))))
+
 (defun exwm--init-icccm-ewmh ()
   "Initialize ICCCM/EWMH support."
   ;; Handle PropertyNotify event
   (xcb:+event exwm--connection 'xcb:PropertyNotify #'exwm--on-PropertyNotify)
   ;; Handle relevant client messages
   (xcb:+event exwm--connection 'xcb:ClientMessage #'exwm--on-ClientMessage)
+  ;; Handle SelectionClear
+  (xcb:+event exwm--connection 'xcb:SelectionClear #'exwm--on-SelectionClear)
   ;; Set _NET_SUPPORTED
   (xcb:+request exwm--connection
       (make-instance 'xcb:ewmh:set-_NET_SUPPORTED
@@ -667,6 +681,81 @@
                      :data [0 0]))
   (xcb:flush exwm--connection))
 
+(defun exwm--wmsn-acquire (replace)
+  "Acquire the WM_Sn selection.
+
+REPLACE specifies what to do in case there already is a window
+manager.  If t, replace it, if nil, abort and if `ask'."
+  (with-slots (owner)
+      (xcb:+request-unchecked+reply exwm--connection
+          (make-instance 'xcb:GetSelectionOwner
+                         :selection xcb:Atom:WM_S0))
+    (when (/= owner xcb:Window:None)
+      (when (eq replace 'ask)
+        (setq replace (yes-or-no-p "Replace existing window manager?")))
+      (when (not replace)
+        (error "Other window manager detected")))
+    (let ((new-owner (xcb:generate-id exwm--connection)))
+      (xcb:+request exwm--connection
+          (make-instance 'xcb:CreateWindow
+                         :depth 0
+                         :wid new-owner
+                         :parent exwm--root
+                         :x -1
+                         :y -1
+                         :width 1
+                         :height 1
+                         :border-width 0
+                         :class xcb:WindowClass:CopyFromParent
+                         :visual 0
+                         :value-mask 0
+                         :override-redirect 0))
+      (xcb:+request exwm--connection
+          (make-instance 'xcb:ewmh:set-_NET_WM_NAME
+                         :window new-owner :data "EXWM selection owner"))
+      (xcb:+request-checked+request-check exwm--connection
+          (make-instance 'xcb:SetSelectionOwner
+                         :selection xcb:Atom:WM_S0
+                         :owner new-owner
+                         :time xcb:Time:CurrentTime))
+      (with-slots (owner)
+          (xcb:+request-unchecked+reply exwm--connection
+              (make-instance 'xcb:GetSelectionOwner
+                             :selection xcb:Atom:WM_S0))
+        (unless (eq owner new-owner)
+          (error "Could not acquire ownership of WM selection")))
+      ;; Wait for the other window manager to terminate.
+      (when (/= owner xcb:Window:None)
+        (let (reply)
+          (cl-dotimes (i 10) ;exwm--wmsn-acquire-timeout)
+            (setq reply (xcb:+request-unchecked+reply exwm--connection
+                            (make-instance 'xcb:GetGeometry :drawable owner)))
+            (when (not reply)
+              (cl-return))
+            (message "Waiting for other window manager to quit... %ds" i)
+            (sleep-for 1))
+          (when reply
+            (error "Other window manager did not release selection in time"))))
+      ;; announce
+      (let* ((cmd (make-instance 'xcb:ClientMessageData
+                                 :data32 (vector xcb:Time:CurrentTime
+                                                 xcb:Atom:WM_S0
+                                                 new-owner
+                                                 0
+                                                 0)))
+             (cm (make-instance 'xcb:ClientMessage
+                                               :window exwm--root
+                                               :format 32
+                                               :type xcb:Atom:MANAGER
+                                               :data cmd))
+             (se (make-instance 'xcb:SendEvent
+                         :propagate 0
+                         :destination exwm--root
+                         :event-mask xcb:EventMask:NoEvent
+                         :event (xcb:marshal cm exwm--connection))))
+        (xcb:+request exwm--connection se))
+      (setq exwm--wmsn-window new-owner))))
+
 ;;;###autoload
 (defun exwm-init (&optional frame)
   "Initialize EXWM."
@@ -689,6 +778,11 @@
               (slot-value (car (slot-value
                                 (xcb:get-setup exwm--connection) 'roots))
                           'root))
+        ;; Initialize ICCCM/EWMH support
+        (xcb:icccm:init exwm--connection t)
+        (xcb:ewmh:init exwm--connection t)
+        ;; Try to register window manager selection.
+        (exwm--wmsn-acquire 'ask)
         (when (xcb:+request-checked+request-check exwm--connection
                   (make-instance 'xcb:ChangeWindowAttributes
                                  :window exwm--root :value-mask xcb:CW:EventMask
@@ -697,9 +791,6 @@
         ;; Disable some features not working well with EXWM
         (setq use-dialog-box nil
               confirm-kill-emacs #'exwm--confirm-kill-emacs)
-        ;; Initialize ICCCM/EWMH support
-        (xcb:icccm:init exwm--connection t)
-        (xcb:ewmh:init exwm--connection t)
         (exwm--lock)
         (exwm--init-icccm-ewmh)
         (exwm-layout--init)
