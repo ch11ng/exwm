@@ -170,6 +170,11 @@ the first one in result being the primary output."
       (xcb:flush exwm--connection)
       (run-hooks 'exwm-randr-refresh-hook))))
 
+(defun exwm-randr--on-ScreenChangeNotify (_data _synthetic)
+  (exwm--log "(RandR) ScreenChangeNotify")
+  (run-hooks 'exwm-randr-screen-change-hook)
+  (exwm-randr--refresh))
+
 (defun exwm-randr--init ()
   "Initialize RandR extension and EXWM RandR module."
   (if (= 0 (slot-value (xcb:get-extension-data exwm--connection 'xcb:randr)
@@ -186,10 +191,7 @@ the first one in result being the primary output."
         (run-hooks 'exwm-randr-screen-change-hook)
         (exwm-randr--refresh)
         (xcb:+event exwm--connection 'xcb:randr:ScreenChangeNotify
-                    (lambda (_data _synthetic)
-                      (exwm--log "(RandR) ScreenChangeNotify")
-                      (run-hooks 'exwm-randr-screen-change-hook)
-                      (exwm-randr--refresh)))
+                    #'exwm-randr--on-ScreenChangeNotify)
         ;; (xcb:+event exwm--connection 'xcb:randr:Notify
         ;;             (lambda (_data _synthetic)
         ;;               (exwm--log "(RandR) Notify")
