@@ -514,6 +514,8 @@ See also `exwm-layout-enlarge-window'."
 (defun exwm-layout--exit ()
   "Exit the layout module."
   (remove-hook 'window-configuration-change-hook #'exwm-layout--refresh)
+  (when (fboundp 'window-pixel-width-before-size-change)
+    (remove-hook 'window-size-change-functions #'exwm-layout--refresh))
   (remove-hook 'minibuffer-setup-hook #'exwm-layout--on-minibuffer-setup)
   (when exwm-layout--timer
     (cancel-timer exwm-layout--timer)
