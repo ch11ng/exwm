@@ -1257,6 +1257,141 @@ Please check `exwm-workspace--minibuffer-own-frame-p' first."
 
 (defun exwm-workspace--add-frame-as-workspace (frame)
   "Configure frame FRAME to be treated as a workspace."
+  (setq exwm-workspace--list (nconc exwm-workspace--list (list frame)))
+  (let ((outer-id (string-to-number (frame-parameter frame
+                                                     'outer-window-id)))
+        (window-id (string-to-number (frame-parameter frame 'window-id)))
+        (container (xcb:generate-id exwm--connection)))
+    ;; Save window IDs
+    (set-frame-parameter frame 'exwm-outer-id outer-id)
+    (set-frame-parameter frame 'exwm-id window-id)
+    (set-frame-parameter frame 'exwm-container container)
+    ;; In case it's created by emacsclient.
+    (set-frame-parameter frame 'client nil)
+    ;; Copy RandR frame parameters from the first workspace to
+    ;; prevent potential problems.  The values do not matter here as
+    ;; they'll be updated by the RandR module later.
+    (let ((w (car exwm-workspace--list)))
+      (dolist (param '(exwm-randr-output
+                       exwm-geometry))
+        (set-frame-parameter frame param (frame-parameter w param))))
+    (xcb:+request exwm--connection
+        (make-instance 'xcb:CreateWindow
+                       :depth 0
+                       :wid container
+                       :parent exwm--root
+                       :x -1
+                       :y -1
+                       :width 1
+                       :height 1
+                       :border-width 0
+                       :class xcb:WindowClass:InputOutput
+                       :visual 0
+                       :value-mask (logior xcb:CW:BackPixmap
+                                           xcb:CW:OverrideRedirect)
+                       :background-pixmap xcb:BackPixmap:ParentRelative
+                       :override-redirect 1))
+    (xcb:+request exwm--connection
+        (make-instance 'xcb:ConfigureWindow
+                       :window container
+                       :value-mask xcb:ConfigWindow:StackMode
+                       :stack-mode xcb:StackMode:Below))
+    (exwm--debug
+     (xcb:+request exwm--connection
+         (make-instance 'xcb:ewmh:set-_NET_WM_NAME
+                        :window container
+                        :data
+                        (format "EXWM workspace %d frame container"
+                                (exwm-workspace--position frame)))))
+    (xcb:+request exwm--connection
+        (make-instance 'xcb:ReparentWindow
+                       :window outer-id :parent container :x 0 :y 0))
+    (xcb:+request exwm--connection
+        (make-instance 'xcb:MapWindow :window container)))
+  (xcb:flush exwm--connection)
+  ;; Delay making the workspace fullscreen until Emacs becomes idle
+  (exwm--defer 0 #'set-frame-parameter frame 'fullscreen 'fullboth)
+  ;; Update EWMH properties.
+  (exwm-workspace--update-ewmh-props)
+  (if exwm-workspace--create-silently
+      (setq exwm-workspace--switch-history-outdated t)
+    (exwm-workspace-switch frame t)
+    (run-hooks 'exwm-workspace-list-change-hook)))
+
+(defun exwm-workspace--remove-frame-as-workspace (frame)
+  "Stop treating frame FRAME as a workspace."
+  ;; TODO: restore all frame parameters (e.g. exwm-workspace, buffer-predicate,
+  ;; etc)
+  (exwm--log "Removing frame `%s' as workspace" frame)
+  (let* ((index (exwm-workspace--position frame))
+         (lastp (= index (1- (exwm-workspace--count))))
+         (nextw (elt exwm-workspace--list (+ index (if lastp -1 +1)))))
+    ;; Need to remove the workspace from the list in order for
+    ;; the correct calculation of indexes.
+    (setq exwm-workspace--list (delete frame exwm-workspace--list))
+    ;; Clients need to be moved to some other workspace before this is being
+    ;; removed.
+    (dolist (pair exwm--id-buffer-alist)
+      (with-current-buffer (cdr pair)
+        (when (eq exwm--frame frame)
+          (exwm-workspace-move-window nextw exwm--id))))
+    ;; Update the _NET_WM_DESKTOP property of each X window affected.
+    (dolist (pair exwm--id-buffer-alist)
+      (when (<= (1- index)
+                (exwm-workspace--position (buffer-local-value 'exwm--frame
+                                                              (cdr pair))))
+        (exwm-workspace--set-desktop (car pair))))
+    ;; If the current workspace is deleted, switch to next one.
+    (when (eq frame exwm-workspace--current)
+      (exwm-workspace-switch nextw)))
+  ;; Reparent out the frame.
+  (let ((outer-id (frame-parameter frame 'exwm-outer-id)))
+    (xcb:+request exwm--connection
+        (make-instance 'xcb:UnmapWindow
+                       :window outer-id))
+    (xcb:+request exwm--connection
+        (make-instance 'xcb:ReparentWindow
+                       :window outer-id
+                       :parent exwm--root
+                       :x 0
+                       :y 0))
+    ;; Reset the override-redirect.
+    (xcb:+request exwm--connection
+        (make-instance 'xcb:ChangeWindowAttributes
+                       :window outer-id
+                       :value-mask xcb:CW:OverrideRedirect
+                       :override-redirect 0))
+    (xcb:+request exwm--connection
+        (make-instance 'xcb:MapWindow
+                       :window outer-id)))
+  ;; Destroy the container.
+  (xcb:+request exwm--connection
+      (make-instance 'xcb:DestroyWindow
+                     :window (frame-parameter frame 'exwm-container)))
+  (xcb:flush exwm--connection)
+  ;; Update EWMH properties.
+  (exwm-workspace--update-ewmh-props)
+  ;; Update switch history.
+  (setq exwm-workspace--switch-history-outdated t)
+  (run-hooks 'exwm-workspace-list-change-hook))
+
+(defun exwm-workspace--on-delete-frame (frame)
+  "Hook run upon `delete-frame' that tears down FRAME's configuration as a workspace."
+  (cond
+   ((not (exwm-workspace--workspace-p frame))
+    (exwm--log "Frame `%s' is not a workspace" frame))
+   (t
+    (when (= 1 (exwm-workspace--count))
+      ;; The user managed to delete the last workspace, so create a new one.
+      (exwm--log "Last workspace deleted; create a new one")
+      ;; TODO: this makes sense in the hook.  But we need a function that takes
+      ;; care of converting a workspace into a regular unmanaged frame.
+      (let ((exwm-workspace--create-silently t))
+        (make-frame)))
+    (exwm-workspace--remove-frame-as-workspace frame))))
+
+(defun exwm-workspace--on-after-make-frame (frame)
+  "Hook run upon `delete-frame' that configures FRAME as a workspace."
   (cond
    ((exwm-workspace--workspace-p frame)
     (exwm--log "Frame `%s' is already a workspace" frame))
@@ -1278,116 +1413,7 @@ Please check `exwm-workspace--minibuffer-own-frame-p' first."
     (exwm--log "Frame `%s' is floating" frame))
    (t
     (exwm--log "Adding frame `%s' as workspace" frame)
-    (setq exwm-workspace--list (nconc exwm-workspace--list (list frame)))
-    (let ((outer-id (string-to-number (frame-parameter frame
-                                                       'outer-window-id)))
-          (window-id (string-to-number (frame-parameter frame 'window-id)))
-          (container (xcb:generate-id exwm--connection)))
-      ;; Save window IDs
-      (set-frame-parameter frame 'exwm-outer-id outer-id)
-      (set-frame-parameter frame 'exwm-id window-id)
-      (set-frame-parameter frame 'exwm-container container)
-      ;; In case it's created by emacsclient.
-      (set-frame-parameter frame 'client nil)
-      ;; Copy RandR frame parameters from the first workspace to
-      ;; prevent potential problems.  The values do not matter here as
-      ;; they'll be updated by the RandR module later.
-      (let ((w (car exwm-workspace--list)))
-        (dolist (param '(exwm-randr-output
-                         exwm-geometry))
-          (set-frame-parameter frame param (frame-parameter w param))))
-      (xcb:+request exwm--connection
-          (make-instance 'xcb:CreateWindow
-                         :depth 0
-                         :wid container
-                         :parent exwm--root
-                         :x -1
-                         :y -1
-                         :width 1
-                         :height 1
-                         :border-width 0
-                         :class xcb:WindowClass:InputOutput
-                         :visual 0
-                         :value-mask (logior xcb:CW:BackPixmap
-                                             xcb:CW:OverrideRedirect)
-                         :background-pixmap xcb:BackPixmap:ParentRelative
-                         :override-redirect 1))
-      (xcb:+request exwm--connection
-          (make-instance 'xcb:ConfigureWindow
-                         :window container
-                         :value-mask xcb:ConfigWindow:StackMode
-                         :stack-mode xcb:StackMode:Below))
-      (exwm--debug
-       (xcb:+request exwm--connection
-           (make-instance 'xcb:ewmh:set-_NET_WM_NAME
-                          :window container
-                          :data
-                          (format "EXWM workspace %d frame container"
-                                  (exwm-workspace--position frame)))))
-      (xcb:+request exwm--connection
-          (make-instance 'xcb:ReparentWindow
-                         :window outer-id :parent container :x 0 :y 0))
-      (xcb:+request exwm--connection
-          (make-instance 'xcb:MapWindow :window container)))
-    (xcb:flush exwm--connection)
-    ;; Delay making the workspace fullscreen until Emacs becomes idle
-    (exwm--defer 0 #'set-frame-parameter frame 'fullscreen 'fullboth)
-    ;; Update EWMH properties.
-    (exwm-workspace--update-ewmh-props)
-    (if exwm-workspace--create-silently
-        (setq exwm-workspace--switch-history-outdated t)
-      (exwm-workspace-switch frame t)
-      (run-hooks 'exwm-workspace-list-change-hook)))))
-
-(defun exwm-workspace--remove-frame-as-workspace (frame)
-  "Stop treating frame FRAME as a workspace."
-  (cond
-   ((not (exwm-workspace--workspace-p frame))
-    (exwm--log "Frame `%s' is not a workspace" frame))
-   (t
-    (exwm--log "Removing frame `%s' as workspace" frame)
-    (when (= 1 (exwm-workspace--count))
-      ;; The user managed to delete the last workspace, so create a new one.
-      (exwm--log "Last workspace deleted; create a new one")
-      (let ((exwm-workspace--create-silently t))
-        (make-frame)))
-    (let* ((index (exwm-workspace--position frame))
-           (lastp (= index (1- (exwm-workspace--count))))
-           (nextw (elt exwm-workspace--list (+ index (if lastp -1 +1)))))
-      ;; Need to remove the workspace from the list in order for
-      ;; the correct calculation of indexes.
-      (setq exwm-workspace--list (delete frame exwm-workspace--list))
-      ;; Clients need to be moved to some other workspace before this is being
-      ;; removed.
-      (dolist (pair exwm--id-buffer-alist)
-        (with-current-buffer (cdr pair)
-          (when (eq exwm--frame frame)
-            (exwm-workspace-move-window nextw exwm--id))))
-      ;; Update the _NET_WM_DESKTOP property of each X window affected.
-      (dolist (pair exwm--id-buffer-alist)
-        (when (<= (1- index)
-                  (exwm-workspace--position (buffer-local-value 'exwm--frame
-                                                                (cdr pair))))
-          (exwm-workspace--set-desktop (car pair))))
-      ;; If the current workspace is deleted, switch to next one.
-      (when (eq frame exwm-workspace--current)
-        (exwm-workspace-switch nextw)))
-    ;; Reparent out the frame.
-    (xcb:+request exwm--connection
-        (make-instance 'xcb:ReparentWindow
-                       :window (frame-parameter frame 'exwm-outer-id)
-                       :parent exwm--root
-                       :x 0
-                       :y 0))
-    ;; Destroy the container.
-    (xcb:+request exwm--connection
-        (make-instance 'xcb:DestroyWindow
-                       :window (frame-parameter frame 'exwm-container)))
-    ;; Update EWMH properties.
-    (exwm-workspace--update-ewmh-props)
-    ;; Update switch history.
-    (setq exwm-workspace--switch-history-outdated t)
-    (run-hooks 'exwm-workspace-list-change-hook))))
+    (exwm-workspace--add-frame-as-workspace frame))))
 
 (defun exwm-workspace--update-ewmh-props ()
   "Update EWMH properties to match the workspace list."
@@ -1546,7 +1572,7 @@ applied to all subsequently created X frames."
   (advice-add 'handle-focus-out :around #'exwm-workspace--handle-focus-out)
   ;; Make new frames create new workspaces.
   (add-hook 'after-make-frame-functions
-            #'exwm-workspace--add-frame-as-workspace)
+            #'exwm-workspace--on-after-make-frame)
   (add-hook 'delete-frame-functions
             #'exwm-workspace--remove-frame-as-workspace)
   ;; Switch to the first workspace
@@ -1579,9 +1605,9 @@ applied to all subsequently created X frames."
   (advice-remove 'handle-focus-in #'exwm-workspace--handle-focus-in)
   (advice-remove 'handle-focus-out #'exwm-workspace--handle-focus-out)
   (remove-hook 'after-make-frame-functions
-               #'exwm-workspace--add-frame-as-workspace)
+               #'exwm-workspace--on-after-make-frame)
   (remove-hook 'delete-frame-functions
-               #'exwm-workspace--remove-frame-as-workspace))
+               #'exwm-workspace--on-delete-frame))
 
 (defun exwm-workspace--post-init ()
   "The second stage in the initialization of the workspace module."
