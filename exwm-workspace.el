@@ -1555,7 +1555,8 @@ applied to all subsequently created X frames."
   ;; saved/restored.
   (dolist (i '(exwm-active exwm-outer-id exwm-id exwm-container exwm-geometry
                            exwm-selected-window exwm-urgency fullscreen))
-    (push (cons i :never) frameset-filter-alist)))
+    (unless (assq i frameset-filter-alist)
+      (push (cons i :never) frameset-filter-alist))))
 
 (defun exwm-workspace--exit ()
   "Exit the workspace module."

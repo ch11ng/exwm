@@ -210,7 +210,8 @@ the first one in result being the primary output."
   ;; Prevent frame parameters introduced by this module from being
   ;; saved/restored.
   (dolist (i '(exwm-randr-output))
-    (push (cons i :never) frameset-filter-alist)))
+    (unless (assq i frameset-filter-alist)
+      (push (cons i :never) frameset-filter-alist))))
 
 (defun exwm-randr--exit ()
   "Exit the RandR module."
