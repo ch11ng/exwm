@@ -1576,7 +1576,7 @@ applied to all subsequently created X frames."
                                  ;; (client . nil)
                                  (fullscreen . nil)
                                  (buffer-predicate . nil))))
-  ;; Restore the 'client' frame parameter (before `exwm--exit').
+  ;; Restore the 'client' frame parameter (before `exwm-exit').
   (when exwm-workspace--client
     (dolist (f exwm-workspace--list)
       (set-frame-parameter f 'client exwm-workspace--client))

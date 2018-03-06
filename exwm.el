@@ -104,7 +104,6 @@
 
 (defvar exwm--server-process nil "Process of the subordinate Emacs server.")
 
-;;;###autoload
 (defun exwm-reset ()
   "Reset the state of the selected window (non-fullscreen, line-mode, etc)."
   (interactive)
@@ -690,8 +689,10 @@
                        :property p))
     (xcb:flush exwm--connection)))
 
+;;;###autoload
 (defun exwm-init (&optional frame)
   "Initialize EXWM."
+  (interactive)
   (if frame
       ;; The frame might not be selected if it's created by emacslicnet.
       (select-frame-set-input-focus frame)
@@ -735,8 +736,10 @@
         (exwm-manage--scan)
         (run-hooks 'exwm-init-hook)))))
 
-(defun exwm--exit ()
+;;;###autoload
+(defun exwm-exit ()
   "Exit EXWM."
+  (interactive)
   (run-hooks 'exwm-exit-hook)
   (setq confirm-kill-emacs nil)
   ;; Exit modules.
@@ -855,7 +858,7 @@
       (run-hooks 'kill-emacs-hook)
       (setq kill-emacs-hook nil))
     ;; Exit each module, destroying all resources created by this connection.
-    (exwm--exit)
+    (exwm-exit)
     ;; Set the return value.
     t))
 
