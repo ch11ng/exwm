@@ -969,6 +969,7 @@ where both ORIGINAL-KEY and SIMULATED-KEY are key sequences."
 (defun exwm-input--exit ()
   "Exit the input module."
   (exwm-input--unset-simulation-keys)
+  (remove-hook 'minibuffer-setup-hook #'exwm-input--on-minibuffer-setup)
   (remove-hook 'pre-command-hook #'exwm-input--on-pre-command)
   (remove-hook 'post-command-hook #'exwm-input--on-post-command)
   (remove-hook 'buffer-list-update-hook #'exwm-input--on-buffer-list-update)
