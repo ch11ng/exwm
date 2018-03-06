@@ -667,28 +667,6 @@
                      :data [0 0]))
   (xcb:flush exwm--connection))
 
-(defun exwm--exit-icccm-ewmh ()
-  "Remove ICCCM/EWMH properties."
-  (dolist (p (list
-              xcb:Atom:_NET_WM_NAME
-              xcb:Atom:_NET_SUPPORTED
-              xcb:Atom:_NET_CLIENT_LIST
-              xcb:Atom:_NET_CLIENT_LIST_STACKING
-              xcb:Atom:_NET_NUMBER_OF_DESKTOPS
-              xcb:Atom:_NET_DESKTOP_GEOMETRY
-              xcb:Atom:_NET_DESKTOP_VIEWPORT
-              xcb:Atom:_NET_CURRENT_DESKTOP
-              xcb:Atom:_NET_ACTIVE_WINDOW
-              xcb:Atom:_NET_SUPPORTING_WM_CHECK
-              ;; TODO: Keep this list synchronized with that in
-              ;;       `exwm--init-icccm-ewmh'.
-              ))
-    (xcb:+request exwm--connection
-        (make-instance 'xcb:DeleteProperty
-                       :window exwm--root
-                       :property p))
-    (xcb:flush exwm--connection)))
-
 ;;;###autoload
 (defun exwm-init (&optional frame)
   "Initialize EXWM."
@@ -697,25 +675,25 @@
       ;; The frame might not be selected if it's created by emacslicnet.
       (select-frame-set-input-focus frame)
     (setq frame (selected-frame)))
-  (if (not (eq 'x (framep frame)))
-      (exwm--log "Not running under X environment")
-    (unless exwm--connection
-      (exwm-enable 'undo)               ;never initialize again
-      (setq exwm--connection (xcb:connect))
-      (set-process-query-on-exit-flag (slot-value exwm--connection 'process)
-                                      nil) ;prevent query message on exit
-      (setq exwm--root
-            (slot-value (car (slot-value
-                              (xcb:get-setup exwm--connection) 'roots))
-                        'root))
-      (if (xcb:+request-checked+request-check exwm--connection
-              (make-instance 'xcb:ChangeWindowAttributes
-                             :window exwm--root :value-mask xcb:CW:EventMask
-                             :event-mask xcb:EventMask:SubstructureRedirect))
-          ;; Other window manager is running
-          (progn (xcb:disconnect exwm--connection)
-                 (setq exwm--connection nil)
-                 (exwm--log "Other window manager detected"))
+  (when (not (eq 'x (framep frame)))
+    (user-error "Not running under X environment"))
+  (when exwm--connection
+    (user-error "EXWM already running"))
+  (condition-case err
+      (progn
+        (exwm-enable 'undo)               ;never initialize again
+        (setq exwm--connection (xcb:connect))
+        (set-process-query-on-exit-flag (slot-value exwm--connection 'process)
+                                        nil) ;prevent query message on exit
+        (setq exwm--root
+              (slot-value (car (slot-value
+                                (xcb:get-setup exwm--connection) 'roots))
+                          'root))
+        (when (xcb:+request-checked+request-check exwm--connection
+                  (make-instance 'xcb:ChangeWindowAttributes
+                                 :window exwm--root :value-mask xcb:CW:EventMask
+                                 :event-mask xcb:EventMask:SubstructureRedirect))
+          (error "Other window manager is running"))
         ;; Disable some features not working well with EXWM
         (setq use-dialog-box nil
               confirm-kill-emacs #'exwm--confirm-kill-emacs)
@@ -734,7 +712,12 @@
         (exwm-input--post-init)
         ;; Manage existing windows
         (exwm-manage--scan)
-        (run-hooks 'exwm-init-hook)))))
+        (run-hooks 'exwm-init-hook))
+    ((quit error)
+     (exwm-exit)
+     ;; Rethrow error
+     (signal (car err) (cdr err)))))
+
 
 ;;;###autoload
 (defun exwm-exit ()
@@ -748,13 +731,13 @@
   (exwm-workspace--exit)
   (exwm-floating--exit)
   (exwm-layout--exit)
-  (exwm--exit-icccm-ewmh)
   (xcb:+request-checked+request-check exwm--connection
       (make-instance 'xcb:ChangeWindowAttributes
                      :window exwm--root :value-mask xcb:CW:EventMask
                      :event-mask xcb:EventMask:NoEvent))
-  (xcb:flush exwm--connection)
-  (xcb:disconnect exwm--connection)
+  (when exwm--connection
+    (xcb:flush exwm--connection)
+    (xcb:disconnect exwm--connection))
   (setq exwm--connection nil))
 
 (defun exwm-enable (&optional undo)
