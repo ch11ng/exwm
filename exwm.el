@@ -739,8 +739,8 @@
   (run-hooks 'exwm-exit-hook)
   ;; Exit modules.
   (exwm-input--exit)
-  (exwm-workspace--exit)
   (exwm-manage--exit)
+  (exwm-workspace--exit)
   (exwm-floating--exit)
   (exwm-layout--exit)
   (exwm--exit-icccm-ewmh))

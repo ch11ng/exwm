@@ -361,12 +361,17 @@ manager is shutting down."
           (xcb:+request exwm--connection
               (make-instance 'xcb:DeleteProperty
                              :window id :property xcb:Atom:WM_STATE))
-          (unless (eq withdraw-only 'quit)
+          (cond
+           ((eq withdraw-only 'quit)
+            ;; Remap the window when exiting.
+            (xcb:+request exwm--connection
+                (make-instance 'xcb:MapWindow :window id)))
+           (t
             ;; Remove _NET_WM_DESKTOP.
             (xcb:+request exwm--connection
                 (make-instance 'xcb:DeleteProperty
                                :window id
-                               :property xcb:Atom:_NET_WM_DESKTOP))))
+                               :property xcb:Atom:_NET_WM_DESKTOP)))))
         (when exwm--floating-frame
           ;; Unmap the floating frame before destroying its container.
           (let ((window (frame-parameter exwm--floating-frame 'exwm-outer-id))
@@ -670,6 +675,10 @@ border-width: %d; sibling: #x%x; stack-mode: %d"
 
 (defun exwm-manage--exit ()
   "Exit the manage module."
+  (dolist (pair exwm--id-buffer-alist)
+    (exwm-manage--unmanage-window (car pair) 'quit))
+  (remove-hook 'after-make-frame-functions #'exwm-manage--add-frame)
+  (remove-hook 'delete-frame-functions #'exwm-manage--remove-frame)
   (setq exwm-manage--_MOTIF_WM_HINTS nil))
 
 
