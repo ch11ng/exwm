@@ -743,7 +743,11 @@
   (exwm-workspace--exit)
   (exwm-floating--exit)
   (exwm-layout--exit)
-  (exwm--exit-icccm-ewmh))
+  (exwm--exit-icccm-ewmh)
+  (xcb:+request-checked+request-check exwm--connection
+      (make-instance 'xcb:ChangeWindowAttributes
+                     :window exwm--root :value-mask xcb:CW:EventMask
+                     :event-mask xcb:EventMask:NoEvent)))
 
 (defun exwm-enable (&optional undo)
   "Enable/Disable EXWM."
