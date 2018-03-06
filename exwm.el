@@ -120,7 +120,7 @@
 (defun exwm-restart ()
   "Restart EXWM."
   (interactive)
-  (when (exwm-workspace--confirm-kill-emacs "[EXWM] Restart? " 'no-check)
+  (when (exwm--confirm-kill-emacs "[EXWM] Restart? " 'no-check)
     (let* ((attr (process-attributes (emacs-pid)))
            (args (cdr (assq 'args attr)))
            (ppid (cdr (assq 'ppid attr)))
@@ -716,7 +716,8 @@
                  (setq exwm--connection nil)
                  (exwm--log "Other window manager detected"))
         ;; Disable some features not working well with EXWM
-        (setq use-dialog-box nil)
+        (setq use-dialog-box nil
+              confirm-kill-emacs #'exwm--confirm-kill-emacs)
         ;; Initialize ICCCM/EWMH support
         (xcb:icccm:init exwm--connection t)
         (xcb:ewmh:init exwm--connection t)
@@ -737,6 +738,7 @@
 (defun exwm--exit ()
   "Exit EXWM."
   (run-hooks 'exwm-exit-hook)
+  (setq confirm-kill-emacs nil)
   ;; Exit modules.
   (exwm-input--exit)
   (exwm-manage--exit)
@@ -747,7 +749,10 @@
   (xcb:+request-checked+request-check exwm--connection
       (make-instance 'xcb:ChangeWindowAttributes
                      :window exwm--root :value-mask xcb:CW:EventMask
-                     :event-mask xcb:EventMask:NoEvent)))
+                     :event-mask xcb:EventMask:NoEvent))
+  (xcb:flush exwm--connection)
+  (xcb:disconnect exwm--connection)
+  (setq exwm--connection nil))
 
 (defun exwm-enable (&optional undo)
   "Enable/Disable EXWM."
@@ -820,6 +825,39 @@
                (`subr (make-symbol (subr-name result)))
                ;; For other types, return the value as-is.
                (t result))))))
+
+(defun exwm--confirm-kill-emacs (prompt &optional force)
+  "Confirm before exiting Emacs."
+  (when (cond
+         ((and force (not (eq force 'no-check)))
+          ;; Force killing Emacs.
+          t)
+         ((or (eq force 'no-check) (not exwm--id-buffer-alist))
+          ;; Check if there's any unsaved file.
+          (pcase (catch 'break
+                   (let ((kill-emacs-query-functions
+                          (append kill-emacs-query-functions
+                                  (list (lambda ()
+                                          (throw 'break 'break))))))
+                     (save-buffers-kill-emacs)))
+            (`break (y-or-n-p prompt))
+            (x x)))
+         (t
+          (yes-or-no-p (format "[EXWM] %d window(s) will be destroyed.  %s"
+                               (length exwm--id-buffer-alist) prompt))))
+    ;; Run `kill-emacs-hook' (`server-force-stop' excluded) before Emacs
+    ;; frames are unmapped so that errors (if any) can be visible.
+    (if (memq #'server-force-stop kill-emacs-hook)
+        (progn
+          (setq kill-emacs-hook (delq #'server-force-stop kill-emacs-hook))
+          (run-hooks 'kill-emacs-hook)
+          (setq kill-emacs-hook (list #'server-force-stop)))
+      (run-hooks 'kill-emacs-hook)
+      (setq kill-emacs-hook nil))
+    ;; Exit each module, destroying all resources created by this connection.
+    (exwm--exit)
+    ;; Set the return value.
+    t))
 
 
 

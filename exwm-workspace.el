@@ -126,7 +126,6 @@ Please manually run the hook `exwm-workspace-list-change-hook' afterwards.")
 (defvar exwm-input--during-command)
 (defvar exwm-layout-show-all-buffers)
 (defvar exwm-manage--desktop)
-(declare-function exwm--exit "exwm.el")
 (declare-function exwm-input--on-buffer-list-update "exwm-input.el" ())
 (declare-function exwm-layout--fullscreen-p "exwm-layout.el" ())
 (declare-function exwm-layout--hide "exwm-layout.el" (id))
@@ -1179,42 +1178,6 @@ Please check `exwm-workspace--minibuffer-own-frame-p' first."
       (cancel-timer exwm-workspace--display-echo-area-timer)
       (setq exwm-workspace--display-echo-area-timer nil))))
 
-(defun exwm-workspace--confirm-kill-emacs (prompt &optional force)
-  "Confirm before exiting Emacs."
-  (when (cond
-         ((and force (not (eq force 'no-check)))
-          ;; Force killing Emacs.
-          t)
-         ((or (eq force 'no-check) (not exwm--id-buffer-alist))
-          ;; Check if there's any unsaved file.
-          (pcase (catch 'break
-                   (let ((kill-emacs-query-functions
-                          (append kill-emacs-query-functions
-                                  (list (lambda ()
-                                          (throw 'break 'break))))))
-                     (save-buffers-kill-emacs)))
-            (`break (y-or-n-p prompt))
-            (x x)))
-         (t
-          (yes-or-no-p (format "[EXWM] %d window(s) will be destroyed.  %s"
-                               (length exwm--id-buffer-alist) prompt))))
-    ;; Run `kill-emacs-hook' (`server-force-stop' excluded) before Emacs
-    ;; frames are unmapped so that errors (if any) can be visible.
-    (if (memq #'server-force-stop kill-emacs-hook)
-        (progn
-          (setq kill-emacs-hook (delq #'server-force-stop kill-emacs-hook))
-          (run-hooks 'kill-emacs-hook)
-          (setq kill-emacs-hook (list #'server-force-stop)))
-      (run-hooks 'kill-emacs-hook)
-      (setq kill-emacs-hook nil))
-    ;; Exit each module.
-    (exwm--exit)
-    ;; Destroy all resources created by this connection.
-    (xcb:disconnect exwm--connection)
-    (setq exwm--connection nil)
-    ;; Set the return value.
-    t))
-
 (defun exwm-workspace--set-desktop-geometry ()
   "Set _NET_DESKTOP_GEOMETRY."
   ;; We don't support large desktop so it's the same with screen size.
@@ -1526,7 +1489,6 @@ applied to all subsequently created X frames."
 (defun exwm-workspace--init ()
   "Initialize workspace module."
   ;; Prevent unexpected exit
-  (setq confirm-kill-emacs #'exwm-workspace--confirm-kill-emacs)
   (setq exwm-workspace--fullscreen-frame-count 0)
   (exwm-workspace--modify-all-x-frames-parameters
    '((internal-border-width . 0)))
@@ -1591,7 +1553,6 @@ applied to all subsequently created X frames."
 
 (defun exwm-workspace--exit ()
   "Exit the workspace module."
-  (setq confirm-kill-emacs nil)
   (when (exwm-workspace--minibuffer-own-frame-p)
     (exwm-workspace--exit-minibuffer-frame))
   (advice-remove 'x-create-frame #'exwm-workspace--x-create-frame)
