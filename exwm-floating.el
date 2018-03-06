@@ -274,12 +274,11 @@ This is also used by X window containers.")
                          :border-pixel exwm-floating--border-pixel
                          :override-redirect 1
                          :colormap exwm-floating--border-colormap))
-      (exwm--debug
-       (xcb:+request exwm--connection
-           (make-instance 'xcb:ewmh:set-_NET_WM_NAME
-                          :window frame-container
-                          :data
-                          (format "floating frame container for 0x%x" id))))
+      (xcb:+request exwm--connection
+          (make-instance 'xcb:ewmh:set-_NET_WM_NAME
+                         :window frame-container
+                         :data
+                         (format "EXWM floating frame container for 0x%x" id)))
       ;; Map it.
       (xcb:+request exwm--connection
           (make-instance 'xcb:MapWindow :window frame-container))

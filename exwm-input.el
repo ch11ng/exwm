@@ -927,6 +927,10 @@ where both ORIGINAL-KEY and SIMULATED-KEY are key sequences."
                      :visual 0
                      :value-mask xcb:CW:EventMask
                      :event-mask xcb:EventMask:PropertyChange))
+  (xcb:+request exwm--connection
+      (make-instance 'xcb:ewmh:set-_NET_WM_NAME
+                     :window exwm-input--timestamp-window
+                     :data "EXWM: exwm-input--timestamp-window"))
   (let ((atom "_TIME"))
     (setq exwm-input--timestamp-atom
           (slot-value (xcb:+request-unchecked+reply exwm--connection

@@ -1228,13 +1228,12 @@ Please check `exwm-workspace--minibuffer-own-frame-p' first."
                        :window container
                        :value-mask xcb:ConfigWindow:StackMode
                        :stack-mode xcb:StackMode:Below))
-    (exwm--debug
-     (xcb:+request exwm--connection
-         (make-instance 'xcb:ewmh:set-_NET_WM_NAME
-                        :window container
-                        :data
-                        (format "EXWM workspace %d frame container"
-                                (exwm-workspace--position frame)))))
+    (xcb:+request exwm--connection
+        (make-instance 'xcb:ewmh:set-_NET_WM_NAME
+                       :window container
+                       :data
+                       (format "EXWM workspace %d frame container"
+                               (exwm-workspace--position frame))))
     (xcb:+request exwm--connection
         (make-instance 'xcb:ReparentWindow
                        :window outer-id :parent container :x 0 :y 0))
@@ -1427,11 +1426,10 @@ applied to all subsequently created X frames."
                                            xcb:CW:OverrideRedirect)
                        :background-pixmap xcb:BackPixmap:ParentRelative
                        :override-redirect 1))
-    (exwm--debug
-     (xcb:+request exwm--connection
-         (make-instance 'xcb:ewmh:set-_NET_WM_NAME
-                        :window container
-                        :data "Minibuffer container")))
+    (xcb:+request exwm--connection
+        (make-instance 'xcb:ewmh:set-_NET_WM_NAME
+                       :window container
+                       :data "EXWM minibuffer container"))
     ;; Reparent the minibuffer frame to the container.
     (xcb:+request exwm--connection
         (make-instance 'xcb:ReparentWindow
