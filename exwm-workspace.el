@@ -1207,37 +1207,6 @@ Please check `exwm-workspace--minibuffer-own-frame-p' first."
           (setq kill-emacs-hook (list #'server-force-stop)))
       (run-hooks 'kill-emacs-hook)
       (setq kill-emacs-hook nil))
-    ;; Hide & reparent out all frames (save-set can't be used here since
-    ;; X windows will be re-mapped).
-    (when (exwm-workspace--minibuffer-own-frame-p)
-      (let ((id (frame-parameter exwm-workspace--minibuffer 'exwm-outer-id)))
-        (xcb:+request exwm--connection
-            (make-instance 'xcb:UnmapWindow
-                           :window id))
-        (xcb:+request exwm--connection
-            (make-instance 'xcb:ReparentWindow
-                           :window id
-                           :parent exwm--root
-                           :x 0
-                           :y 0))))
-    (dolist (f exwm-workspace--list)
-      (let ((id (frame-parameter f 'exwm-outer-id)))
-        (xcb:+request exwm--connection
-            (make-instance 'xcb:UnmapWindow
-                           :window id))
-        (xcb:+request exwm--connection
-            (make-instance 'xcb:ReparentWindow
-                           :window id
-                           :parent exwm--root
-                           :x 0
-                           :y 0))))
-    ;; Restore the 'client' frame parameter (before `exwm--exit').
-    (when exwm-workspace--client
-      (dolist (f exwm-workspace--list)
-        (set-frame-parameter f 'client exwm-workspace--client))
-      (when (exwm-workspace--minibuffer-own-frame-p)
-        (set-frame-parameter exwm-workspace--minibuffer 'client
-                             exwm-workspace--client)))
     ;; Exit each module.
     (exwm--exit)
     ;; Destroy all resources created by this connection.
@@ -1361,6 +1330,11 @@ Please check `exwm-workspace--minibuffer-own-frame-p' first."
                        :window outer-id
                        :value-mask xcb:CW:OverrideRedirect
                        :override-redirect 0))
+    ;; Remove fullscreen state.
+    (xcb:+request exwm--connection
+        (make-instance 'xcb:ewmh:set-_NET_WM_STATE
+                       :window outer-id
+                       :data nil))
     (xcb:+request exwm--connection
         (make-instance 'xcb:MapWindow
                        :window outer-id)))
@@ -1451,10 +1425,109 @@ applied to all subsequently created X frames."
   "Replacement for `handle-focus-out'."
   (interactive "e"))
 
+(defun exwm-workspace--init-minibuffer-frame ()
+  ;; Initialize workspaces without minibuffers.
+  (setq exwm-workspace--minibuffer
+        (make-frame '((window-system . x) (minibuffer . only)
+                      (left . 10000) (right . 10000)
+                      (width . 1) (height . 1)
+                      (client . nil))))
+  ;; This is the only usable minibuffer frame.
+  (setq default-minibuffer-frame exwm-workspace--minibuffer)
+  (exwm-workspace--modify-all-x-frames-parameters
+   '((minibuffer . nil)))
+  (let ((outer-id (string-to-number
+                   (frame-parameter exwm-workspace--minibuffer
+                                    'outer-window-id)))
+        (window-id (string-to-number
+                    (frame-parameter exwm-workspace--minibuffer
+                                     'window-id)))
+        (container (xcb:generate-id exwm--connection)))
+    (set-frame-parameter exwm-workspace--minibuffer
+                         'exwm-outer-id outer-id)
+    (set-frame-parameter exwm-workspace--minibuffer 'exwm-id window-id)
+    (set-frame-parameter exwm-workspace--minibuffer 'exwm-container
+                         container)
+    (xcb:+request exwm--connection
+        (make-instance 'xcb:CreateWindow
+                       :depth 0
+                       :wid container
+                       :parent exwm--root
+                       :x 0
+                       :y 0
+                       :width 1
+                       :height 1
+                       :border-width 0
+                       :class xcb:WindowClass:InputOutput
+                       :visual 0
+                       :value-mask (logior xcb:CW:BackPixmap
+                                           xcb:CW:OverrideRedirect)
+                       :background-pixmap xcb:BackPixmap:ParentRelative
+                       :override-redirect 1))
+    (exwm--debug
+     (xcb:+request exwm--connection
+         (make-instance 'xcb:ewmh:set-_NET_WM_NAME
+                        :window container
+                        :data "Minibuffer container")))
+    ;; Reparent the minibuffer frame to the container.
+    (xcb:+request exwm--connection
+        (make-instance 'xcb:ReparentWindow
+                       :window outer-id :parent container :x 0 :y 0))
+    ;; Map the container.
+    (xcb:+request exwm--connection
+        (make-instance 'xcb:MapWindow
+                       :window container))
+    ;; Attach event listener for monitoring the frame
+    (xcb:+request exwm--connection
+        (make-instance 'xcb:ChangeWindowAttributes
+                       :window outer-id
+                       :value-mask xcb:CW:EventMask
+                       :event-mask xcb:EventMask:StructureNotify))
+    (xcb:+event exwm--connection 'xcb:ConfigureNotify
+                #'exwm-workspace--on-ConfigureNotify))
+  ;; Show/hide minibuffer / echo area when they're active/inactive.
+  (add-hook 'minibuffer-setup-hook #'exwm-workspace--on-minibuffer-setup)
+  (add-hook 'minibuffer-exit-hook #'exwm-workspace--on-minibuffer-exit)
+  (setq exwm-workspace--timer
+        (run-with-idle-timer 0 t #'exwm-workspace--on-echo-area-dirty))
+  (add-hook 'echo-area-clear-hook #'exwm-workspace--on-echo-area-clear)
+  ;; The default behavior of `display-buffer' (indirectly called by
+  ;; `minibuffer-completion-help') is not correct here.
+  (cl-pushnew '(exwm-workspace--display-buffer) display-buffer-alist
+              :test #'equal))
+
+(defun exwm-workspace--exit-minibuffer-frame ()
+  ;; Only on minibuffer-frame.
+  (remove-hook 'minibuffer-setup-hook #'exwm-workspace--on-minibuffer-setup)
+  (remove-hook 'minibuffer-exit-hook #'exwm-workspace--on-minibuffer-exit)
+  (remove-hook 'echo-area-clear-hook #'exwm-workspace--on-echo-area-clear)
+  (when exwm-workspace--timer
+    (cancel-timer exwm-workspace--timer)
+    (setq exwm-workspace--timer nil))
+  (setq display-buffer-alist
+        (cl-delete '(exwm-workspace--display-buffer) display-buffer-alist
+                   :test #'equal))
+  (setq default-minibuffer-frame nil)
+  (let ((id (frame-parameter exwm-workspace--minibuffer 'exwm-outer-id)))
+    (xcb:+request exwm--connection
+        (make-instance 'xcb:UnmapWindow
+                       :window id))
+    (xcb:+request exwm--connection
+        (make-instance 'xcb:ReparentWindow
+                       :window id
+                       :parent exwm--root
+                       :x 0
+                       :y 0))
+    (xcb:+request exwm--connection
+        (make-instance 'xcb:MapWindow
+                       :window id)))
+  (setq exwm-workspace--minibuffer nil))
+
 (defun exwm-workspace--init ()
   "Initialize workspace module."
   ;; Prevent unexpected exit
   (setq confirm-kill-emacs #'exwm-workspace--confirm-kill-emacs)
+  (setq exwm-workspace--fullscreen-frame-count 0)
   (exwm-workspace--modify-all-x-frames-parameters
    '((internal-border-width . 0)))
   (let ((initial-workspaces (frame-list)))
@@ -1472,12 +1545,7 @@ applied to all subsequently created X frames."
             (set-frame-parameter f 'internal-border-width 0)
             ;; Prevent user from deleting the first frame by accident.
             (set-frame-parameter f 'client nil)))
-      ;; Initialize workspaces without minibuffers.
-      (setq exwm-workspace--minibuffer
-            (make-frame '((window-system . x) (minibuffer . only)
-                          (left . 10000) (right . 10000)
-                          (width . 1) (height . 1)
-                          (client . nil))))
+      (exwm-workspace--init-minibuffer-frame)
       ;; Remove/hide existing frames.
       (dolist (f initial-workspaces)
         (if (frame-parameter f 'client)
@@ -1487,72 +1555,9 @@ applied to all subsequently created X frames."
               (make-frame-invisible f))
           (when (eq 'x (framep f))   ;do not delete the initial frame.
             (delete-frame f))))
-      ;; This is the only usable minibuffer frame.
-      (setq default-minibuffer-frame exwm-workspace--minibuffer)
-      (exwm-workspace--modify-all-x-frames-parameters
-       '((minibuffer . nil)))
-      (let ((outer-id (string-to-number
-                       (frame-parameter exwm-workspace--minibuffer
-                                        'outer-window-id)))
-            (window-id (string-to-number
-                        (frame-parameter exwm-workspace--minibuffer
-                                         'window-id)))
-            (container (xcb:generate-id exwm--connection)))
-        (set-frame-parameter exwm-workspace--minibuffer
-                             'exwm-outer-id outer-id)
-        (set-frame-parameter exwm-workspace--minibuffer 'exwm-id window-id)
-        (set-frame-parameter exwm-workspace--minibuffer 'exwm-container
-                             container)
-        (xcb:+request exwm--connection
-            (make-instance 'xcb:CreateWindow
-                           :depth 0
-                           :wid container
-                           :parent exwm--root
-                           :x 0
-                           :y 0
-                           :width 1
-                           :height 1
-                           :border-width 0
-                           :class xcb:WindowClass:InputOutput
-                           :visual 0
-                           :value-mask (logior xcb:CW:BackPixmap
-                                               xcb:CW:OverrideRedirect)
-                           :background-pixmap xcb:BackPixmap:ParentRelative
-                           :override-redirect 1))
-        (exwm--debug
-         (xcb:+request exwm--connection
-             (make-instance 'xcb:ewmh:set-_NET_WM_NAME
-                            :window container
-                            :data "Minibuffer container")))
-        ;; Reparent the minibuffer frame to the container.
-        (xcb:+request exwm--connection
-            (make-instance 'xcb:ReparentWindow
-                           :window outer-id :parent container :x 0 :y 0))
-        ;; Map the container.
-        (xcb:+request exwm--connection
-            (make-instance 'xcb:MapWindow
-                           :window container))
-        ;; Attach event listener for monitoring the frame
-        (xcb:+request exwm--connection
-            (make-instance 'xcb:ChangeWindowAttributes
-                           :window outer-id
-                           :value-mask xcb:CW:EventMask
-                           :event-mask xcb:EventMask:StructureNotify))
-        (xcb:+event exwm--connection 'xcb:ConfigureNotify
-                    #'exwm-workspace--on-ConfigureNotify))
-      ;; Show/hide minibuffer / echo area when they're active/inactive.
-      (add-hook 'minibuffer-setup-hook #'exwm-workspace--on-minibuffer-setup)
-      (add-hook 'minibuffer-exit-hook #'exwm-workspace--on-minibuffer-exit)
-      (setq exwm-workspace--timer
-            (run-with-idle-timer 0 t #'exwm-workspace--on-echo-area-dirty))
-      (add-hook 'echo-area-clear-hook #'exwm-workspace--on-echo-area-clear)
       ;; Recreate one frame with the external minibuffer set.
       (setq initial-workspaces (list (make-frame '((window-system . x)
-                                                   (client . nil)))))
-      ;; The default behavior of `display-buffer' (indirectly called by
-      ;; `minibuffer-completion-help') is not correct here.
-      (cl-pushnew '(exwm-workspace--display-buffer) display-buffer-alist
-                  :test #'equal))
+                                                   (client . nil))))))
     ;; Prevent `other-buffer' from selecting already displayed EXWM buffers.
     (modify-all-frames-parameters
      '((buffer-predicate . exwm-layout--other-buffer-predicate)))
@@ -1586,28 +1591,38 @@ applied to all subsequently created X frames."
 
 (defun exwm-workspace--exit ()
   "Exit the workspace module."
-  (setq confirm-kill-emacs nil
-        exwm-workspace--list nil
-        exwm-workspace--client nil
-        exwm-workspace--minibuffer nil
-        exwm-workspace--fullscreen-frame-count 0
-        default-minibuffer-frame nil)
-  (remove-hook 'minibuffer-setup-hook #'exwm-workspace--on-minibuffer-setup)
-  (remove-hook 'minibuffer-exit-hook #'exwm-workspace--on-minibuffer-exit)
-  (when exwm-workspace--timer
-    (cancel-timer exwm-workspace--timer)
-    (setq exwm-workspace--timer nil))
-  (remove-hook 'echo-area-clear-hook #'exwm-workspace--on-echo-area-clear)
-  (setq display-buffer-alist
-        (cl-delete '(exwm-workspace--display-buffer) display-buffer-alist
-                   :test #'equal))
+  (setq confirm-kill-emacs nil)
+  (when (exwm-workspace--minibuffer-own-frame-p)
+    (exwm-workspace--exit-minibuffer-frame))
   (advice-remove 'x-create-frame #'exwm-workspace--x-create-frame)
   (advice-remove 'handle-focus-in #'exwm-workspace--handle-focus-in)
   (advice-remove 'handle-focus-out #'exwm-workspace--handle-focus-out)
   (remove-hook 'after-make-frame-functions
                #'exwm-workspace--on-after-make-frame)
   (remove-hook 'delete-frame-functions
-               #'exwm-workspace--on-delete-frame))
+               #'exwm-workspace--on-delete-frame)
+  ;; Hide & reparent out all frames (save-set can't be used here since
+  ;; X windows will be re-mapped).
+  (setq exwm-workspace--current nil)
+  (dolist (i exwm-workspace--list)
+    (exwm-workspace--remove-frame-as-workspace i)
+    (modify-frame-parameters i '((exwm-selected-window . nil)
+                                 (exwm-urgency . nil)
+                                 (exwm-outer-id . nil)
+                                 (exwm-id . nil)
+                                 (exwm-container . nil)
+                                 ;; (internal-border-width . nil) ; integerp
+                                 ;; (client . nil)
+                                 (fullscreen . nil)
+                                 (buffer-predicate . nil))))
+  ;; Restore the 'client' frame parameter (before `exwm--exit').
+  (when exwm-workspace--client
+    (dolist (f exwm-workspace--list)
+      (set-frame-parameter f 'client exwm-workspace--client))
+    (when (exwm-workspace--own-frame-p)
+      (set-frame-parameter exwm-workspace--minibuffer 'client
+                           exwm-workspace--client))
+    (setq exwm-workspace--client nil)))
 
 (defun exwm-workspace--post-init ()
   "The second stage in the initialization of the workspace module."
