@@ -376,6 +376,7 @@ You shall use the default value if using auto-hide minibuffer."
                          :selection xcb:Atom:_NET_SYSTEM_TRAY_S0))
     (when (/= owner xcb:Window:None)
       (xcb:disconnect exwm-systemtray--connection)
+      (setq exwm-systemtray--connection nil)
       (warn "[EXWM] Other system tray detected")
       (cl-return-from exwm-systemtray--init)))
   (let ((id (xcb:generate-id exwm-systemtray--connection)))

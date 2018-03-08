@@ -111,14 +111,10 @@ You can still make the X windows floating afterwards."
 (declare-function exwm-input-set-local-simulation-keys "exwm-input.el")
 (declare-function exwm-layout--fullscreen-p "exwm-layout.el" ())
 (declare-function exwm-layout--iconic-state-p "exwm-layout.el" (&optional id))
-(declare-function exwm-workspace--count "exwm-workspace.el" ())
 (declare-function exwm-workspace--position "exwm-workspace.el" (frame))
-(declare-function exwm-workspace--set-desktop "exwm-workspace.el" (id))
 (declare-function exwm-workspace--set-fullscreen "exwm-workspace.el" (frame))
 (declare-function exwm-workspace--update-struts "exwm-workspace.el" ())
 (declare-function exwm-workspace--update-workareas "exwm-workspace.el" ())
-(declare-function exwm-workspace-move-window "exwm-workspace.el"
-                  (frame-or-index &optional id))
 
 (defun exwm-manage--update-geometry (id &optional force)
   "Update window geometry."

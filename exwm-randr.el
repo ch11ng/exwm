@@ -81,7 +81,6 @@ the first one in result being the primary output."
 
 (defvar exwm-workspace--fullscreen-frame-count)
 (defvar exwm-workspace--list)
-(declare-function exwm-workspace--active-p "exwm-workspace.el" (frame))
 (declare-function exwm-workspace--count "exwm-workspace.el")
 (declare-function exwm-workspace--set-active "exwm-workspace.el"
                   (frame active))

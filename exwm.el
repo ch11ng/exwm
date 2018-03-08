@@ -685,14 +685,14 @@
   "Acquire the WM_Sn selection.
 
 REPLACE specifies what to do in case there already is a window
-manager.  If t, replace it, if nil, abort and if `ask'."
+manager.  If t, replace it, if nil, abort and ask the user if `ask'."
   (with-slots (owner)
       (xcb:+request-unchecked+reply exwm--connection
           (make-instance 'xcb:GetSelectionOwner
                          :selection xcb:Atom:WM_S0))
     (when (/= owner xcb:Window:None)
       (when (eq replace 'ask)
-        (setq replace (yes-or-no-p "Replace existing window manager?")))
+        (setq replace (yes-or-no-p "Replace existing window manager? ")))
       (when (not replace)
         (error "Other window manager detected")))
     (let ((new-owner (xcb:generate-id exwm--connection)))
@@ -727,7 +727,7 @@ manager.  If t, replace it, if nil, abort and if `ask'."
       ;; Wait for the other window manager to terminate.
       (when (/= owner xcb:Window:None)
         (let (reply)
-          (cl-dotimes (i 10) ;exwm--wmsn-acquire-timeout)
+          (cl-dotimes (i exwm--wmsn-acquire-timeout)
             (setq reply (xcb:+request-unchecked+reply exwm--connection
                             (make-instance 'xcb:GetGeometry :drawable owner)))
             (when (not reply)
@@ -785,8 +785,10 @@ manager.  If t, replace it, if nil, abort and if `ask'."
         (exwm--wmsn-acquire 'ask)
         (when (xcb:+request-checked+request-check exwm--connection
                   (make-instance 'xcb:ChangeWindowAttributes
-                                 :window exwm--root :value-mask xcb:CW:EventMask
-                                 :event-mask xcb:EventMask:SubstructureRedirect))
+                                 :window exwm--root
+                                 :value-mask xcb:CW:EventMask
+                                 :event-mask
+                                 xcb:EventMask:SubstructureRedirect))
           (error "Other window manager is running"))
         ;; Disable some features not working well with EXWM
         (setq use-dialog-box nil
@@ -822,10 +824,6 @@ manager.  If t, replace it, if nil, abort and if `ask'."
   (exwm-workspace--exit)
   (exwm-floating--exit)
   (exwm-layout--exit)
-  (xcb:+request-checked+request-check exwm--connection
-      (make-instance 'xcb:ChangeWindowAttributes
-                     :window exwm--root :value-mask xcb:CW:EventMask
-                     :event-mask xcb:EventMask:NoEvent))
   (when exwm--connection
     (xcb:flush exwm--connection)
     (xcb:disconnect exwm--connection))

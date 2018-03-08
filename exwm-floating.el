@@ -79,7 +79,6 @@ This is also used by X window containers.")
 (declare-function exwm-layout--iconic-state-p "exwm-layout.el" (&optional id))
 (declare-function exwm-layout--refresh "exwm-layout.el" ())
 (declare-function exwm-layout--show "exwm-layout.el" (id &optional window))
-(declare-function exwm-workspace--minibuffer-own-frame-p "exwm-workspace.el")
 (declare-function exwm-workspace--position "exwm-workspace.el" (frame))
 
 (defun exwm-floating--set-allowed-actions (id tilling)

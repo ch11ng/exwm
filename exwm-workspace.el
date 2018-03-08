@@ -1327,7 +1327,7 @@ Please check `exwm-workspace--minibuffer-own-frame-p' first."
     (exwm-workspace--remove-frame-as-workspace frame))))
 
 (defun exwm-workspace--on-after-make-frame (frame)
-  "Hook run upon `delete-frame' that configures FRAME as a workspace."
+  "Hook run upon `make-frame' that configures FRAME as a workspace."
   (cond
    ((exwm-workspace--workspace-p frame)
     (exwm--log "Frame `%s' is already a workspace" frame))
@@ -1354,6 +1354,9 @@ Please check `exwm-workspace--minibuffer-own-frame-p' first."
 (defun exwm-workspace--update-ewmh-props ()
   "Update EWMH properties to match the workspace list."
   (let ((num-workspaces (exwm-workspace--count)))
+    ;; Avoid setting 0 desktops.
+    (when (= 0 num-workspaces)
+      (setq num-workspaces 1))
     ;; Set _NET_NUMBER_OF_DESKTOPS.
     (xcb:+request exwm--connection
         (make-instance 'xcb:ewmh:set-_NET_NUMBER_OF_DESKTOPS
@@ -1470,19 +1473,14 @@ applied to all subsequently created X frames."
                    :test #'equal))
   (setq default-minibuffer-frame nil)
   (let ((id (frame-parameter exwm-workspace--minibuffer 'exwm-outer-id)))
-    (xcb:+request exwm--connection
-        (make-instance 'xcb:UnmapWindow
-                       :window id))
-    (xcb:+request exwm--connection
-        (make-instance 'xcb:ReparentWindow
-                       :window id
-                       :parent exwm--root
-                       :x 0
-                       :y 0))
-    (xcb:+request exwm--connection
-        (make-instance 'xcb:MapWindow
-                       :window id)))
-  (setq exwm-workspace--minibuffer nil))
+    (when (and exwm-workspace--minibuffer id)
+      (xcb:+request exwm--connection
+          (make-instance 'xcb:ReparentWindow
+                         :window id
+                         :parent exwm--root
+                         :x 0
+                         :y 0)))
+    (setq exwm-workspace--minibuffer nil)))
 
 (defun exwm-workspace--init ()
   "Initialize workspace module."
@@ -1538,8 +1536,7 @@ applied to all subsequently created X frames."
   ;; Make new frames create new workspaces.
   (add-hook 'after-make-frame-functions
             #'exwm-workspace--on-after-make-frame)
-  (add-hook 'delete-frame-functions
-            #'exwm-workspace--remove-frame-as-workspace)
+  (add-hook 'delete-frame-functions #'exwm-workspace--on-delete-frame)
   ;; Switch to the first workspace
   (exwm-workspace-switch 0 t)
   ;; Prevent frame parameters introduced by this module from being
@@ -1578,7 +1575,7 @@ applied to all subsequently created X frames."
   (when exwm-workspace--client
     (dolist (f exwm-workspace--list)
       (set-frame-parameter f 'client exwm-workspace--client))
-    (when (exwm-workspace--own-frame-p)
+    (when (exwm-workspace--minibuffer-own-frame-p)
       (set-frame-parameter exwm-workspace--minibuffer 'client
                            exwm-workspace--client))
     (setq exwm-workspace--client nil)))

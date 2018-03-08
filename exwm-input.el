@@ -146,6 +146,7 @@ This value should always be overwritten.")
                   (&rest _args))
 (declare-function exwm-layout--iconic-state-p "exwm-layout.el" (&optional id))
 (declare-function exwm-layout--show "exwm-layout.el" (id &optional window))
+(declare-function exwm-reset "exwm.el" ())
 (declare-function exwm-workspace--client-p "exwm-workspace.el"
                   (&optional frame))
 (declare-function exwm-workspace--minibuffer-own-frame-p "exwm-workspace.el")
