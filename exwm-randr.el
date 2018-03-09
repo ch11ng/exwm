@@ -140,6 +140,18 @@ the first one in result being the primary output."
                                              container-frame-alist))
           (set-frame-parameter frame 'exwm-randr-output output)
           (set-frame-parameter frame 'exwm-geometry geometry)))
+      ;; Update workareas.
+      (exwm-workspace--update-workareas)
+      ;; Resize workspace.
+      (dolist (f exwm-workspace--list)
+        (exwm-workspace--set-fullscreen f))
+      (xcb:flush exwm--connection)
+      ;; Raise the minibuffer if it's active.
+      (when (and (active-minibuffer-window)
+                 (exwm-workspace--minibuffer-own-frame-p))
+        (exwm-workspace--show-minibuffer))
+      ;; Set _NET_DESKTOP_GEOMETRY.
+      (exwm-workspace--set-desktop-geometry)
       ;; Update active/inactive workspaces.
       (dolist (w exwm-workspace--list)
         (exwm-workspace--set-active w nil))
@@ -155,17 +167,6 @@ the first one in result being the primary output."
                   (rassq-delete-all output container-output-alist))
             (exwm-workspace--set-active (cdr (assq xwin container-frame-alist))
                                         t))))
-      ;; Update workareas.
-      (exwm-workspace--update-workareas)
-      ;; Resize workspace.
-      (dolist (f exwm-workspace--list)
-        (exwm-workspace--set-fullscreen f))
-      ;; Raise the minibuffer if it's active.
-      (when (and (active-minibuffer-window)
-                 (exwm-workspace--minibuffer-own-frame-p))
-        (exwm-workspace--show-minibuffer))
-      ;; Set _NET_DESKTOP_GEOMETRY.
-      (exwm-workspace--set-desktop-geometry)
       (xcb:flush exwm--connection)
       (run-hooks 'exwm-randr-refresh-hook))))
 
