@@ -757,7 +757,7 @@ manager.  If t, replace it, if nil, abort and ask the user if `ask'."
       (setq exwm--wmsn-window new-owner))))
 
 ;;;###autoload
-(defun exwm-init (&optional frame)
+(cl-defun exwm-init (&optional frame)
   "Initialize EXWM."
   (interactive)
   (if frame
@@ -765,9 +765,11 @@ manager.  If t, replace it, if nil, abort and ask the user if `ask'."
       (select-frame-set-input-focus frame)
     (setq frame (selected-frame)))
   (when (not (eq 'x (framep frame)))
-    (user-error "Not running under X environment"))
+    (message "[EXWM] Not running under X environment")
+    (cl-return-from exwm-init))
   (when exwm--connection
-    (user-error "EXWM already running"))
+    (exwm--log "EXWM already running")
+    (cl-return-from exwm-init))
   (condition-case err
       (progn
         (exwm-enable 'undo)               ;never initialize again
@@ -809,7 +811,7 @@ manager.  If t, replace it, if nil, abort and ask the user if `ask'."
     ((quit error)
      (exwm-exit)
      ;; Rethrow error
-     (signal (car err) (cdr err)))))
+     (warn "[EXWM] EXWM fails to start (%s: %s)" (car err) (cdr err)))))
 
 
 ;;;###autoload

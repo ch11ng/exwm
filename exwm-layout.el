@@ -147,7 +147,7 @@
   (interactive)
   (unless (and (or id (derived-mode-p 'exwm-mode))
                (not (exwm-layout--fullscreen-p)))
-    (cl-return-from 'exwm-layout-set-fullscreen))
+    (cl-return-from exwm-layout-set-fullscreen))
   (with-current-buffer (if id (exwm--id->buffer id) (window-buffer))
     ;; Expand the X window to fill the whole screen.
     (with-slots (x y width height) (exwm-workspace--get-geometry exwm--frame)
@@ -174,7 +174,7 @@
   (interactive)
   (unless (and (or id (derived-mode-p 'exwm-mode))
                (exwm-layout--fullscreen-p))
-    (cl-return-from 'exwm-layout-unset-fullscreen))
+    (cl-return-from exwm-layout-unset-fullscreen))
   (with-current-buffer (if id (exwm--id->buffer id) (window-buffer))
     (setq exwm--ewmh-state
           (delq xcb:Atom:_NET_WM_STATE_FULLSCREEN exwm--ewmh-state))
@@ -200,7 +200,7 @@
   "Toggle fullscreen mode."
   (interactive (list (exwm--buffer->id (window-buffer))))
   (unless (or id (derived-mode-p 'exwm-mode))
-    (cl-return-from 'exwm-layout-toggle-fullscreen))
+    (cl-return-from exwm-layout-toggle-fullscreen))
   (when id
     (with-current-buffer (exwm--id->buffer id)
       (if (exwm-layout--fullscreen-p)

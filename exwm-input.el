@@ -745,7 +745,7 @@ EXWM will prompt for the key to send.  This command can be prefixed to send
 multiple keys."
   (interactive "p")
   (unless (derived-mode-p 'exwm-mode)
-    (cl-return-from 'exwm-input-send-next-key))
+    (cl-return-from exwm-input-send-next-key))
   (when (> times 12) (setq times 12))
   (let (key keys)
     (dotimes (i times)
@@ -893,7 +893,7 @@ where both ORIGINAL-KEY and SIMULATED-KEY are key sequences."
   "Fake a key event according to the last input key sequence."
   (interactive "p")
   (unless (derived-mode-p 'exwm-mode)
-    (cl-return-from 'exwm-input-send-simulation-key))
+    (cl-return-from exwm-input-send-simulation-key))
   (let ((keys (gethash (this-single-command-keys)
                        exwm-input--simulation-keys)))
     (dotimes (_ times)

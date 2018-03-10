@@ -401,7 +401,7 @@ This is also used by X window containers.")
   "Toggle the current window between floating and non-floating states."
   (interactive)
   (unless (derived-mode-p 'exwm-mode)
-    (cl-return-from 'exwm-floating-toggle-floating))
+    (cl-return-from exwm-floating-toggle-floating))
   (with-current-buffer (window-buffer)
     (if exwm--floating-frame
         (exwm-floating--unset-floating exwm--id)
