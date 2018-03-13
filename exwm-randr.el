@@ -134,8 +134,9 @@ the first one in result being the primary output."
           (unless geometry
             (setq geometry default-geometry
                   output primary-output))
-          (setq container-output-alist (nconc `((,container . ,output))
-                                              container-output-alist)
+          (setq container-output-alist (nconc
+                                        `((,container . ,(intern output)))
+                                        container-output-alist)
                 container-frame-alist (nconc `((,container . ,frame))
                                              container-frame-alist))
           (set-frame-parameter frame 'exwm-randr-output output)
