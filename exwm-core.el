@@ -126,7 +126,9 @@ Nil can be passed as placeholder."
 The action is to call FUNCTION with arguments ARGS.  If Emacs is not idle,
 defer the action until Emacs is idle.  Otherwise, defer the action until at
 least SECS seconds later."
-  `(run-with-idle-timer (time-add (or (current-idle-time) (- ,secs)) ,secs)
+  `(run-with-idle-timer (+ (float-time (or (current-idle-time)
+					   (seconds-to-time (- ,secs))))
+			   ,secs)
                         nil
                         ,function
                         ,@args))
