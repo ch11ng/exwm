@@ -69,6 +69,7 @@ You can still make the X windows floating afterwards."
                         (const :tag "Char-mode" char-mode)
                         (const :tag "Prefix keys" prefix-keys)
                         (const :tag "Simulation keys" simulation-keys)
+                        (const :tag "Workspace" workspace)
                         ;; For forward compatibility.
                         (other))
                        :value-type (sexp :tag "Value" nil))))
@@ -202,7 +203,6 @@ You can still make the X windows floating afterwards."
       (exwm--update-hints id)
       (exwm-manage--update-geometry id)
       (exwm-manage--update-mwm-hints id)
-      (setq exwm--configurations (exwm-manage--get-configurations))
       ;; No need to manage (please check OverrideRedirect outside)
       (when (or
              (not
@@ -266,6 +266,10 @@ You can still make the X windows floating afterwards."
         (let ((kill-buffer-query-functions nil))
           (kill-buffer (current-buffer)))
         (throw 'return 'ignored))
+      (setq exwm--configurations (exwm-manage--get-configurations))
+      (let ((index (plist-get exwm--configurations 'workspace)))
+        (when (and index (< index (length exwm-workspace--list)))
+          (setq exwm--frame (elt exwm-workspace--list index))))
       ;; Manage the window
       (exwm--log "Manage #x%x" id)
       (xcb:+request exwm--connection    ;remove border
@@ -290,7 +294,8 @@ You can still make the X windows floating afterwards."
           ;; User has specified whether it should be floating.
           (if (plist-get exwm--configurations 'floating)
               (exwm-floating--set-floating id)
-            (exwm-floating--unset-floating id))
+            (with-selected-window (frame-selected-window exwm--frame)
+              (exwm-floating--unset-floating id)))
         ;; Try to determine if it should be floating.
         (if (and (not exwm-manage-force-tiling)
                  (or exwm-transient-for exwm--fixed-size
@@ -299,7 +304,8 @@ You can still make the X windows floating afterwards."
                      (memq xcb:Atom:_NET_WM_WINDOW_TYPE_DIALOG
                            exwm-window-type)))
             (exwm-floating--set-floating id)
-          (exwm-floating--unset-floating id)))
+          (with-selected-window (frame-selected-window exwm--frame)
+            (exwm-floating--unset-floating id))))
       (if (plist-get exwm--configurations 'char-mode)
           (exwm-input-release-keyboard id)
         (exwm-input-grab-keyboard id))
