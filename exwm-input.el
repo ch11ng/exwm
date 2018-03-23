@@ -902,7 +902,8 @@ where both ORIGINAL-KEY and SIMULATED-KEY are key sequences."
 
 (defun exwm-input--on-pre-command ()
   "Run in `pre-command-hook'."
-  (setq exwm-input--during-command t))
+  (unless (eq this-command #'exit-minibuffer)
+    (setq exwm-input--during-command t)))
 
 (defun exwm-input--on-post-command ()
   "Run in `post-command-hook'."
