@@ -166,7 +166,7 @@
                        :data (vector xcb:Atom:_NET_WM_STATE_FULLSCREEN)))
     (xcb:flush exwm--connection)
     (cl-pushnew xcb:Atom:_NET_WM_STATE_FULLSCREEN exwm--ewmh-state)
-    (call-interactively #'exwm-input-release-keyboard)))
+    (exwm-input--release-keyboard exwm--id)))
 
 ;;;###autoload
 (cl-defun exwm-layout-unset-fullscreen (&optional id)
@@ -193,7 +193,8 @@
     (xcb:+request exwm--connection
         (make-instance 'xcb:ewmh:set-_NET_WM_STATE :window exwm--id :data []))
     (xcb:flush exwm--connection)
-    (call-interactively #'exwm-input-grab-keyboard)))
+    (when exwm--keyboard-grabbed
+      (exwm-input--grab-keyboard exwm--id))))
 
 ;;;###autoload
 (cl-defun exwm-layout-toggle-fullscreen (&optional id)
@@ -204,7 +205,7 @@
   (when id
     (with-current-buffer (exwm--id->buffer id)
       (if (exwm-layout--fullscreen-p)
-          (exwm-reset)
+          (exwm-layout-unset-fullscreen id)
         (exwm-layout-set-fullscreen id)))))
 
 (defun exwm-layout--other-buffer-predicate (buffer)
