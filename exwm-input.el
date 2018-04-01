@@ -522,6 +522,19 @@ instead."
       (setq unread-command-events
             (append unread-command-events `((t . ,event)))))))
 
+(defun exwm-input--mimic-read-event (event)
+  "Process EVENT as if it were returned by `read-event'."
+  (unless (eq 0 extra-keyboard-modifiers)
+    (setq event (event-convert-list (append (event-modifiers
+                                             extra-keyboard-modifiers)
+                                            event))))
+  (when (characterp event)
+    (let ((event* (when keyboard-translate-table
+                    (aref keyboard-translate-table event))))
+      (when event*
+        (setq event event*))))
+  event)
+
 (cl-defun exwm-input--translate (key)
   (let (translation)
     (dolist (map (list input-decode-map
@@ -546,18 +559,18 @@ instead."
     (setq exwm-input--line-mode-cache nil)
     (when exwm-input--temp-line-mode
       (setq exwm-input--temp-line-mode nil)
-      (exwm-input--release-keyboard)))
-  (exwm-input--unread-event event))
+      (exwm-input--release-keyboard))))
 
 (defun exwm-input--on-KeyPress-line-mode (key-press raw-data)
   "Parse X KeyPress event to Emacs key event and then feed the command loop."
   (with-slots (detail state) key-press
     (let ((keysym (xcb:keysyms:keycode->keysym exwm--connection detail state))
-          event mode)
+          event raw-event mode)
       (when (and (/= 0 (car keysym))
-                 (setq event (xcb:keysyms:keysym->event
-                              exwm--connection (car keysym)
-                              (logand state (lognot (cdr keysym)))))
+                 (setq raw-event (xcb:keysyms:keysym->event
+                                  exwm--connection (car keysym)
+                                  (logand state (lognot (cdr keysym)))))
+                 (setq event (exwm-input--mimic-read-event raw-event))
                  (or exwm-input-line-mode-passthrough
                      exwm-input--during-command
                      ;; Forward the event when there is an incomplete key
@@ -567,10 +580,14 @@ instead."
                      ;;
                      (memq event exwm-input--global-prefix-keys)
                      (memq event exwm-input-prefix-keys)
+                     (when overriding-terminal-local-map
+                       (lookup-key overriding-terminal-local-map
+                                   (vector event)))
                      (lookup-key (current-local-map) (vector event))
                      (gethash event exwm-input--simulation-keys)))
         (setq mode xcb:Allow:AsyncKeyboard)
-        (exwm-input--cache-event event))
+        (exwm-input--cache-event event)
+        (exwm-input--unread-event raw-event))
       (unless mode
         (if (= 0 (logand #x6000 state)) ;Check the 13~14 bits.
             ;; Not an XKB state; just replay it.
@@ -599,17 +616,19 @@ instead."
   "Handle KeyPress event in char-mode."
   (with-slots (detail state) key-press
     (let ((keysym (xcb:keysyms:keycode->keysym exwm--connection detail state))
-          event)
+          event raw-event)
       (when (and (/= 0 (car keysym))
-                 (setq event (xcb:keysyms:keysym->event
-                              exwm--connection (car keysym)
-                              (logand state (lognot (cdr keysym))))))
+                 (setq raw-event (xcb:keysyms:keysym->event
+                                  exwm--connection (car keysym)
+                                  (logand state (lognot (cdr keysym)))))
+                 (setq event (exwm-input--mimic-read-event raw-event)))
         (if (not (eq major-mode 'exwm-mode))
-            (exwm-input--unread-event event)
+            (exwm-input--unread-event raw-event)
           ;; Grab keyboard temporarily.
           (setq exwm-input--temp-line-mode t)
           (exwm-input--grab-keyboard)
-          (exwm-input--cache-event event)))))
+          (exwm-input--cache-event event)
+          (exwm-input--unread-event raw-event)))))
   (xcb:+request exwm--connection
       (make-instance 'xcb:AllowEvents
                      :mode xcb:Allow:AsyncKeyboard
