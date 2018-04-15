@@ -154,7 +154,7 @@
       (when reply
         (setq desktop (slot-value reply 'value))
         (cond
-         ((eq desktop #xffffffff)
+         ((eq desktop 4294967295.)
           (unless (or (not exwm--floating-frame)
                       (eq exwm--frame exwm-workspace--current)
                       (and exwm--desktop
