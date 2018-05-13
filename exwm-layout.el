@@ -165,6 +165,7 @@
                        :window exwm--id
                        :data (vector xcb:Atom:_NET_WM_STATE_FULLSCREEN)))
     (xcb:flush exwm--connection)
+    (set-window-dedicated-p (get-buffer-window) t)
     (cl-pushnew xcb:Atom:_NET_WM_STATE_FULLSCREEN exwm--ewmh-state)
     (exwm-input--release-keyboard exwm--id)))
 
@@ -193,6 +194,7 @@
     (xcb:+request exwm--connection
         (make-instance 'xcb:ewmh:set-_NET_WM_STATE :window exwm--id :data []))
     (xcb:flush exwm--connection)
+    (set-window-dedicated-p (get-buffer-window) nil)
     (when exwm--keyboard-grabbed
       (exwm-input--grab-keyboard exwm--id))))
 
