@@ -45,9 +45,9 @@
 (defvar exwm-layout--timer nil "Timer used to track echo area changes.")
 
 (defvar exwm-workspace--current)
+(declare-function exwm-input--release-keyboard "exwm-input.el")
+(declare-function exwm-input--grab-keyboard "exwm-input.el")
 (declare-function exwm-input-grab-keyboard "exwm-input.el")
-(declare-function exwm-input-release-keyboard "exwm-input.el")
-(declare-function exwm-reset "exwm.el" ())
 (declare-function exwm-workspace--client-p "exwm-workspace.el"
                   (&optional frame))
 (declare-function exwm-workspace--minibuffer-own-frame-p "exwm-workspace.el")

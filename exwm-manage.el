@@ -123,8 +123,14 @@ You can still make the X windows floating afterwards."
     (unless (and exwm--geometry (not force))
       (let ((reply (xcb:+request-unchecked+reply exwm--connection
                        (make-instance 'xcb:GetGeometry :drawable id))))
-        (when reply                     ;nil when destroyed
-          (setq exwm--geometry reply))))))
+        (setq exwm--geometry
+              (or reply
+                  ;; Provide a reasonable fallback value.
+                  (make-instance 'xcb:RECTANGLE
+                                 :x 0
+                                 :y 0
+                                 :width (/ (x-display-pixel-width) 2)
+                                 :height (/ (x-display-pixel-height) 2))))))))
 
 (defun exwm-manage--update-ewmh-state (id)
   "Update _NET_WM_STATE."
