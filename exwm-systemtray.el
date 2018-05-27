@@ -330,9 +330,7 @@ You shall use the default value if using auto-hide minibuffer."
                                 (frame-parameter exwm-workspace--current
                                                  'window-id))
                        :x 0
-                       :y (- (elt (elt exwm-workspace--workareas
-                                       exwm-workspace-current-index)
-                                  3)
+                       :y (- (frame-pixel-height exwm-workspace--current)
                              exwm-systemtray-height))))
   (exwm-systemtray--refresh))
 
@@ -343,9 +341,7 @@ You shall use the default value if using auto-hide minibuffer."
         (make-instance 'xcb:ConfigureWindow
                        :window exwm-systemtray--embedder
                        :value-mask xcb:ConfigWindow:Y
-                       :y (- (elt (elt exwm-workspace--workareas
-                                       exwm-workspace-current-index)
-                                  3)
+                       :y (- (frame-pixel-height exwm-workspace--current)
                              exwm-systemtray-height))))
   (exwm-systemtray--refresh))
 
