@@ -36,6 +36,9 @@
 ;;; Code:
 
 (require 'xcb-keysyms)
+(require 'xcb-xinput)
+(require 'xcb-xtest)
+
 (require 'exwm-core)
 
 (defgroup exwm-input nil
@@ -101,6 +104,8 @@ defined in `exwm-mode-map' here."
 ;;        laggy experience.
 (defconst exwm-input--update-focus-interval 0.01
   "Time interval (in seconds) for accumulating input focus update requests.")
+
+(defvar exwm-input--devices nil "List of slave keyboard devices.")
 
 (defvar exwm-input--during-command nil
   "Indicate whether between `pre-command-hook' and `post-command-hook'.")
@@ -364,6 +369,44 @@ ARGS are additional arguments to CALLBACK."
                      :window exwm--root
                      :data (or id xcb:Window:None))))
 
+(defun exwm-input--update-devices (update)
+  "Update the cache of slave keyboards."
+  (with-slots (infos)
+      (xcb:+request-unchecked+reply exwm--connection
+          (make-instance 'xcb:xinput:XIQueryDevice
+                         :deviceid xcb:xinput:Device:All))
+    (setq exwm-input--devices
+          (delq nil
+                (mapcar (lambda (info)
+                          (with-slots (deviceid type enabled name) info
+                            (setq name (downcase name))
+                            (when (and (= xcb:xinput:DeviceType:SlaveKeyboard
+                                          type)
+                                       (string-match-p "keyboard" name)
+                                       ;; Exclude XTEST keyboard.
+                                       (not (string-match-p "xtest" name)))
+                              deviceid)))
+                        infos)))
+    (unless exwm-input--devices
+      (error "Failed to retrieve keyboards"))
+    (when update
+      ;; Try to re-grab all keys.
+      (exwm-input--update-global-prefix-keys)
+      (dolist (pair exwm--id-buffer-alist)
+        (with-current-buffer (cdr pair)
+          (when exwm--keyboard-grabbed
+            (exwm-input--grab-keyboard (car pair))))))))
+
+(defun exwm-input--on-Hierarchy (data _synthetic)
+  "Handle Hierarchy events."
+  (let ((evt (make-instance 'xcb:xinput:Hierarchy)))
+    (xcb:unmarshal evt data)
+    (with-slots (flags infos) evt
+      (when (/= 0 (logand flags
+                          (logior xcb:xinput:HierarchyMask:SlaveAdded
+                                  xcb:xinput:HierarchyMask:SlaveRemoved)))
+        (exwm-input--update-devices t)))))
+
 (defun exwm-input--on-ButtonPress (data _synthetic)
   "Handle ButtonPress event."
   (let ((obj (make-instance 'xcb:ButtonPress))
@@ -417,11 +460,29 @@ ARGS are additional arguments to CALLBACK."
 
 (defun exwm-input--on-KeyPress (data _synthetic)
   "Handle KeyPress event."
-  (let ((obj (make-instance 'xcb:KeyPress)))
+  (let ((obj (make-instance 'xcb:xinput:KeyPress)))
     (xcb:unmarshal obj data)
     (if (eq major-mode 'exwm-mode)
         (funcall exwm--on-KeyPress obj data)
       (exwm-input--on-KeyPress-char-mode obj))))
+
+(defun exwm-input--on-KeyRelease (data _synthetic)
+  "Handle KeyRelease event."
+  ;; TODO: For simplicity every KeyRelease event is replayed which is likely
+  ;; to cause overheads and perhaps problems.
+  (let ((evt (make-instance 'xcb:xinput:KeyRelease)))
+    (xcb:unmarshal evt data)            ;FIXME: optimize.
+    (with-slots (deviceid detail root-x root-y) evt
+      (xcb:+request exwm--connection
+          (make-instance 'xcb:xtest:FakeInput
+                         :type 3      ;KeyRelease
+                         :detail detail
+                         :time xcb:Time:CurrentTime
+                         :root exwm--root
+                         :rootX root-x
+                         :rootY root-y
+                         :deviceid deviceid))
+      (xcb:flush exwm--connection))))
 
 (defun exwm-input--on-CreateNotify (data _synthetic)
   "Handle CreateNotify events."
@@ -445,29 +506,44 @@ ARGS are additional arguments to CALLBACK."
                            'children))))))
 
 (defun exwm-input--grab-global-prefix-keys (&rest xwins)
-  (let ((req (make-instance 'xcb:GrabKey
-                            :owner-events 0
+  (let ((req (make-instance 'xcb:xinput:XIPassiveGrabDevice
+                            :time xcb:Time:CurrentTime
                             :grab-window nil
-                            :modifiers nil
-                            :key nil
-                            :pointer-mode xcb:GrabMode:Async
-                            :keyboard-mode xcb:GrabMode:Async))
-        keysym keycode)
+                            :cursor 0
+                            :detail nil
+                            :deviceid nil
+                            :num-modifiers 1
+                            :mask-len 1
+                            :grab-type xcb:xinput:GrabType:Keycode
+                            :grab-mode xcb:xinput:GrabMode22:Sync
+                            :paired-device-mode 0
+                            :owner-events xcb:xinput:GrabOwner:NoOwner
+                            :mask (list
+                                   (logior xcb:xinput:XIEventMask:KeyPress
+                                           xcb:xinput:XIEventMask:KeyRelease))
+                            :modifiers nil))
+        keysym keycode sequences)
     (dolist (k exwm-input--global-prefix-keys)
       (setq keysym (xcb:keysyms:event->keysym exwm--connection k)
             keycode (xcb:keysyms:keysym->keycode exwm--connection
                                                  (car keysym)))
-      (setf (slot-value req 'modifiers) (cdr keysym)
-            (slot-value req 'key) keycode)
-      (dolist (xwin xwins)
-        (setf (slot-value req 'grab-window) xwin)
-        (xcb:+request exwm--connection req)
-        ;; Also grab this key with num-lock mask set.
-        (when (/= 0 xcb:keysyms:num-lock-mask)
-          (setf (slot-value req 'modifiers)
-                (logior (cdr keysym) xcb:keysyms:num-lock-mask))
-          (xcb:+request exwm--connection req))))
-    (xcb:flush exwm--connection)))
+      (setf (slot-value req 'modifiers) (list (cdr keysym))
+            (slot-value req 'detail) keycode)
+      (dolist (device exwm-input--devices)
+        (setf (slot-value req 'deviceid) device)
+        (dolist (xwin xwins)
+          (setf (slot-value req 'grab-window) xwin)
+          (setq sequences (append sequences
+                                  (list (xcb:+request exwm--connection req))))
+          ;; Also grab this key with num-lock mask set.
+          (when (/= 0 xcb:keysyms:num-lock-mask)
+            (setf (slot-value req 'modifiers)
+                  (list (logior (cdr keysym) xcb:keysyms:num-lock-mask)))
+            (setq sequences (append sequences
+                                    (list (xcb:+request exwm--connection
+                                              req))))))))
+    (dolist (sequence sequences)
+      (xcb:+reply exwm--connection sequence))))
 
 (defun exwm-input--set-key (key command)
   (global-set-key key command)
@@ -563,60 +639,71 @@ instead."
 
 (defun exwm-input--on-KeyPress-line-mode (key-press raw-data)
   "Parse X KeyPress event to Emacs key event and then feed the command loop."
-  (with-slots (detail state) key-press
-    (let ((keysym (xcb:keysyms:keycode->keysym exwm--connection detail state))
-          event raw-event mode)
-      (when (and (/= 0 (car keysym))
-                 (setq raw-event (xcb:keysyms:keysym->event
-                                  exwm--connection (car keysym)
-                                  (logand state (lognot (cdr keysym)))))
-                 (setq event (exwm-input--mimic-read-event raw-event))
-                 (or exwm-input-line-mode-passthrough
-                     exwm-input--during-command
-                     ;; Forward the event when there is an incomplete key
-                     ;; sequence or when the minibuffer is active.
-                     exwm-input--line-mode-cache
-                     (eq (active-minibuffer-window) (selected-window))
-                     ;;
-                     (memq event exwm-input--global-prefix-keys)
-                     (memq event exwm-input-prefix-keys)
-                     (when overriding-terminal-local-map
-                       (lookup-key overriding-terminal-local-map
-                                   (vector event)))
-                     (lookup-key (current-local-map) (vector event))
-                     (gethash event exwm-input--simulation-keys)))
-        (setq mode xcb:Allow:AsyncKeyboard)
-        (exwm-input--cache-event event)
-        (exwm-input--unread-event raw-event))
-      (unless mode
-        (if (= 0 (logand #x6000 state)) ;Check the 13~14 bits.
-            ;; Not an XKB state; just replay it.
-            (setq mode xcb:Allow:ReplayKeyboard)
-          ;; An XKB state; sent it with SendEvent.
-          ;; FIXME: Can this also be replayed?
-          ;; FIXME: KeyRelease events are lost.
-          (setq mode xcb:Allow:AsyncKeyboard)
+  (with-slots (deviceid detail root-x root-y mods) key-press
+    (let* ((state (slot-value mods 'effective))
+           (keysym (xcb:keysyms:keycode->keysym exwm--connection detail state))
+           event raw-event)
+      (if (and (/= 0 (car keysym))
+               (setq raw-event (xcb:keysyms:keysym->event
+                                exwm--connection (car keysym)
+                                (logand state (lognot (cdr keysym)))))
+               (setq event (exwm-input--mimic-read-event raw-event))
+               (or exwm-input-line-mode-passthrough
+                   exwm-input--during-command
+                   ;; Forward the event when there is an incomplete key
+                   ;; sequence or when the minibuffer is active.
+                   exwm-input--line-mode-cache
+                   (eq (active-minibuffer-window) (selected-window))
+                   ;;
+                   (memq event exwm-input--global-prefix-keys)
+                   (memq event exwm-input-prefix-keys)
+                   (when overriding-terminal-local-map
+                     (lookup-key overriding-terminal-local-map
+                                 (vector event)))
+                   (lookup-key (current-local-map) (vector event))
+                   (gethash event exwm-input--simulation-keys)))
+          (progn
+            (exwm-input--cache-event event)
+            (exwm-input--unread-event raw-event))
+        (if (/= 0 (logand #x6000 state)) ;Check the 13~14 bits.
+            ;; An XKB state; sent it with SendEvent.
+            ;; FIXME: Can this also be replayed?
+            ;; FIXME: KeyRelease events are lost.
+            (xcb:+request exwm--connection
+                (make-instance 'xcb:SendEvent
+                               :propagate 0
+                               :destination (slot-value key-press 'event)
+                               :event-mask xcb:EventMask:NoEvent
+                               :event raw-data))
+          ;; Replay the key.
           (xcb:+request exwm--connection
-              (make-instance 'xcb:SendEvent
-                             :propagate 0
-                             :destination (slot-value key-press 'event)
-                             :event-mask xcb:EventMask:NoEvent
-                             :event raw-data)))
+              (make-instance 'xcb:xtest:FakeInput
+                             :type 2    ;KeyPress
+                             :detail detail
+                             :time xcb:Time:CurrentTime
+                             :root exwm--root
+                             :rootX root-x
+                             :rootY root-y
+                             :deviceid deviceid)))
         ;; Make Emacs aware of this event when defining keyboard macros.
         (when (and defining-kbd-macro event)
           (set-transient-map '(keymap (t . (lambda () (interactive)))))
           (exwm-input--unread-event event)))
       (xcb:+request exwm--connection
-          (make-instance 'xcb:AllowEvents
-                         :mode mode
-                         :time xcb:Time:CurrentTime))
+          (make-instance 'xcb:xinput:XIAllowEvents
+                         :time xcb:Time:CurrentTime
+                         :deviceid deviceid
+                         :event-mode xcb:xinput:EventMode:AsyncDevice
+                         :touchid 0
+                         :grab-window 0))
       (xcb:flush exwm--connection))))
 
 (defun exwm-input--on-KeyPress-char-mode (key-press &optional _raw-data)
   "Handle KeyPress event in char-mode."
-  (with-slots (detail state) key-press
-    (let ((keysym (xcb:keysyms:keycode->keysym exwm--connection detail state))
-          event raw-event)
+  (with-slots (deviceid detail mods) key-press
+    (let* ((state (slot-value mods 'effective))
+           (keysym (xcb:keysyms:keycode->keysym exwm--connection detail state))
+           event raw-event)
       (when (and (/= 0 (car keysym))
                  (setq raw-event (xcb:keysyms:keysym->event
                                   exwm--connection (car keysym)
@@ -628,12 +715,15 @@ instead."
           (setq exwm-input--temp-line-mode t)
           (exwm-input--grab-keyboard)
           (exwm-input--cache-event event)
-          (exwm-input--unread-event raw-event)))))
-  (xcb:+request exwm--connection
-      (make-instance 'xcb:AllowEvents
-                     :mode xcb:Allow:AsyncKeyboard
-                     :time xcb:Time:CurrentTime))
-  (xcb:flush exwm--connection))
+          (exwm-input--unread-event raw-event))))
+    (xcb:+request exwm--connection
+        (make-instance 'xcb:xinput:XIAllowEvents
+                       :time xcb:Time:CurrentTime
+                       :deviceid deviceid
+                       :event-mode xcb:xinput:EventMode:AsyncDevice
+                       :touchid 0
+                       :grab-window 0))
+    (xcb:flush exwm--connection)))
 
 (defun exwm-input--update-mode-line (id)
   "Update the propertized `mode-line-process' for window ID."
@@ -667,15 +757,30 @@ instead."
   "Grab all key events on window ID."
   (unless id (setq id (exwm--buffer->id (window-buffer))))
   (when id
-    (when (xcb:+request-checked+request-check exwm--connection
-              (make-instance 'xcb:GrabKey
-                             :owner-events 0
-                             :grab-window id
-                             :modifiers xcb:ModMask:Any
-                             :key xcb:Grab:Any
-                             :pointer-mode xcb:GrabMode:Async
-                             :keyboard-mode xcb:GrabMode:Sync))
-      (exwm--log "Failed to grab keyboard for #x%x" id))
+    (let ((sequences
+           (mapcar
+            (lambda (device)
+              (xcb:+request exwm--connection
+                  (make-instance 'xcb:xinput:XIPassiveGrabDevice
+                                 :time xcb:Time:CurrentTime
+                                 :grab-window id
+                                 :cursor 0
+                                 :detail xcb:Grab:Any
+                                 :deviceid device
+                                 :num-modifiers 1
+                                 :mask-len 1
+                                 :grab-type xcb:xinput:GrabType:Keycode
+                                 :grab-mode xcb:xinput:GrabMode22:Sync
+                                 :paired-device-mode 0
+                                 :owner-events xcb:xinput:GrabOwner:NoOwner
+                                 :mask
+                                 (list
+                                  (logior xcb:xinput:XIEventMask:KeyPress
+                                          xcb:xinput:XIEventMask:KeyRelease))
+                                 :modifiers (list 2147483648.))))
+            exwm-input--devices)))
+      (dolist (sequence sequences)
+        (xcb:+reply exwm--connection sequence)))
     (with-current-buffer (exwm--id->buffer id)
       (setq exwm--on-KeyPress #'exwm-input--on-KeyPress-line-mode))))
 
@@ -683,12 +788,16 @@ instead."
   "Ungrab all key events on window ID."
   (unless id (setq id (exwm--buffer->id (window-buffer))))
   (when id
-    (when (xcb:+request-checked+request-check exwm--connection
-              (make-instance 'xcb:UngrabKey
-                             :key xcb:Grab:Any
-                             :grab-window id
-                             :modifiers xcb:ModMask:Any))
-      (exwm--log "Failed to release keyboard for #x%x" id))
+    (dolist (device exwm-input--devices)
+      (xcb:+request exwm--connection
+          (make-instance 'xcb:xinput:XIPassiveUngrabDevice
+                         :grab-window id
+                         :detail xcb:Grab:Any
+                         :deviceid device
+                         :num-modifiers 1
+                         :grab-type xcb:xinput:GrabType:Keycode
+                         :modifiers (list 2147483648.)))) ;1 << 31
+    (xcb:flush exwm--connection)
     (exwm-input--grab-global-prefix-keys id)
     (with-current-buffer (exwm--id->buffer id)
       (setq exwm--on-KeyPress #'exwm-input--on-KeyPress-char-mode))))
@@ -930,6 +1039,30 @@ where both ORIGINAL-KEY and SIMULATED-KEY are key sequences."
 
 (defun exwm-input--init ()
   "Initialize the keyboard module."
+  ;; Initialize the XI2 extension.
+  (if (= 0 (slot-value (xcb:get-extension-data exwm--connection 'xcb:xinput)
+                       'present))
+      (error "[EXWM] XI2 extension is not supported by the server")
+    (with-slots (major-version minor-version)
+        (xcb:+request-unchecked+reply exwm--connection
+            (make-instance 'xcb:xinput:XIQueryVersion
+                           :major-version 2
+                           :minor-version 0))
+      (when (or (/= major-version 2) (/= minor-version 0))
+        (error "[EXWM] XI2 extension 2.0 is not supported by the server"))))
+  (exwm-input--update-devices nil)
+  ;; Initialize the XTEST extension.
+  (if (= 0 (slot-value (xcb:get-extension-data exwm--connection 'xcb:xtest)
+                       'present))
+      (error "[EXWM] XTEST extension is not supported by the server")
+    (with-slots (major-version minor-version)
+        (xcb:+request-unchecked+reply exwm--connection
+            (make-instance 'xcb:xtest:GetVersion
+                           :major-version 2
+                           :minor-version 2))
+      (when (or (/= major-version 2) (/= minor-version 2))
+        (error "[EXWM] XTEST extension 2.2 is not supported by the server"))))
+
   ;; Refresh keyboard mapping
   (xcb:keysyms:init exwm--connection #'exwm-input--on-keysyms-update)
   ;; Create the X window and intern the atom used to fetch timestamp.
@@ -970,7 +1103,11 @@ where both ORIGINAL-KEY and SIMULATED-KEY are key sequences."
   (xcb:+event exwm--connection 'xcb:PropertyNotify
               #'exwm-input--on-PropertyNotify)
   (xcb:+event exwm--connection 'xcb:CreateNotify #'exwm-input--on-CreateNotify)
-  (xcb:+event exwm--connection 'xcb:KeyPress #'exwm-input--on-KeyPress)
+  (xcb:+event exwm--connection 'xcb:xinput:KeyPress #'exwm-input--on-KeyPress)
+  (xcb:+event exwm--connection 'xcb:xinput:KeyRelease
+              #'exwm-input--on-KeyRelease)
+  (xcb:+event exwm--connection 'xcb:xinput:Hierarchy
+              #'exwm-input--on-Hierarchy)
   (xcb:+event exwm--connection 'xcb:ButtonPress #'exwm-input--on-ButtonPress)
   (xcb:+event exwm--connection 'xcb:ButtonRelease
               #'exwm-floating--stop-moveresize)
