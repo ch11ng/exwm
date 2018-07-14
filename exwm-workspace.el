@@ -47,6 +47,10 @@ deleted, moved, etc)."
   "Non-nil to show buffers on other workspaces."
   :type 'boolean)
 
+(defcustom exwm-workspace-warp-cursor nil
+  "Non-nil to warp cursor automatically after workspace switch."
+  :type 'boolean)
+
 (defcustom exwm-workspace-number 1
   "Initial number of workspaces."
   :type 'integer)
@@ -595,6 +599,17 @@ for internal use only."
           (make-instance 'xcb:ewmh:set-_NET_CURRENT_DESKTOP
                          :window exwm--root :data index))
       (xcb:flush exwm--connection))
+    (when exwm-workspace-warp-cursor
+      (with-slots (win-x win-y)
+          (xcb:+request-unchecked+reply exwm--connection
+              (make-instance 'xcb:QueryPointer
+                             :window (frame-parameter frame
+                                                      'exwm-outer-id)))
+        (when (or (> win-x (frame-pixel-width frame))
+                  (> win-y (frame-pixel-height)))
+          (set-mouse-position frame
+                              (/ (frame-width frame) 2)
+                              (/ (frame-height frame) 2)))))
     (when (frame-live-p old-frame)
       (with-selected-frame old-frame
         (run-hooks 'focus-out-hook)))
