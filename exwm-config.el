@@ -79,11 +79,11 @@
 
 You can find the original one at `exwm-config-ido-buffer-window-other-frame'."
     (with-current-buffer (window-buffer (selected-window))
-      (if (and (eq major-mode 'exwm-mode)
+      (if (and (derived-mode-p 'exwm-mode)
                exwm--floating-frame)
           ;; Switch from a floating frame.
           (with-current-buffer buffer
-            (if (and (eq major-mode 'exwm-mode)
+            (if (and (derived-mode-p 'exwm-mode)
                      exwm--floating-frame
                      (eq exwm--frame exwm-workspace--current))
                 ;; Switch to another floating frame.
@@ -92,7 +92,7 @@ You can find the original one at `exwm-config-ido-buffer-window-other-frame'."
               (or (get-buffer-window buffer exwm-workspace--current)
                   (selected-window))))
         (with-current-buffer buffer
-          (when (eq major-mode 'exwm-mode)
+          (when (derived-mode-p 'exwm-mode)
             (if (eq exwm--frame exwm-workspace--current)
                 (when exwm--floating-frame
                   ;; Switch to a floating frame on the current workspace.

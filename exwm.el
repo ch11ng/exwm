@@ -108,7 +108,7 @@
   "Reset the state of the selected window (non-fullscreen, line-mode, etc)."
   (interactive)
   (with-current-buffer (window-buffer)
-    (when (eq major-mode 'exwm-mode)
+    (when (derived-mode-p 'exwm-mode)
       (when (exwm-layout--fullscreen-p)
         (exwm-layout-unset-fullscreen))
       ;; Force refresh

@@ -411,7 +411,7 @@ This is also used by X window containers.")
 (defun exwm-floating-hide ()
   "Hide the current floating X window (which would show again when selected)."
   (interactive)
-  (when (and (eq major-mode 'exwm-mode)
+  (when (and (derived-mode-p 'exwm-mode)
              exwm--floating-frame)
     (exwm-layout--hide exwm--id)
     (select-frame-set-input-focus exwm-workspace--current)))
@@ -641,7 +641,7 @@ This is also used by X window containers.")
   "Move a floating window right by DELTA-X pixels and down by DELTA-Y pixels.
 
 Both DELTA-X and DELTA-Y default to 1.  This command should be bound locally."
-  (unless (and (eq major-mode 'exwm-mode) exwm--floating-frame)
+  (unless (and (derived-mode-p 'exwm-mode) exwm--floating-frame)
     (user-error "[EXWM] `exwm-floating-move' is only for floating X windows"))
   (unless delta-x (setq delta-x 1))
   (unless delta-y (setq delta-y 1))

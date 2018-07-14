@@ -224,7 +224,7 @@ ARGS are additional arguments to CALLBACK."
               ;; The X window is on another workspace.
               (exwm-workspace-switch frame)
             (with-current-buffer buffer
-              (when (and (eq major-mode 'exwm-mode)
+              (when (and (derived-mode-p 'exwm-mode)
                          (not (eq exwm--frame exwm-workspace--current)))
                 ;; The floating X window is on another workspace.
                 (exwm-workspace-switch exwm--frame)))))
@@ -295,7 +295,7 @@ ARGS are additional arguments to CALLBACK."
   "Update input focus."
   (when (window-live-p window)
     (with-current-buffer (window-buffer window)
-      (if (eq major-mode 'exwm-mode)
+      (if (derived-mode-p 'exwm-mode)
           (if (not (eq exwm--frame exwm-workspace--current))
               (progn
                 (set-frame-parameter exwm--frame 'exwm-selected-window window)
@@ -369,14 +369,14 @@ ARGS are additional arguments to CALLBACK."
       (cond ((and (eq button-event exwm-input-move-event)
                   ;; Either an undecorated or a floating X window.
                   (with-current-buffer buffer
-                    (or (not (eq major-mode 'exwm-mode))
+                    (or (not (derived-mode-p 'exwm-mode))
                         exwm--floating-frame)))
              ;; Move
              (exwm-floating--start-moveresize
               event xcb:ewmh:_NET_WM_MOVERESIZE_MOVE))
             ((and (eq button-event exwm-input-resize-event)
                   (with-current-buffer buffer
-                    (or (not (eq major-mode 'exwm-mode))
+                    (or (not (derived-mode-p 'exwm-mode))
                         exwm--floating-frame)))
              ;; Resize
              (exwm-floating--start-moveresize event))
@@ -389,7 +389,7 @@ ARGS are additional arguments to CALLBACK."
                      ;; The X window is on another workspace
                      (exwm-workspace-switch frame)
                    (with-current-buffer buffer
-                     (when (and (eq major-mode 'exwm-mode)
+                     (when (and (derived-mode-p 'exwm-mode)
                                 (not (eq exwm--frame
                                          exwm-workspace--current)))
                        ;; The floating X window is on another workspace
@@ -410,7 +410,7 @@ ARGS are additional arguments to CALLBACK."
   "Handle KeyPress event."
   (let ((obj (make-instance 'xcb:KeyPress)))
     (xcb:unmarshal obj data)
-    (if (eq major-mode 'exwm-mode)
+    (if (derived-mode-p 'exwm-mode)
         (funcall exwm--on-KeyPress obj data)
       (exwm-input--on-KeyPress-char-mode obj))))
 
@@ -613,7 +613,7 @@ instead."
                                   exwm--connection (car keysym)
                                   (logand state (lognot (cdr keysym)))))
                  (setq event (exwm-input--mimic-read-event raw-event)))
-        (if (not (eq major-mode 'exwm-mode))
+        (if (not (derived-mode-p 'exwm-mode))
             (exwm-input--unread-event raw-event)
           ;; Grab keyboard temporarily.
           (setq exwm-input--temp-line-mode t)

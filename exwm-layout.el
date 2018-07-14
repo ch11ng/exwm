@@ -225,7 +225,7 @@ is t EXWM buffers are never selected by `other-buffer'.
 When variable `exwm-layout--other-buffer-exclude-buffers' is a
 list of buffers, EXWM buffers belonging to that list are never
 selected by `other-buffer'."
-  (or (not (eq 'exwm-mode (buffer-local-value 'major-mode buffer)))
+  (or (not (with-current-buffer buffer (derived-mode-p 'exwm-mode)))
       (and (not exwm-layout--other-buffer-exclude-exwm-mode-buffers)
            (not (memq buffer exwm-layout--other-buffer-exclude-buffers))
            ;; Do not select if already shown in some window.
@@ -268,7 +268,7 @@ selected by `other-buffer'."
             ;; Refresh a floating frame
             (let ((window (frame-first-window frame)))
               (with-current-buffer (window-buffer window)
-                (when (and (eq major-mode 'exwm-mode)
+                (when (and (derived-mode-p 'exwm-mode)
                            ;; It may be a buffer waiting to be killed.
                            (exwm--id->buffer exwm--id))
                   (exwm--log "Refresh floating window #x%x" exwm--id)
@@ -279,7 +279,7 @@ selected by `other-buffer'."
           (let ((exwm-layout--other-buffer-exclude-exwm-mode-buffers t))
             (dolist (window windows)
               (with-current-buffer (window-buffer window)
-                (when (eq major-mode 'exwm-mode)
+                (when (derived-mode-p 'exwm-mode)
                   (switch-to-prev-buffer window))))))
       ;; Refresh the whole workspace
       ;; Workspaces other than the active one can also be refreshed (RandR)
@@ -310,7 +310,8 @@ selected by `other-buffer'."
                                     (car-safe (window-prev-buffers window)))))
                   (and
                    prev-buffer
-                   (eq 'exwm-mode (buffer-local-value 'major-mode prev-buffer))
+                   (with-current-buffer prev-buffer
+                     (derived-mode-p 'exwm-mode))
                    (push prev-buffer covered-buffers))))))))
       ;; Set some sensible buffer to vacated windows.
       (let ((exwm-layout--other-buffer-exclude-buffers covered-buffers))
@@ -320,7 +321,7 @@ selected by `other-buffer'."
       (let ((exwm-layout--other-buffer-exclude-exwm-mode-buffers t))
         (dolist (window (window-list frame 0))
           (with-current-buffer (window-buffer window)
-            (when (and (eq major-mode 'exwm-mode)
+            (when (and (derived-mode-p 'exwm-mode)
                        (or exwm--floating-frame (not (eq frame exwm--frame))))
               (switch-to-prev-buffer window)))))
       (exwm-layout--set-client-list-stacking)
@@ -359,7 +360,7 @@ windows."
   (cond
    ((zerop delta))                     ;no operation
    ((window-minibuffer-p))             ;avoid resize minibuffer-window
-   ((not (and (eq major-mode 'exwm-mode) exwm--floating-frame))
+   ((not (and (derived-mode-p 'exwm-mode) exwm--floating-frame))
     ;; Resize on tiling layout
     (unless (= 0 (window-resizable nil delta horizontal nil t)) ;not resizable
       (let ((window-resize-pixelwise t))
@@ -461,7 +462,7 @@ See also `exwm-layout-enlarge-window'."
 (defun exwm-layout-hide-mode-line ()
   "Hide mode-line."
   (interactive)
-  (when (and (eq major-mode 'exwm-mode) mode-line-format)
+  (when (and (derived-mode-p 'exwm-mode) mode-line-format)
     (let (mode-line-height)
       (when exwm--floating-frame
         (setq mode-line-height (window-mode-line-height
@@ -479,7 +480,7 @@ See also `exwm-layout-enlarge-window'."
 (defun exwm-layout-show-mode-line ()
   "Show mode-line."
   (interactive)
-  (when (and (eq major-mode 'exwm-mode) (not mode-line-format))
+  (when (and (derived-mode-p 'exwm-mode) (not mode-line-format))
     (setq mode-line-format exwm--mode-line-format
           exwm--mode-line-format nil)
     (if (not exwm--floating-frame)
@@ -496,7 +497,7 @@ See also `exwm-layout-enlarge-window'."
 (defun exwm-layout-toggle-mode-line ()
   "Toggle the display of mode-line."
   (interactive)
-  (when (eq major-mode 'exwm-mode)
+  (when (derived-mode-p 'exwm-mode)
     (if mode-line-format
         (exwm-layout-hide-mode-line)
       (exwm-layout-show-mode-line))))
