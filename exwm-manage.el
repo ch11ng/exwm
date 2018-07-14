@@ -597,18 +597,14 @@ border-width: %d; sibling: #x%x; stack-mode: %d"
         (if buffer
             (with-current-buffer buffer
               (exwm--log "ConfigureWindow (resize floating X window)")
-              (when (and (/= 0 (logand value-mask xcb:ConfigWindow:Width))
-                         (>= (abs width-delta) exwm-manage--width-delta-min))
-                (set-frame-width exwm--floating-frame
-                                 (+ (frame-pixel-width exwm--floating-frame)
-                                    width-delta)
-                                 nil t))
-              (when (and (/= 0 (logand value-mask xcb:ConfigWindow:Height))
-                         (>= (abs height-delta) exwm-manage--height-delta-min))
-                (set-frame-height exwm--floating-frame
+              (exwm--set-geometry (frame-parameter exwm--floating-frame
+                                                   'exwm-outer-id)
+                                  nil
+                                  nil
+                                  (+ (frame-pixel-width exwm--floating-frame)
+                                     width-delta)
                                   (+ (frame-pixel-height exwm--floating-frame)
-                                     height-delta)
-                                  nil t)))
+                                     height-delta)))
           (exwm--log "ConfigureWindow (preserve geometry)")
           ;; Configure the unmanaged window.
           ;; But Emacs frames should be excluded.  Generally we don't
