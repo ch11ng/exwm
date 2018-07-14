@@ -158,36 +158,27 @@ This value should always be overwritten.")
   "Set input focus to window ID in a proper way."
   (when (exwm--id->buffer id)
     (with-current-buffer (exwm--id->buffer id)
-      (cond
-       ((and (not exwm--hints-input)
-             (memq xcb:Atom:WM_TAKE_FOCUS exwm--protocols))
-        (when (= (frame-parameter nil 'exwm-id)
-                 (slot-value (xcb:+request-unchecked+reply exwm--connection
-                                 (make-instance 'xcb:GetInputFocus))
-                             'focus))
-          (exwm--log "Focus on #x%x with WM_TAKE_FOCUS" id)
-          (exwm-input--update-timestamp
-           (lambda (timestamp id)
-             (let ((event (make-instance 'xcb:icccm:WM_TAKE_FOCUS
-                                         :window id
-                                         :time timestamp)))
-               (setq event (xcb:marshal event exwm--connection))
-               (xcb:+request exwm--connection
-                   (make-instance 'xcb:icccm:SendEvent
-                                  :destination id
-                                  :event event))
-               (exwm-input--set-active-window id)
-               (xcb:flush exwm--connection)))
-           id)))
-       (t
-        (exwm--log "Focus on #x%x with SetInputFocus" id)
-        (xcb:+request exwm--connection
-            (make-instance 'xcb:SetInputFocus
-                           :revert-to xcb:InputFocus:Parent
-                           :focus id
-                           :time xcb:Time:CurrentTime))
-        (exwm-input--set-active-window id)
-        (xcb:flush exwm--connection))))))
+      (exwm-input--update-timestamp
+       (lambda (timestamp id send-input-focus)
+         (when send-input-focus
+           (xcb:+request exwm--connection
+               (make-instance 'xcb:SetInputFocus
+                              :revert-to xcb:InputFocus:Parent
+                              :focus id
+                              :time timestamp)))
+         (let ((event (make-instance 'xcb:icccm:WM_TAKE_FOCUS
+                                     :window id
+                                     :time timestamp)))
+           (setq event (xcb:marshal event exwm--connection))
+           (xcb:+request exwm--connection
+               (make-instance 'xcb:icccm:SendEvent
+                              :destination id
+                              :event event)))
+         (exwm-input--set-active-window id)
+         (xcb:flush exwm--connection))
+       id
+       (or exwm--hints-input
+           (not (memq xcb:Atom:WM_TAKE_FOCUS exwm--protocols)))))))
 
 (defun exwm-input--update-timestamp (callback &rest args)
   "Fetch the latest timestamp from the server and feed it to CALLBACK.
