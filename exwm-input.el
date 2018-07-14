@@ -159,26 +159,28 @@ This value should always be overwritten.")
   (when (exwm--id->buffer id)
     (with-current-buffer (exwm--id->buffer id)
       (exwm-input--update-timestamp
-       (lambda (timestamp id send-input-focus)
+       (lambda (timestamp id send-input-focus wm-take-focus)
          (when send-input-focus
            (xcb:+request exwm--connection
                (make-instance 'xcb:SetInputFocus
                               :revert-to xcb:InputFocus:Parent
                               :focus id
                               :time timestamp)))
-         (let ((event (make-instance 'xcb:icccm:WM_TAKE_FOCUS
-                                     :window id
-                                     :time timestamp)))
-           (setq event (xcb:marshal event exwm--connection))
-           (xcb:+request exwm--connection
-               (make-instance 'xcb:icccm:SendEvent
-                              :destination id
-                              :event event)))
+         (when wm-take-focus
+           (let ((event (make-instance 'xcb:icccm:WM_TAKE_FOCUS
+                                       :window id
+                                       :time timestamp)))
+             (setq event (xcb:marshal event exwm--connection))
+             (xcb:+request exwm--connection
+                 (make-instance 'xcb:icccm:SendEvent
+                                :destination id
+                                :event event))))
          (exwm-input--set-active-window id)
          (xcb:flush exwm--connection))
        id
        (or exwm--hints-input
-           (not (memq xcb:Atom:WM_TAKE_FOCUS exwm--protocols)))))))
+           (not (memq xcb:Atom:WM_TAKE_FOCUS exwm--protocols)))
+       (memq xcb:Atom:WM_TAKE_FOCUS exwm--protocols)))))
 
 (defun exwm-input--update-timestamp (callback &rest args)
   "Fetch the latest timestamp from the server and feed it to CALLBACK.
