@@ -392,6 +392,10 @@ manager is shutting down."
                                :window window :parent exwm--root :x 0 :y 0))
             (xcb:+request exwm--connection
                 (make-instance 'xcb:DestroyWindow :window container))))
+        (when (exwm-layout--fullscreen-p)
+          (let ((window (get-buffer-window)))
+            (when window
+              (set-window-dedicated-p window nil))))
         (exwm-manage--set-client-list)
         (xcb:flush exwm--connection))
       (let ((kill-buffer-func
