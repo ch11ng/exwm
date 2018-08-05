@@ -48,6 +48,7 @@
 (declare-function exwm-input--release-keyboard "exwm-input.el")
 (declare-function exwm-input--grab-keyboard "exwm-input.el")
 (declare-function exwm-input-grab-keyboard "exwm-input.el")
+(declare-function exwm-workspace--active-p "exwm-workspace.el" (frame))
 (declare-function exwm-workspace--client-p "exwm-workspace.el"
                   (&optional frame))
 (declare-function exwm-workspace--minibuffer-own-frame-p "exwm-workspace.el")
@@ -272,7 +273,9 @@ selected by `other-buffer'."
                            ;; It may be a buffer waiting to be killed.
                            (exwm--id->buffer exwm--id))
                   (exwm--log "Refresh floating window #x%x" exwm--id)
-                  (exwm-layout--show exwm--id window))))
+                  (if (exwm-workspace--active-p exwm--frame)
+                      (exwm-layout--show exwm--id window)
+                    (exwm-layout--hide exwm--id)))))
           ;; Other frames (e.g. terminal/graphical frame of emacsclient)
           ;; We shall bury all `exwm-mode' buffers in this case
           (setq windows (window-list frame 0)) ;exclude minibuffer
@@ -292,11 +295,11 @@ selected by `other-buffer'."
                          (eq frame exwm--frame)))
             (setq windows (get-buffer-window-list (current-buffer) 0))
             (if (not windows)
-                (when (eq frame exwm--frame) ;for exwm-layout-show-all-buffers
-                  (exwm-layout--hide exwm--id))
+                (exwm-layout--hide exwm--id)
               (let ((window (car windows)))
                 (if (eq frame exwm--frame)
-                    (exwm-layout--show exwm--id window)
+                    (when (exwm-workspace--active-p frame)
+                      (exwm-layout--show exwm--id window))
                   (exwm-workspace-move-window frame exwm--id))
                 ;; Make sure this buffer is not displayed elsewhere.  Note down
                 ;; windows displaying an EXWM-buffer now displayed elsewhere; we
