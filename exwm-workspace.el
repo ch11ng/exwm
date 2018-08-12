@@ -607,9 +607,18 @@ for internal use only."
                                                       'exwm-outer-id)))
         (when (or (> win-x (frame-pixel-width frame))
                   (> win-y (frame-pixel-height)))
-          (set-mouse-position frame
-                              (/ (frame-width frame) 2)
-                              (/ (frame-height frame) 2)))))
+          (xcb:+request exwm--connection
+              (make-instance 'xcb:WarpPointer
+                             :src-window xcb:Window:None
+                             :dst-window (frame-parameter frame
+                                                          'exwm-outer-id)
+                             :src-x 0
+                             :src-y 0
+                             :src-width 0
+                             :src-height 0
+                             :dst-x (/ (frame-pixel-width frame) 2)
+                             :dst-y (/ (frame-pixel-height frame) 2)))
+          (xcb:flush exwm--connection))))
     (when (frame-live-p old-frame)
       (with-selected-frame old-frame
         (run-hooks 'focus-out-hook)))
