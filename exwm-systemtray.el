@@ -70,7 +70,7 @@ You shall use the default value if using auto-hide minibuffer."
 
 (defvar exwm-systemtray--connection nil "The X connection.")
 
-(defvar exwm-systemtray--embedder nil "The embedder window.")
+(defvar exwm-systemtray--embedder-window nil "The embedder window.")
 
 (defvar exwm-systemtray--list nil "The icon list.")
 
@@ -112,7 +112,7 @@ You shall use the default value if using auto-hide minibuffer."
       (xcb:+request exwm-systemtray--connection
           (make-instance 'xcb:ReparentWindow
                          :window icon
-                         :parent exwm-systemtray--embedder
+                         :parent exwm-systemtray--embedder-window
                          :x 0
                          ;; Vertically centered.
                          :y (/ (- exwm-systemtray-height height*) 2)))
@@ -162,7 +162,8 @@ You shall use the default value if using auto-hide minibuffer."
                           (make-instance 'xcb:xembed:EMBEDDED-NOTIFY
                                          :window icon
                                          :time xcb:Time:CurrentTime
-                                         :embedder exwm-systemtray--embedder
+                                         :embedder
+                                         exwm-systemtray--embedder-window
                                          :version 0)
                           exwm-systemtray--connection)))
       (push `(,icon . ,(make-instance 'exwm-systemtray--icon
@@ -190,7 +191,8 @@ You shall use the default value if using auto-hide minibuffer."
   "Refresh the system tray."
   ;; Make sure to redraw the embedder.
   (xcb:+request exwm-systemtray--connection
-      (make-instance 'xcb:UnmapWindow :window exwm-systemtray--embedder))
+      (make-instance 'xcb:UnmapWindow
+                     :window exwm-systemtray--embedder-window))
   (let ((x exwm-systemtray-icon-gap)
         map)
     (dolist (pair exwm-systemtray--list)
@@ -207,14 +209,15 @@ You shall use the default value if using auto-hide minibuffer."
                          exwm-workspace-current-index)))
       (xcb:+request exwm-systemtray--connection
           (make-instance 'xcb:ConfigureWindow
-                         :window exwm-systemtray--embedder
+                         :window exwm-systemtray--embedder-window
                          :value-mask (logior xcb:ConfigWindow:X
                                              xcb:ConfigWindow:Width)
                          :x (- (aref workarea 2) x)
                          :width x)))
     (when map
       (xcb:+request exwm-systemtray--connection
-          (make-instance 'xcb:MapWindow :window exwm-systemtray--embedder))))
+          (make-instance 'xcb:MapWindow
+                         :window exwm-systemtray--embedder-window))))
   (xcb:flush exwm-systemtray--connection))
 
 (defun exwm-systemtray--on-DestroyNotify (data _synthetic)
@@ -230,7 +233,7 @@ You shall use the default value if using auto-hide minibuffer."
   (let ((obj (make-instance 'xcb:ReparentNotify)))
     (xcb:unmarshal obj data)
     (with-slots (window parent) obj
-      (when (and (/= parent exwm-systemtray--embedder)
+      (when (and (/= parent exwm-systemtray--embedder-window)
                  (assoc window exwm-systemtray--list))
         (exwm-systemtray--unembed window)))))
 
@@ -325,7 +328,7 @@ You shall use the default value if using auto-hide minibuffer."
   (unless (exwm-workspace--minibuffer-own-frame-p)
     (xcb:+request exwm-systemtray--connection
         (make-instance 'xcb:ReparentWindow
-                       :window exwm-systemtray--embedder
+                       :window exwm-systemtray--embedder-window
                        :parent (string-to-number
                                 (frame-parameter exwm-workspace--current
                                                  'window-id))
@@ -339,7 +342,7 @@ You shall use the default value if using auto-hide minibuffer."
   (unless (exwm-workspace--minibuffer-own-frame-p)
     (xcb:+request exwm-systemtray--connection
         (make-instance 'xcb:ConfigureWindow
-                       :window exwm-systemtray--embedder
+                       :window exwm-systemtray--embedder-window
                        :value-mask xcb:ConfigWindow:Y
                        :y (- (frame-pixel-height exwm-workspace--current)
                              exwm-systemtray-height))))
@@ -353,7 +356,7 @@ You shall use the default value if using auto-hide minibuffer."
   (cl-assert (not exwm-systemtray--connection))
   (cl-assert (not exwm-systemtray--list))
   (cl-assert (not exwm-systemtray--selection-owner-window))
-  (cl-assert (not exwm-systemtray--embedder))
+  (cl-assert (not exwm-systemtray--embedder-window))
   (unless exwm-systemtray-height
     (setq exwm-systemtray-height (max exwm-systemtray--icon-min-size
                                       (line-pixel-height))))
@@ -414,7 +417,8 @@ You shall use the default value if using auto-hide minibuffer."
     ;; Set _NET_WM_NAME.
     (xcb:+request exwm-systemtray--connection
         (make-instance 'xcb:ewmh:set-_NET_WM_NAME
-                       :window id :data "EXWM system tray selection owner"))
+                       :window id
+                       :data "EXWM: exwm-systemtray--selection-owner-window"))
     ;; Set the _NET_SYSTEM_TRAY_ORIENTATION property.
     (xcb:+request exwm-systemtray--connection
         (make-instance 'xcb:xembed:set-_NET_SYSTEM_TRAY_ORIENTATION
@@ -423,7 +427,7 @@ You shall use the default value if using auto-hide minibuffer."
   ;; Create the embedder.
   (let ((id (xcb:generate-id exwm-systemtray--connection))
         frame parent depth y)
-    (setq exwm-systemtray--embedder id)
+    (setq exwm-systemtray--embedder-window id)
     (if (exwm-workspace--minibuffer-own-frame-p)
         (setq frame exwm-workspace--minibuffer
               y (if (>= (line-pixel-height) exwm-systemtray-height)
@@ -460,7 +464,8 @@ You shall use the default value if using auto-hide minibuffer."
     ;; Set _NET_WM_NAME.
     (xcb:+request exwm-systemtray--connection
         (make-instance 'xcb:ewmh:set-_NET_WM_NAME
-                       :window id :data "EXWM system tray embedder")))
+                       :window id
+                       :data "EXWM: exwm-systemtray--embedder-window")))
   (xcb:flush exwm-systemtray--connection)
   ;; Attach event listeners.
   (xcb:+event exwm-systemtray--connection 'xcb:DestroyNotify
@@ -494,10 +499,10 @@ You shall use the default value if using auto-hide minibuffer."
     ;; parent of the embedder).
     (xcb:+request exwm-systemtray--connection
         (make-instance 'xcb:UnmapWindow
-                       :window exwm-systemtray--embedder))
+                       :window exwm-systemtray--embedder-window))
     (xcb:+request exwm-systemtray--connection
         (make-instance 'xcb:ReparentWindow
-                       :window exwm-systemtray--embedder
+                       :window exwm-systemtray--embedder-window
                        :parent exwm--root
                        :x 0
                        :y 0))
@@ -505,7 +510,7 @@ You shall use the default value if using auto-hide minibuffer."
     (setq exwm-systemtray--connection nil
           exwm-systemtray--list nil
           exwm-systemtray--selection-owner-window nil
-          exwm-systemtray--embedder nil)
+          exwm-systemtray--embedder-window nil)
     (remove-hook 'exwm-workspace-switch-hook
                  #'exwm-systemtray--on-workspace-switch)
     (remove-hook 'exwm-workspace--update-workareas-hook
