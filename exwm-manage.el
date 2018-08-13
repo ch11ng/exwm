@@ -119,6 +119,7 @@ You can still make the X windows floating afterwards."
 
 (defun exwm-manage--update-geometry (id &optional force)
   "Update window geometry."
+  (exwm--log "id=#x%x" id)
   (with-current-buffer (exwm--id->buffer id)
     (unless (and exwm--geometry (not force))
       (let ((reply (xcb:+request-unchecked+reply exwm--connection
@@ -134,6 +135,7 @@ You can still make the X windows floating afterwards."
 
 (defun exwm-manage--update-ewmh-state (id)
   "Update _NET_WM_STATE."
+  (exwm--log "id=#x%x" id)
   (with-current-buffer (exwm--id->buffer id)
     (unless exwm--ewmh-state
       (let ((reply (xcb:+request-unchecked+reply exwm--connection
@@ -144,6 +146,7 @@ You can still make the X windows floating afterwards."
 
 (defun exwm-manage--update-mwm-hints (id &optional force)
   "Update _MOTIF_WM_HINTS."
+  (exwm--log "id=#x%x" id)
   (with-current-buffer (exwm--id->buffer id)
     (unless (and (not exwm--mwm-hints-decorations) (not force))
       (let ((reply (xcb:+request-unchecked+reply exwm--connection
@@ -167,6 +170,7 @@ You can still make the X windows floating afterwards."
 
 (defun exwm-manage--set-client-list ()
   "Set _NET_CLIENT_LIST."
+  (exwm--log)
   (xcb:+request exwm--connection
       (make-instance 'xcb:ewmh:set-_NET_CLIENT_LIST
                      :window exwm--root
@@ -174,6 +178,7 @@ You can still make the X windows floating afterwards."
 
 (cl-defun exwm-manage--get-configurations ()
   "Retrieve configurations for this buffer."
+  (exwm--log)
   (when (derived-mode-p 'exwm-mode)
     (dolist (i exwm-manage-configurations)
       (save-current-buffer
@@ -412,6 +417,7 @@ manager is shutting down."
 
 (defun exwm-manage--scan ()
   "Search for existing windows and try to manage them."
+  (exwm--log)
   (let* ((tree (xcb:+request-unchecked+reply exwm--connection
                    (make-instance 'xcb:QueryTree
                                   :window exwm--root)))
@@ -433,6 +439,7 @@ manager is shutting down."
 
 (defun exwm-manage--kill-buffer-query-function ()
   "Run in `kill-buffer-query-functions'."
+  (exwm--log "id=#x%x; buffer=%s" exwm--id (current-buffer))
   (catch 'return
     (when (or (not exwm--id)
               (xcb:+request-checked+request-check exwm--connection
@@ -510,6 +517,7 @@ Would you like to kill it? "
 (defun exwm-manage--kill-client (&optional id)
   "Kill an X client."
   (unless id (setq id (exwm--buffer->id (current-buffer))))
+  (exwm--log "id=#x%x" id)
   (let* ((response (xcb:+request-unchecked+reply exwm--connection
                        (make-instance 'xcb:ewmh:get-_NET_WM_PID :window id)))
          (pid (and response (slot-value response 'value)))
@@ -526,12 +534,14 @@ Would you like to kill it? "
 
 (defun exwm-manage--add-frame (frame)
   "Run in `after-make-frame-functions'."
+  (exwm--log "frame=%s" frame)
   (when (display-graphic-p frame)
     (push (string-to-number (frame-parameter frame 'outer-window-id))
           exwm-manage--frame-outer-id-list)))
 
 (defun exwm-manage--remove-frame (frame)
   "Run in `delete-frame-functions'."
+  (exwm--log "frame=%s" frame)
   (when (display-graphic-p frame)
     (setq exwm-manage--frame-outer-id-list
           (delq (string-to-number (frame-parameter frame 'outer-window-id))
@@ -539,6 +549,7 @@ Would you like to kill it? "
 
 (defun exwm-manage--on-ConfigureRequest (data _synthetic)
   "Handle ConfigureRequest event."
+  (exwm--log)
   (let ((obj (make-instance 'xcb:ConfigureRequest))
         buffer edges width-delta height-delta)
     (xcb:unmarshal obj data)
@@ -631,6 +642,7 @@ border-width: %d; sibling: #x%x; stack-mode: %d"
   (let ((obj (make-instance 'xcb:MapRequest)))
     (xcb:unmarshal obj data)
     (with-slots (parent window) obj
+      (exwm--log "id=#x%x parent=#x%x" window parent)
       (if (assoc window exwm--id-buffer-alist)
           (with-current-buffer (exwm--id->buffer window)
             (if (exwm-layout--iconic-state-p)
@@ -650,12 +662,13 @@ border-width: %d; sibling: #x%x; stack-mode: %d"
   (let ((obj (make-instance 'xcb:UnmapNotify)))
     (xcb:unmarshal obj data)
     (with-slots (window) obj
-      (exwm--log "UnmapNotify from #x%x" window)
+      (exwm--log "id=#x%x" window)
       (exwm-manage--unmanage-window window t))))
 
 (defun exwm-manage--on-DestroyNotify (data synthetic)
   "Handle DestroyNotify event."
   (unless synthetic
+    (exwm--log)
     (let ((obj (make-instance 'xcb:DestroyNotify)))
       (xcb:unmarshal obj data)
       (exwm--log "DestroyNotify from #x%x" (slot-value obj 'window))
@@ -664,6 +677,7 @@ border-width: %d; sibling: #x%x; stack-mode: %d"
 (defun exwm-manage--init ()
   "Initialize manage module."
   ;; Intern _MOTIF_WM_HINTS
+  (exwm--log)
   (let ((atom-name "_MOTIF_WM_HINTS"))
     (setq exwm-manage--_MOTIF_WM_HINTS
           (slot-value (xcb:+request-unchecked+reply exwm--connection

@@ -97,6 +97,7 @@ FORMAT-STRING is a string specifying the message to output, as in
 
 (defun exwm--lock (&rest _args)
   "Lock (disable all events)."
+  (exwm--log)
   (xcb:+request exwm--connection
       (make-instance 'xcb:ChangeWindowAttributes
                      :window exwm--root
@@ -106,6 +107,7 @@ FORMAT-STRING is a string specifying the message to output, as in
 
 (defun exwm--unlock (&rest _args)
   "Unlock (enable all events)."
+  (exwm--log)
   (xcb:+request exwm--connection
       (make-instance 'xcb:ChangeWindowAttributes
                      :window exwm--root

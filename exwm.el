@@ -360,6 +360,7 @@
     (xcb:unmarshal obj data)
     (setq id (slot-value obj 'window)
           atom (slot-value obj 'atom))
+    (exwm--log "atom=%s(%s)" (x-get-atom-name atom exwm-workspace--current) atom)
     (setq buffer (exwm--id->buffer id))
     (if (not (buffer-live-p buffer))
         ;; Properties of unmanaged X windows.
@@ -397,6 +398,7 @@
     (setq type (slot-value obj 'type)
           id (slot-value obj 'window)
           data (slot-value (slot-value obj 'data) 'data32))
+    (exwm--log "atom=%s(%s)" (x-get-atom-name type exwm-workspace--current) type)
     (cond
      ;; _NET_NUMBER_OF_DESKTOPS.
      ((= type xcb:Atom:_NET_NUMBER_OF_DESKTOPS)
