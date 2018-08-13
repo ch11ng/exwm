@@ -97,6 +97,18 @@ the passed OBJECTS.  See `format' for details."
          (debugger (lambda (&rest _) (exwm-debug--backtrace))))
      ,@forms))
 
+(defun exwm-debug--clear ()
+  "Clear the debug buffer."
+  (interactive)
+  (exwm-debug--with-debug-buffer
+   (erase-buffer)))
+
+(defun exwm-debug--mark ()
+  "Insert a mark in the debug buffer."
+  (interactive)
+  (exwm-debug--with-debug-buffer
+   (insert "\n")))
+
 
 
 (provide 'exwm-debug)

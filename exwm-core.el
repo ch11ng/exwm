@@ -290,6 +290,11 @@ least SECS seconds later."
                    (/= ,i exwm-workspace-current-index)])
                (number-sequence 0 (1- (exwm-workspace--count))))))))
 
+(exwm--debug
+  (let ((map exwm-mode-map))
+    (define-key map "\C-c\C-l" #'exwm-debug--clear)
+    (define-key map "\C-c\C-m" #'exwm-debug--mark)))
+
 (define-derived-mode exwm-mode nil "EXWM"
   "Major mode for managing X windows.
 
