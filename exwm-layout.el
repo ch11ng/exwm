@@ -304,25 +304,31 @@ selected by `other-buffer'."
                    (or exwm-layout-show-all-buffers
                        ;; Exclude X windows on other workspaces
                        (eq frame exwm--frame)))
-          (let ((windows (get-buffer-window-list (current-buffer) 'nomini frame)))
+          (let (;; List of windows in current frame displaying the `exwm-mode'
+                ;; buffers.
+                (windows (get-buffer-window-list (current-buffer) 'nomini
+                                                 frame)))
             (if (not windows)
                 (when (eq frame exwm--frame)
+                  ;; Hide it if it was being shown in this workspace.
                   (exwm-layout--hide exwm--id))
               (let ((window (car windows)))
                 (if (eq frame exwm--frame)
                     (when (exwm-workspace--active-p frame)
+                      ;; Show it if `frame' is active.
                       (exwm-layout--show exwm--id window))
+                  ;; It was last shown in other workspace; move it here.
                   (exwm-workspace-move-window frame exwm--id))
-                ;; Make sure this buffer is not displayed elsewhere.  Note down
-                ;; windows displaying an EXWM-buffer now displayed elsewhere; we
-                ;; need to display with some other buffer there.
+                ;; Vacate any other windows (in any workspace) showing this
+                ;; `exwm-mode' buffer.
                 (setq vacated-windows
                       (append vacated-windows (remove
                                                window
                                                (get-buffer-window-list
                                                 (current-buffer) 'nomini t))))
-                ;; Note down when an EXWM-buffer is being covered by this
-                ;; buffer; we don't want it to reappear in some vacated window.
+                ;; Note any `exwm-mode' buffer is being covered by another
+                ;; `exwm-mode' buffer.  We want to avoid that `exwm-mode'
+                ;; buffer to be reappear in any of the vacated windows.
                 (let ((prev-buffer (car-safe
                                     (car-safe (window-prev-buffers window)))))
                   (and
