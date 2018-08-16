@@ -306,8 +306,10 @@ selected by `other-buffer'."
                 ;; windows displaying an EXWM-buffer now displayed elsewhere; we
                 ;; need to display with some other buffer there.
                 (setq vacated-windows
-                      (append vacated-windows (cdr (get-buffer-window-list
-                                                    (current-buffer) 'nomini t))))
+                      (append vacated-windows (remove
+                                               window
+                                               (get-buffer-window-list
+                                                (current-buffer) 'nomini t))))
                 ;; Note down when an EXWM-buffer is being covered by this
                 ;; buffer; we don't want it to reappear in some vacated window.
                 (let ((prev-buffer (car-safe
