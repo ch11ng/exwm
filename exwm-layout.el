@@ -293,7 +293,7 @@ selected by `other-buffer'."
                      (or exwm-layout-show-all-buffers
                          ;; Exclude X windows on other workspaces
                          (eq frame exwm--frame)))
-            (setq windows (get-buffer-window-list (current-buffer) 0))
+            (setq windows (get-buffer-window-list (current-buffer) 0 frame))
             (if (not windows)
                 (when (eq frame exwm--frame)
                   (exwm-layout--hide exwm--id))
