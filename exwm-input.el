@@ -377,7 +377,7 @@ ARGS are additional arguments to CALLBACK."
         button-event window buffer frame)
     (xcb:unmarshal obj data)
     (exwm--log "major-mode=%s buffer=%s"
-	     major-mode (buffer-name (current-buffer)))
+               major-mode (buffer-name (current-buffer)))
     (with-slots (detail time event state) obj
       (setq button-event (xcb:keysyms:keysym->event exwm--connection
                                                     detail state)
@@ -428,7 +428,7 @@ ARGS are additional arguments to CALLBACK."
   (let ((obj (make-instance 'xcb:KeyPress)))
     (xcb:unmarshal obj data)
     (exwm--log "major-mode=%s buffer=%s"
-	     major-mode (buffer-name (current-buffer)))
+	       major-mode (buffer-name (current-buffer)))
     (if (derived-mode-p 'exwm-mode)
         (funcall exwm--on-KeyPress obj data)
       (exwm-input--on-KeyPress-char-mode obj))))

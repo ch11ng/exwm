@@ -1,9 +1,8 @@
 ;;; exwm-debug.el --- Debugging helpers for EXWM  -*- lexical-binding: t -*-
 
-;; Copyright (C) 2015-2016 Free Software Foundation, Inc.
+;; Copyright (C) 2018 Free Software Foundation, Inc.
 
-;; Author: Chris Feng <chris.w.feng@gmail.com>
-;;	Adrián Medraño Calvo <adrian@medranocalvo.com>
+;; Author: Adrián Medraño Calvo <adrian@medranocalvo.com>
 
 ;; This file is part of GNU Emacs.
 
@@ -29,18 +28,16 @@
 (eval-and-compile
   (defvar exwm-debug-on nil "Non-nil to turn on debug for EXWM."))
 
-(defvar exwm-debug-buffer
-  (when exwm-debug-on
-    (let ((buffer (get-buffer-create "*EXWM-DEBUG*")))
-      (buffer-disable-undo buffer)
-      buffer))
-  "Buffer to write debug messages to.")
+(defvar exwm-debug-buffer "*EXWM-DEBUG*" "Buffer to write debug messages to.")
+
+(defvar exwm-debug-backtrace-start-frame 5
+  "From which frame to start collecting backtraces.")
 
 (defun exwm-debug--call-stack ()
   "Return the current call stack frames."
   (let (frames frame
         ;; No need to acount for our setq, while, let, ...
-        (index 5))
+        (index exwm-debug-backtrace-start-frame))
     (while (setq frame (backtrace-frame index))
       (push frame frames)
       (cl-incf index))
@@ -64,7 +61,7 @@
 
 (defmacro exwm-debug--with-debug-buffer (&rest forms)
   "Evaluate FORMS making sure `exwm-debug-buffer' is correctly updated."
-  `(with-current-buffer exwm-debug-buffer
+  `(with-current-buffer (get-buffer-create exwm-debug-buffer)
      (let (windows-eob)
        ;; Note windows whose point is at EOB.
        (dolist (w (get-buffer-window-list exwm-debug-buffer t t))
@@ -97,13 +94,13 @@ the passed OBJECTS.  See `format' for details."
          (debugger (lambda (&rest _) (exwm-debug--backtrace))))
      ,@forms))
 
-(defun exwm-debug--clear ()
+(defun exwm-debug-clear ()
   "Clear the debug buffer."
   (interactive)
   (exwm-debug--with-debug-buffer
    (erase-buffer)))
 
-(defun exwm-debug--mark ()
+(defun exwm-debug-mark ()
   "Insert a mark in the debug buffer."
   (interactive)
   (exwm-debug--with-debug-buffer

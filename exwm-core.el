@@ -33,9 +33,6 @@
 (require 'xcb-ewmh)
 (require 'exwm-debug)
 
-(eval-and-compile
-  (defvar exwm-debug-on nil "Non-nil to turn on debug for EXWM."))
-
 (defvar exwm--connection nil "X connection.")
 
 (defvar exwm--wmsn-window nil
@@ -294,8 +291,8 @@ least SECS seconds later."
 
 (exwm--debug
   (let ((map exwm-mode-map))
-    (define-key map "\C-c\C-l" #'exwm-debug--clear)
-    (define-key map "\C-c\C-m" #'exwm-debug--mark)))
+    (define-key map "\C-c\C-l" #'exwm-debug-clear)
+    (define-key map "\C-c\C-m" #'exwm-debug-mark)))
 
 (define-derived-mode exwm-mode nil "EXWM"
   "Major mode for managing X windows.
