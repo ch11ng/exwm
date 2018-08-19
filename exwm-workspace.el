@@ -375,6 +375,7 @@ NIL if FRAME is not a workspace"
 
 (defun exwm-workspace--set-active (frame active)
   "Make frame FRAME active on its output."
+  (exwm--log "active=%s; frame=%s" frame active)
   (set-frame-parameter frame 'exwm-active active)
   (if active
       (exwm-workspace--set-fullscreen frame)
@@ -387,6 +388,7 @@ NIL if FRAME is not a workspace"
 
 (defun exwm-workspace--set-fullscreen (frame)
   "Make frame FRAME fullscreen according to `exwm-workspace--workareas'."
+  (exwm--log "frame=%s" frame)
   (let ((workarea (elt exwm-workspace--workareas
                        (exwm-workspace--position frame)))
         (id (frame-parameter frame 'exwm-outer-id))
@@ -396,6 +398,7 @@ NIL if FRAME is not a workspace"
           y (aref workarea 1)
           width (aref workarea 2)
           height (aref workarea 3))
+    (exwm--log "x=%s; y=%s; w=%s; h=%s" x y width height)
     (when (and (eq frame exwm-workspace--current)
                (exwm-workspace--minibuffer-own-frame-p))
       (exwm-workspace--resize-minibuffer-frame))
@@ -516,6 +519,7 @@ for internal use only."
            (<= 0 current-prefix-arg (exwm-workspace--count)))
       current-prefix-arg)
      (t 0))))
+  (exwm--log)
   (let* ((frame (exwm-workspace--workspace-from-frame-or-index frame-or-index))
          (old-frame exwm-workspace--current)
          (index (exwm-workspace--position frame))
@@ -665,6 +669,7 @@ Passing a workspace frame as the first option is for internal use only."
                  (format "Swap workspace %d with: "
                          (exwm-workspace--position w1))))
        (list w1 w2))))
+  (exwm--log)
   (let ((pos1 (exwm-workspace--position workspace1))
         (pos2 (exwm-workspace--position workspace2)))
     (if (or (not pos1) (not pos2) (= pos1 pos2))
@@ -703,6 +708,7 @@ before it."
           (<= 0 current-prefix-arg (exwm-workspace--count)))
      (list exwm-workspace--current current-prefix-arg))
     (t (list exwm-workspace--current 0))))
+  (exwm--log)
   (let ((pos (exwm-workspace--position workspace))
         flag start end index)
     (if (= nth pos)
@@ -928,6 +934,7 @@ INDEX must not exceed the current number of workspaces."
                       (remq #'exwm-input--on-buffer-list-update
                             buffer-list-update-hook)))
                  (rename-buffer (concat " " (buffer-name)))))))))))
+  (exwm--log)
   (when buffer-or-name
     (with-current-buffer buffer-or-name
       (if (derived-mode-p 'exwm-mode)

@@ -157,6 +157,7 @@ This value should always be overwritten.")
 (defun exwm-input--set-focus (id)
   "Set input focus to window ID in a proper way."
   (when (exwm--id->buffer id)
+    (exwm--log "id=#x%x" id)
     (with-current-buffer (exwm--id->buffer id)
       (exwm-input--update-timestamp
        (lambda (timestamp id send-input-focus wm-take-focus)
@@ -187,6 +188,7 @@ This value should always be overwritten.")
 
 ARGS are additional arguments to CALLBACK."
   (setq exwm-input--timestamp-callback (cons callback args))
+  (exwm--log)
   (xcb:+request exwm--connection
       (make-instance 'xcb:ChangeProperty
                      :mode xcb:PropMode:Replace
@@ -200,6 +202,7 @@ ARGS are additional arguments to CALLBACK."
 
 (defun exwm-input--on-PropertyNotify (data _synthetic)
   "Handle PropertyNotify events."
+  (exwm--log)
   (when exwm-input--timestamp-callback
     (let ((obj (make-instance 'xcb:PropertyNotify)))
       (xcb:unmarshal obj data)
@@ -218,6 +221,7 @@ ARGS are additional arguments to CALLBACK."
     (with-slots (time root event root-x root-y event-x event-y state) evt
       (setq buffer (exwm--id->buffer event)
             window (get-buffer-window buffer t))
+      (exwm--log "EnterNotify: buffer=%s; window=%s" buffer window)
       (when (and buffer window (not (eq window (selected-window))))
         (setq frame (window-frame window)
               frame-xid (frame-parameter frame 'exwm-id))
@@ -265,6 +269,8 @@ ARGS are additional arguments to CALLBACK."
              (eq (current-buffer) (window-buffer))
              (not (string-prefix-p " *temp*"
                                    (buffer-name (car (last (buffer-list)))))))
+    (exwm--log "current-buffer=%S selected-window=%S"
+               (current-buffer) (selected-window))
     (redirect-frame-focus (selected-frame) nil)
     (setq exwm-input--update-focus-window (selected-window))
     (exwm-input--update-focus-defer)))
@@ -296,6 +302,7 @@ ARGS are additional arguments to CALLBACK."
 (defun exwm-input--update-focus (window)
   "Update input focus."
   (when (window-live-p window)
+    (exwm--log "focus-window=%s focus-buffer=%s" window (window-buffer window))
     (with-current-buffer (window-buffer window)
       (if (derived-mode-p 'exwm-mode)
           (if (not (eq exwm--frame exwm-workspace--current))
@@ -331,6 +338,10 @@ ARGS are additional arguments to CALLBACK."
               ;; The focus is on another workspace (e.g. it got clicked)
               ;; so switch to it.
               (progn
+                (exwm--log "Switching to %s's workspace %s (%s)"
+                           window
+                           (window-frame window)
+                           (selected-frame))
                 (set-frame-parameter (selected-frame) 'exwm-selected-window
                                      window)
                 (exwm--defer 0 #'exwm-workspace-switch (selected-frame)))
@@ -346,12 +357,14 @@ ARGS are additional arguments to CALLBACK."
 
 (defun exwm-input--on-minibuffer-setup ()
   "Run in `minibuffer-setup-hook' to set input focus."
+  (exwm--log)
   (unless (exwm-workspace--client-p)
     ;; Set input focus on the Emacs frame
     (x-focus-frame (window-frame (minibuffer-selected-window)))))
 
 (defun exwm-input--set-active-window (&optional id)
   "Set _NET_ACTIVE_WINDOW."
+  (exwm--log)
   (xcb:+request exwm--connection
       (make-instance 'xcb:ewmh:set-_NET_ACTIVE_WINDOW
                      :window exwm--root
@@ -363,6 +376,8 @@ ARGS are additional arguments to CALLBACK."
         (mode xcb:Allow:SyncPointer)
         button-event window buffer frame)
     (xcb:unmarshal obj data)
+    (exwm--log "major-mode=%s buffer=%s"
+               major-mode (buffer-name (current-buffer)))
     (with-slots (detail time event state) obj
       (setq button-event (xcb:keysyms:keysym->event exwm--connection
                                                     detail state)
@@ -412,12 +427,15 @@ ARGS are additional arguments to CALLBACK."
   "Handle KeyPress event."
   (let ((obj (make-instance 'xcb:KeyPress)))
     (xcb:unmarshal obj data)
+    (exwm--log "major-mode=%s buffer=%s"
+	       major-mode (buffer-name (current-buffer)))
     (if (derived-mode-p 'exwm-mode)
         (funcall exwm--on-KeyPress obj data)
       (exwm-input--on-KeyPress-char-mode obj))))
 
 (defun exwm-input--on-CreateNotify (data _synthetic)
   "Handle CreateNotify events."
+  (exwm--log)
   (let ((evt (make-instance 'xcb:CreateNotify)))
     (xcb:unmarshal evt data)
     (with-slots (window) evt
@@ -425,6 +443,7 @@ ARGS are additional arguments to CALLBACK."
 
 (defun exwm-input--update-global-prefix-keys ()
   "Update `exwm-input--global-prefix-keys'."
+  (exwm--log)
   (when exwm--connection
     (let ((original exwm-input--global-prefix-keys))
       (setq exwm-input--global-prefix-keys nil)
@@ -438,6 +457,7 @@ ARGS are additional arguments to CALLBACK."
                            'children))))))
 
 (defun exwm-input--grab-global-prefix-keys (&rest xwins)
+  (exwm--log)
   (let ((req (make-instance 'xcb:GrabKey
                             :owner-events 0
                             :grab-window nil
@@ -450,6 +470,8 @@ ARGS are additional arguments to CALLBACK."
       (setq keysym (xcb:keysyms:event->keysym exwm--connection k)
             keycode (xcb:keysyms:keysym->keycode exwm--connection
                                                  (car keysym)))
+      (exwm--log "Grabbing key=%s (keysym=%s keycode=%s)"
+                 (single-key-description k) keysym keycode)
       (setf (slot-value req 'modifiers) (cdr keysym)
             (slot-value req 'key) keycode)
       (dolist (xwin xwins)
@@ -498,6 +520,7 @@ specifically saved in the Customize interface for `exwm-input-global-keys'.
 In configuration you should customize or set `exwm-input-global-keys'
 instead."
   (interactive "KSet key globally: \nCSet key %s to command: ")
+  (exwm--log)
   (setq exwm-input-global-keys (append exwm-input-global-keys
                                        (list (cons key command))))
   (exwm-input--set-key key command)
@@ -517,6 +540,7 @@ instead."
 
 (defun exwm-input--mimic-read-event (event)
   "Process EVENT as if it were returned by `read-event'."
+  (exwm--log)
   (unless (eq 0 extra-keyboard-modifiers)
     (setq event (event-convert-list (append (event-modifiers
                                              extra-keyboard-modifiers)
@@ -559,6 +583,7 @@ instead."
   (with-slots (detail state) key-press
     (let ((keysym (xcb:keysyms:keycode->keysym exwm--connection detail state))
           event raw-event mode)
+      (exwm--log "%s" keysym)
       (when (and (/= 0 (car keysym))
                  (setq raw-event (xcb:keysyms:keysym->event
                                   exwm--connection (car keysym)
@@ -610,6 +635,7 @@ instead."
   (with-slots (detail state) key-press
     (let ((keysym (xcb:keysyms:keycode->keysym exwm--connection detail state))
           event raw-event)
+      (exwm--log "%s" keysym)
       (when (and (/= 0 (car keysym))
                  (setq raw-event (xcb:keysyms:keysym->event
                                   exwm--connection (car keysym)
@@ -660,6 +686,7 @@ instead."
   "Grab all key events on window ID."
   (unless id (setq id (exwm--buffer->id (window-buffer))))
   (when id
+    (exwm--log "id=#x%x" id)
     (when (xcb:+request-checked+request-check exwm--connection
               (make-instance 'xcb:GrabKey
                              :owner-events 0
@@ -676,6 +703,7 @@ instead."
   "Ungrab all key events on window ID."
   (unless id (setq id (exwm--buffer->id (window-buffer))))
   (when id
+    (exwm--log "id=#x%x" id)
     (when (xcb:+request-checked+request-check exwm--connection
               (make-instance 'xcb:UngrabKey
                              :key xcb:Grab:Any
@@ -692,6 +720,7 @@ instead."
   (interactive (list (when (derived-mode-p 'exwm-mode)
                        (exwm--buffer->id (window-buffer)))))
   (when id
+    (exwm--log "id=#x%x" id)
     (with-current-buffer (exwm--id->buffer id)
       (exwm-input--grab-keyboard id)
       (setq exwm--keyboard-grabbed t)
@@ -704,6 +733,7 @@ instead."
   (interactive (list (when (derived-mode-p 'exwm-mode)
                        (exwm--buffer->id (window-buffer)))))
   (when id
+    (exwm--log "id=#x%x" id)
     (with-current-buffer (exwm--id->buffer id)
       (exwm-input--release-keyboard id)
       (setq exwm--keyboard-grabbed nil)
@@ -716,6 +746,7 @@ instead."
   (interactive (list (when (derived-mode-p 'exwm-mode)
                        (exwm--buffer->id (window-buffer)))))
   (when id
+    (exwm--log "id=#x%x" id)
     (with-current-buffer (exwm--id->buffer id)
       (if exwm--keyboard-grabbed
           (exwm-input-release-keyboard id)
@@ -731,6 +762,7 @@ instead."
                                                (car keysym)))
     (when (/= 0 keycode)
       (setq id (exwm--buffer->id (window-buffer (selected-window))))
+      (exwm--log "id=#x%x event=%s keycode" id event keycode)
       (dolist (class '(xcb:KeyPress xcb:KeyRelease))
         (xcb:+request exwm--connection
             (make-instance 'xcb:SendEvent

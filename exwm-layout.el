@@ -59,6 +59,7 @@
 
 (defun exwm-layout--set-state (id state)
   "Set WM_STATE."
+  (exwm--log "id=#x%x" id)
   (xcb:+request exwm--connection
       (make-instance 'xcb:icccm:set-WM_STATE
                      :window id :state state :icon xcb:Window:None))
@@ -146,6 +147,7 @@
 (cl-defun exwm-layout-set-fullscreen (&optional id)
   "Make window ID fullscreen."
   (interactive)
+  (exwm--log "id=#x%x" (or id 0))
   (unless (and (or id (derived-mode-p 'exwm-mode))
                (not (exwm-layout--fullscreen-p)))
     (cl-return-from exwm-layout-set-fullscreen))
@@ -174,6 +176,7 @@
 (cl-defun exwm-layout-unset-fullscreen (&optional id)
   "Restore window from fullscreen state."
   (interactive)
+  (exwm--log "id=#x%x" (or id 0))
   (unless (and (or id (derived-mode-p 'exwm-mode))
                (exwm-layout--fullscreen-p))
     (cl-return-from exwm-layout-unset-fullscreen))
@@ -203,6 +206,7 @@
 (cl-defun exwm-layout-toggle-fullscreen (&optional id)
   "Toggle fullscreen mode."
   (interactive (list (exwm--buffer->id (window-buffer))))
+  (exwm--log "id=#x%x" (or id 0))
   (unless (or id (derived-mode-p 'exwm-mode))
     (cl-return-from exwm-layout-toggle-fullscreen))
   (when id
@@ -234,6 +238,7 @@ selected by `other-buffer'."
 
 (defun exwm-layout--set-client-list-stacking ()
   "Set _NET_CLIENT_LIST_STACKING."
+  (exwm--log)
   (let (id clients-floating clients clients-iconic clients-other)
     (dolist (pair exwm--id-buffer-alist)
       (setq id (car pair))
@@ -261,6 +266,7 @@ selected by `other-buffer'."
   ;; `window-configuration-change-hook' makes the frame selected.
   (unless frame
     (setq frame (selected-frame)))
+  (exwm--log "frame=%s" frame)
   (let (covered-buffers   ;EXWM-buffers covered by a new X window.
         vacated-windows   ;Windows previously displaying EXWM-buffers.
         windows)
@@ -333,6 +339,7 @@ selected by `other-buffer'."
 
 (defun exwm-layout--on-minibuffer-setup ()
   "Refresh layout when minibuffer grows."
+  (exwm--log)
   (unless (exwm-workspace--client-p)
     (exwm--defer 0 (lambda ()
                      (when (< 1 (window-height (minibuffer-window)))
@@ -345,6 +352,7 @@ selected by `other-buffer'."
              (or (cl-position ?\n (current-message))
                  (> (length (current-message))
                     (frame-width exwm-workspace--current))))
+    (exwm--log)
     (if dirty
         (exwm-layout--refresh)
       (exwm--defer 0 #'exwm-layout--refresh))))
@@ -361,6 +369,7 @@ Normal hints are checked and regarded if the selected window is displaying an
 `exwm-mode' buffer.  However, this may violate the normal hints set on other X
 windows."
   (interactive "p")
+  (exwm--log)
   (cond
    ((zerop delta))                     ;no operation
    ((window-minibuffer-p))             ;avoid resize minibuffer-window
@@ -466,6 +475,7 @@ See also `exwm-layout-enlarge-window'."
 (defun exwm-layout-hide-mode-line ()
   "Hide mode-line."
   (interactive)
+  (exwm--log)
   (when (and (derived-mode-p 'exwm-mode) mode-line-format)
     (let (mode-line-height)
       (when exwm--floating-frame
@@ -484,6 +494,7 @@ See also `exwm-layout-enlarge-window'."
 (defun exwm-layout-show-mode-line ()
   "Show mode-line."
   (interactive)
+  (exwm--log)
   (when (and (derived-mode-p 'exwm-mode) (not mode-line-format))
     (setq mode-line-format exwm--mode-line-format
           exwm--mode-line-format nil)
@@ -501,6 +512,7 @@ See also `exwm-layout-enlarge-window'."
 (defun exwm-layout-toggle-mode-line ()
   "Toggle the display of mode-line."
   (interactive)
+  (exwm--log)
   (when (derived-mode-p 'exwm-mode)
     (if mode-line-format
         (exwm-layout-hide-mode-line)
@@ -509,6 +521,7 @@ See also `exwm-layout-enlarge-window'."
 (defun exwm-layout--init ()
   "Initialize layout module."
   ;; Auto refresh layout
+  (exwm--log)
   (add-hook 'window-configuration-change-hook #'exwm-layout--refresh)
   ;; The behavior of `window-configuration-change-hook' will be changed.
   (when (fboundp 'window-pixel-width-before-size-change)
@@ -522,6 +535,7 @@ See also `exwm-layout-enlarge-window'."
 
 (defun exwm-layout--exit ()
   "Exit the layout module."
+  (exwm--log)
   (remove-hook 'window-configuration-change-hook #'exwm-layout--refresh)
   (when (fboundp 'window-pixel-width-before-size-change)
     (remove-hook 'window-size-change-functions #'exwm-layout--refresh))

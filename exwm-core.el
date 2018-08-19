@@ -31,9 +31,7 @@
 (require 'xcb)
 (require 'xcb-icccm)
 (require 'xcb-ewmh)
-
-(eval-and-compile
-  (defvar exwm-debug-on nil "Non-nil to turn on debug for EXWM."))
+(require 'exwm-debug)
 
 (defvar exwm--connection nil "X connection.")
 
@@ -70,10 +68,18 @@
 (declare-function exwm-workspace-move-window "exwm-workspace.el"
                   (frame-or-index &optional id))
 
-(defmacro exwm--log (format-string &rest args)
-  "Print debug message."
+(defmacro exwm--log (&optional format-string &rest objects)
+  "Emit a message prepending the name of the function being executed.
+
+FORMAT-STRING is a string specifying the message to output, as in
+`format'.  The OBJECTS arguments specify the substitutions."
   (when exwm-debug-on
-    `(message (concat "[EXWM] " ,format-string) ,@args)))
+    (unless format-string (setq format-string ""))
+    `(progn
+       (exwm-debug--message (concat "%s:\t" ,format-string "\n")
+                            (exwm-debug--compile-time-function-name)
+                            ,@objects)
+       nil)))
 
 (defmacro exwm--debug (&rest forms)
   (when exwm-debug-on `(progn ,@forms)))
@@ -88,6 +94,7 @@
 
 (defun exwm--lock (&rest _args)
   "Lock (disable all events)."
+  (exwm--log)
   (xcb:+request exwm--connection
       (make-instance 'xcb:ChangeWindowAttributes
                      :window exwm--root
@@ -97,6 +104,7 @@
 
 (defun exwm--unlock (&rest _args)
   "Unlock (enable all events)."
+  (exwm--log)
   (xcb:+request exwm--connection
       (make-instance 'xcb:ChangeWindowAttributes
                      :window exwm--root
@@ -280,6 +288,11 @@ least SECS seconds later."
                      (exwm-workspace-switch ,i))
                    (/= ,i exwm-workspace-current-index)])
                (number-sequence 0 (1- (exwm-workspace--count))))))))
+
+(exwm--debug
+  (let ((map exwm-mode-map))
+    (define-key map "\C-c\C-l" #'exwm-debug-clear)
+    (define-key map "\C-c\C-m" #'exwm-debug-mark)))
 
 (define-derived-mode exwm-mode nil "EXWM"
   "Major mode for managing X windows.
