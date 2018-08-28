@@ -609,7 +609,9 @@ for internal use only."
               (make-instance 'xcb:QueryPointer
                              :window (frame-parameter frame
                                                       'exwm-outer-id)))
-        (when (or (> win-x (frame-pixel-width frame))
+        (when (or (< win-x 0)
+                  (< win-y 0)
+                  (> win-x (frame-pixel-width frame))
                   (> win-y (frame-pixel-height)))
           (xcb:+request exwm--connection
               (make-instance 'xcb:WarpPointer
