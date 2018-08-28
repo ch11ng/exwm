@@ -612,7 +612,7 @@ for internal use only."
         (when (or (< win-x 0)
                   (< win-y 0)
                   (> win-x (frame-pixel-width frame))
-                  (> win-y (frame-pixel-height)))
+                  (> win-y (frame-pixel-height frame)))
           (xcb:+request exwm--connection
               (make-instance 'xcb:WarpPointer
                              :src-window xcb:Window:None
