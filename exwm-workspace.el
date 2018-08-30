@@ -379,8 +379,9 @@ NIL if FRAME is not a workspace"
   (set-frame-parameter frame 'exwm-active active)
   (if active
       (exwm-workspace--set-fullscreen frame)
-    (exwm--set-geometry (frame-parameter frame 'exwm-container) nil nil 1 1)
-    (xcb:flush exwm--connection)))
+    (exwm--set-geometry (frame-parameter frame 'exwm-container) nil nil 1 1))
+  (exwm-layout--refresh frame)
+  (xcb:flush exwm--connection))
 
 (defun exwm-workspace--active-p (frame)
   "Return non-nil if FRAME is active"

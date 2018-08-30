@@ -320,9 +320,10 @@ selected by `other-buffer'."
                   (exwm-layout--hide exwm--id))
               (let ((window (car windows)))
                 (if (eq frame exwm--frame)
-                    (when (exwm-workspace--active-p frame)
-                      ;; Show it if `frame' is active.
-                      (exwm-layout--show exwm--id window))
+                    ;; Show it if `frame' is active, hide otherwise.
+                    (if (exwm-workspace--active-p frame)
+                        (exwm-layout--show exwm--id window)
+                      (exwm-layout--hide exwm--id))
                   ;; It was last shown in other workspace; move it here.
                   (exwm-workspace-move-window frame exwm--id))
                 ;; Vacate any other windows (in any workspace) showing this
