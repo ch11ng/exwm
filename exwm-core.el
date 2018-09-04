@@ -85,6 +85,16 @@ FORMAT-STRING is a string specifying the message to output, as in
                         ,@objects)
      nil))
 
+(defun exwm-debug-toggle (&optional arg)
+  "Toggle EXWM debugging output.
+When ARG is positive, turn debugging on; when negative off.  When
+ARG is nil, toggle debugging output."
+  (interactive
+   (list (or current-prefix-arg 'toggle)))
+  (setq exwm-debug-on (if (eq arg 'toggle)
+                          (not exwm-debug-on)
+                        (> 0 arg))))
+
 (defsubst exwm--id->buffer (id)
   "X window ID => Emacs buffer."
   (cdr (assoc id exwm--id-buffer-alist)))
@@ -293,7 +303,8 @@ least SECS seconds later."
 (exwm--debug
   (let ((map exwm-mode-map))
     (define-key map "\C-c\C-d\C-l" #'xcb-debug-clear)
-    (define-key map "\C-c\C-d\C-m" #'xcb-debug-mark)))
+    (define-key map "\C-c\C-d\C-m" #'xcb-debug-mark)
+    (define-key map "\C-c\C-d\C-t" #'exwm-debug-toggle)))
 
 (define-derived-mode exwm-mode nil "EXWM"
   "Major mode for managing X windows.
