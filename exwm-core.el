@@ -292,8 +292,8 @@ least SECS seconds later."
 
 (exwm--debug
   (let ((map exwm-mode-map))
-    (define-key map "\C-c\C-l" #'xcb-debug-clear)
-    (define-key map "\C-c\C-m" #'xcb-debug-mark)))
+    (define-key map "\C-c\C-d\C-l" #'xcb-debug-clear)
+    (define-key map "\C-c\C-d\C-m" #'xcb-debug-mark)))
 
 (define-derived-mode exwm-mode nil "EXWM"
   "Major mode for managing X windows.
