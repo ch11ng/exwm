@@ -31,7 +31,7 @@
 (require 'xcb)
 (require 'xcb-icccm)
 (require 'xcb-ewmh)
-(require 'exwm-debug)
+(require 'xcb-debug)
 
 (defvar exwm--connection nil "X connection.")
 
@@ -68,21 +68,22 @@
 (declare-function exwm-workspace-move-window "exwm-workspace.el"
                   (frame-or-index &optional id))
 
+(defvar exwm-debug-on nil "Non-nil to turn on debug for EXWM.")
+
+(defmacro exwm--debug (&rest forms)
+  (when exwm-debug-on `(progn ,@forms)))
+
 (defmacro exwm--log (&optional format-string &rest objects)
   "Emit a message prepending the name of the function being executed.
 
 FORMAT-STRING is a string specifying the message to output, as in
 `format'.  The OBJECTS arguments specify the substitutions."
-  (when exwm-debug-on
-    (unless format-string (setq format-string ""))
-    `(progn
-       (exwm-debug--message (concat "%s:\t" ,format-string "\n")
-                            (exwm-debug--compile-time-function-name)
-                            ,@objects)
-       nil)))
-
-(defmacro exwm--debug (&rest forms)
-  (when exwm-debug-on `(progn ,@forms)))
+  (unless format-string (setq format-string ""))
+  `(when exwm-debug-on
+     (xcb-debug-message ,(concat "%s:\t" format-string "\n")
+                        (xcb-debug-compile-time-function-name)
+                        ,@objects)
+     nil))
 
 (defsubst exwm--id->buffer (id)
   "X window ID => Emacs buffer."
@@ -291,8 +292,8 @@ least SECS seconds later."
 
 (exwm--debug
   (let ((map exwm-mode-map))
-    (define-key map "\C-c\C-l" #'exwm-debug-clear)
-    (define-key map "\C-c\C-m" #'exwm-debug-mark)))
+    (define-key map "\C-c\C-l" #'xcb-debug-clear)
+    (define-key map "\C-c\C-m" #'xcb-debug-mark)))
 
 (define-derived-mode exwm-mode nil "EXWM"
   "Major mode for managing X windows.
