@@ -80,8 +80,8 @@ FORMAT-STRING is a string specifying the message to output, as in
 `format'.  The OBJECTS arguments specify the substitutions."
   (unless format-string (setq format-string ""))
   `(when exwm-debug-on
-     (xcb-debug-message ,(concat "%s:\t" format-string "\n")
-                        (xcb-debug-compile-time-function-name)
+     (xcb-debug:message ,(concat "%s:\t" format-string "\n")
+                        (xcb-debug:compile-time-function-name)
                         ,@objects)
      nil))
 
@@ -199,6 +199,9 @@ least SECS seconds later."
 
 (defvar exwm-mode-map
   (let ((map (make-sparse-keymap)))
+    (define-key map "\C-c\C-d\C-l" #'xcb-debug:clear)
+    (define-key map "\C-c\C-d\C-m" #'xcb-debug:mark)
+    (define-key map "\C-c\C-d\C-t" #'exwm-debug-toggle)
     (define-key map "\C-c\C-f" #'exwm-layout-set-fullscreen)
     (define-key map "\C-c\C-h" #'exwm-floating-hide)
     (define-key map "\C-c\C-k" #'exwm-input-release-keyboard)
@@ -299,12 +302,6 @@ least SECS seconds later."
                      (exwm-workspace-switch ,i))
                    (/= ,i exwm-workspace-current-index)])
                (number-sequence 0 (1- (exwm-workspace--count))))))))
-
-(exwm--debug
-  (let ((map exwm-mode-map))
-    (define-key map "\C-c\C-d\C-l" #'xcb-debug-clear)
-    (define-key map "\C-c\C-d\C-m" #'xcb-debug-mark)
-    (define-key map "\C-c\C-d\C-t" #'exwm-debug-toggle)))
 
 (define-derived-mode exwm-mode nil "EXWM"
   "Major mode for managing X windows.
