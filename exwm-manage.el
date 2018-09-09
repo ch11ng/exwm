@@ -665,6 +665,22 @@ border-width: %d; sibling: #x%x; stack-mode: %d"
       (exwm--log "id=#x%x" window)
       (exwm-manage--unmanage-window window t))))
 
+(defun exwm-manage--on-MapNotify (data _synthetic)
+  "Handle MapNotify event."
+  (let ((obj (make-instance 'xcb:MapNotify)))
+    (xcb:unmarshal obj data)
+    (with-slots (window) obj
+      (when (assoc window exwm--id-buffer-alist)
+        (exwm--log "id=#x%x" window)
+        ;; With this we ensure that a "window hierarchy change" happens after
+        ;; mapping the window, as some servers (XQuartz) do not generate it.
+        (xcb:+request exwm--connection
+            (make-instance 'xcb:ConfigureWindow
+                           :window window
+                           :value-mask xcb:ConfigWindow:StackMode
+                           :stack-mode xcb:StackMode:Above))
+        (xcb:flush exwm--connection)))))
+
 (defun exwm-manage--on-DestroyNotify (data synthetic)
   "Handle DestroyNotify event."
   (unless synthetic
@@ -692,6 +708,7 @@ border-width: %d; sibling: #x%x; stack-mode: %d"
               #'exwm-manage--on-ConfigureRequest)
   (xcb:+event exwm--connection 'xcb:MapRequest #'exwm-manage--on-MapRequest)
   (xcb:+event exwm--connection 'xcb:UnmapNotify #'exwm-manage--on-UnmapNotify)
+  (xcb:+event exwm--connection 'xcb:MapNotify #'exwm-manage--on-MapNotify)
   (xcb:+event exwm--connection 'xcb:DestroyNotify
               #'exwm-manage--on-DestroyNotify))
 
