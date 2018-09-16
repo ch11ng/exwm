@@ -68,10 +68,12 @@
 (declare-function exwm-workspace-move-window "exwm-workspace.el"
                   (frame-or-index &optional id))
 
-(defvar exwm-debug-on nil "Non-nil to turn on debug for EXWM.")
+(define-minor-mode exwm-debug
+  "Debug-logging enabled if non-nil"
+  :global t)
 
 (defmacro exwm--debug (&rest forms)
-  (when exwm-debug-on `(progn ,@forms)))
+  (when exwm-debug `(progn ,@forms)))
 
 (defmacro exwm--log (&optional format-string &rest objects)
   "Emit a message prepending the name of the function being executed.
@@ -79,21 +81,11 @@
 FORMAT-STRING is a string specifying the message to output, as in
 `format'.  The OBJECTS arguments specify the substitutions."
   (unless format-string (setq format-string ""))
-  `(when exwm-debug-on
+  `(when exwm-debug
      (xcb-debug:message ,(concat "%s:\t" format-string "\n")
                         (xcb-debug:compile-time-function-name)
                         ,@objects)
      nil))
-
-(defun exwm-debug-toggle (&optional arg)
-  "Toggle EXWM debugging output.
-When ARG is positive, turn debugging on; when negative off.  When
-ARG is nil, toggle debugging output."
-  (interactive
-   (list (or current-prefix-arg 'toggle)))
-  (setq exwm-debug-on (if (eq arg 'toggle)
-                          (not exwm-debug-on)
-                        (> 0 arg))))
 
 (defsubst exwm--id->buffer (id)
   "X window ID => Emacs buffer."
@@ -201,7 +193,7 @@ least SECS seconds later."
   (let ((map (make-sparse-keymap)))
     (define-key map "\C-c\C-d\C-l" #'xcb-debug:clear)
     (define-key map "\C-c\C-d\C-m" #'xcb-debug:mark)
-    (define-key map "\C-c\C-d\C-t" #'exwm-debug-toggle)
+    (define-key map "\C-c\C-d\C-t" #'exwm-debug)
     (define-key map "\C-c\C-f" #'exwm-layout-set-fullscreen)
     (define-key map "\C-c\C-h" #'exwm-floating-hide)
     (define-key map "\C-c\C-k" #'exwm-input-release-keyboard)

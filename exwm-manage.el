@@ -182,7 +182,7 @@ You can still make the X windows floating afterwards."
   (when (derived-mode-p 'exwm-mode)
     (dolist (i exwm-manage-configurations)
       (save-current-buffer
-        (when (eval (car i))
+        (when (eval (car i) t)
           (cl-return-from exwm-manage--get-configurations (cdr i)))))))
 
 (defun exwm-manage--manage-window (id)
