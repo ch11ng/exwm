@@ -158,9 +158,7 @@ least SECS seconds later."
 (defvar-local exwm--mode-line-format nil) ;save mode-line-format
 (defvar-local exwm--floating-frame-position nil) ;set when hidden.
 (defvar-local exwm--fixed-size nil)              ;fixed size
-(defvar-local exwm--keyboard-grabbed nil)        ;Keyboard grabbed.
-(defvar-local exwm--on-KeyPress         ;KeyPress event handler
-  #'exwm-input--on-KeyPress-line-mode)
+(defvar-local exwm--input-mode 'line-mode)       ;Keyboard grabbed.
 ;; Properties
 (defvar-local exwm--desktop nil "_NET_WM_DESKTOP.")
 (defvar-local exwm-window-type nil "_NET_WM_WINDOW_TYPE.")
@@ -252,7 +250,7 @@ least SECS seconds later."
     "*Keyboard*"
     "---"
     ["Toggle keyboard mode" exwm-input-toggle-keyboard]
-    ["Send key" exwm-input-send-next-key exwm--keyboard-grabbed]
+    ["Send key" exwm-input-send-next-key (eq exwm--input-mode 'line-mode)]
     ;; This is merely a reference.
     ("Send simulation key" :filter
      (lambda (&rest _args)

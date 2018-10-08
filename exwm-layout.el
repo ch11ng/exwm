@@ -45,6 +45,7 @@
 (defvar exwm-layout--timer nil "Timer used to track echo area changes.")
 
 (defvar exwm-workspace--current)
+(declare-function exwm-input--current-input-mode "exwm-input.el")
 (declare-function exwm-input--release-keyboard "exwm-input.el")
 (declare-function exwm-input--grab-keyboard "exwm-input.el")
 (declare-function exwm-input-grab-keyboard "exwm-input.el")
@@ -199,7 +200,7 @@
         (make-instance 'xcb:ewmh:set-_NET_WM_STATE :window exwm--id :data []))
     (xcb:flush exwm--connection)
     (set-window-dedicated-p (get-buffer-window) nil)
-    (when exwm--keyboard-grabbed
+    (when (eq 'line-mode (exwm-input--current-input-mode))
       (exwm-input--grab-keyboard exwm--id))))
 
 ;;;###autoload
