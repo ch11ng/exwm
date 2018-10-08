@@ -552,8 +552,8 @@ for internal use only."
          ((not active-old)
           (exwm-workspace--set-active frame t))
          ((equal output-old output-new)
-          (exwm-workspace--set-active old-frame nil)
           (exwm-workspace--set-active frame t)
+          (exwm-workspace--set-active old-frame nil)
           (setq workspaces-to-hide (list old-frame)))
          (active-new)
          (t
