@@ -351,16 +351,9 @@ ARGS are additional arguments to CALLBACK."
                 (x-focus-frame (window-frame window))
               ;; X input focus should be set on the previously selected
               ;; frame.
-              (x-focus-frame (window-frame (minibuffer-selected-window))))
+              (x-focus-frame (window-frame (minibuffer-window))))
             (exwm-input--set-active-window)
             (xcb:flush exwm--connection)))))))
-
-(defun exwm-input--on-minibuffer-setup ()
-  "Run in `minibuffer-setup-hook' to set input focus."
-  (exwm--log)
-  (unless (exwm-workspace--client-p)
-    ;; Set input focus on the Emacs frame
-    (x-focus-frame (window-frame (minibuffer-selected-window)))))
 
 (defun exwm-input--set-active-window (&optional id)
   "Set _NET_ACTIVE_WINDOW."
@@ -1004,8 +997,6 @@ where both ORIGINAL-KEY and SIMULATED-KEY are key sequences."
   (when mouse-autoselect-window
     (xcb:+event exwm--connection 'xcb:EnterNotify
                 #'exwm-input--on-EnterNotify))
-  ;; The input focus should be set on the frame when minibuffer is active.
-  (add-hook 'minibuffer-setup-hook #'exwm-input--on-minibuffer-setup)
   ;; Control `exwm-input--during-command'
   (add-hook 'pre-command-hook #'exwm-input--on-pre-command)
   (add-hook 'post-command-hook #'exwm-input--on-post-command)
@@ -1019,7 +1010,6 @@ where both ORIGINAL-KEY and SIMULATED-KEY are key sequences."
 (defun exwm-input--exit ()
   "Exit the input module."
   (exwm-input--unset-simulation-keys)
-  (remove-hook 'minibuffer-setup-hook #'exwm-input--on-minibuffer-setup)
   (remove-hook 'pre-command-hook #'exwm-input--on-pre-command)
   (remove-hook 'post-command-hook #'exwm-input--on-post-command)
   (remove-hook 'buffer-list-update-hook #'exwm-input--on-buffer-list-update)
