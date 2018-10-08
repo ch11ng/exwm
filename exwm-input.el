@@ -87,7 +87,7 @@ defined in `exwm-mode-map' here."
                        value))))
 
 (defcustom exwm-input-line-mode-passthrough nil
-  "Non-nil makes 'line-mode' forwards all events to Emacs."
+  "Non-nil makes 'line-mode' forward all events to Emacs."
   :type 'boolean)
 
 ;; Input focus update requests should be accumulated for a short time
@@ -378,11 +378,11 @@ ARGS are additional arguments to CALLBACK."
     (xcb:unmarshal obj data)
     (exwm--log "major-mode=%s buffer=%s"
                major-mode (buffer-name (current-buffer)))
-    (with-slots (detail time event state) obj
+    (with-slots (detail event state) obj
       (setq button-event (xcb:keysyms:keysym->event exwm--connection
                                                     detail state)
-            window (get-buffer-window (exwm--id->buffer event) t)
-            buffer (window-buffer window))
+            buffer (exwm--id->buffer event)
+            window (get-buffer-window buffer t))
       (cond ((and (eq button-event exwm-input-move-event)
                   ;; Either an undecorated or a floating X window.
                   (with-current-buffer buffer
@@ -414,11 +414,15 @@ ARGS are additional arguments to CALLBACK."
                ;; It has been reported that the `window' may have be deleted
                (if (window-live-p window)
                    (select-window window)
-                 (setq window
-                       (get-buffer-window (exwm--id->buffer event) t))
+                 (setq window (get-buffer-window buffer t))
                  (when window (select-window window))))
-             ;; The event should be replayed
-             (setq mode xcb:Allow:ReplayPointer))))
+             (with-current-buffer buffer
+               (when (derived-mode-p 'exwm-mode)
+                 (cl-case (exwm-input--current-input-mode)
+                   (line-mode
+                    (setq mode (exwm-input--on-ButtonPress-line-mode buffer button-event)))
+                   (char-mode
+                    (setq mode (exwm-input--on-ButtonPress-char-mode)))))))))
     (xcb:+request exwm--connection
         (make-instance 'xcb:AllowEvents :mode mode :time xcb:Time:CurrentTime))
     (xcb:flush exwm--connection)))
@@ -575,12 +579,33 @@ instead."
   ;; Attempt to translate this key sequence.
   (setq exwm-input--line-mode-cache
         (exwm-input--translate exwm-input--line-mode-cache))
-  ;; When the key sequence is complete.
-  (unless (keymapp (key-binding exwm-input--line-mode-cache))
+  ;; When the key sequence is complete (not a keymap).
+  ;; Note that `exwm-input--line-mode-cache' might get translated to nil, for
+  ;; example 'mouse--down-1-maybe-follows-link' does this.
+  (unless (and exwm-input--line-mode-cache
+               (keymapp (key-binding exwm-input--line-mode-cache)))
     (setq exwm-input--line-mode-cache nil)
     (when exwm-input--temp-line-mode
       (setq exwm-input--temp-line-mode nil)
       (exwm-input--release-keyboard))))
+
+(defun exwm-input--event-passthrough-p (event)
+  "Whether EVENT should be passed to Emacs.
+Current buffer must be an `exwm-mode' buffer."
+  (or exwm-input-line-mode-passthrough
+      exwm-input--during-command
+      ;; Forward the event when there is an incomplete key
+      ;; sequence or when the minibuffer is active.
+      exwm-input--line-mode-cache
+      (eq (active-minibuffer-window) (selected-window))
+      ;;
+      (memq event exwm-input--global-prefix-keys)
+      (memq event exwm-input-prefix-keys)
+      (when overriding-terminal-local-map
+        (lookup-key overriding-terminal-local-map
+                    (vector event)))
+      (lookup-key (current-local-map) (vector event))
+      (gethash event exwm-input--simulation-keys)))
 
 (defun exwm-input--on-KeyPress-line-mode (key-press raw-data)
   "Parse X KeyPress event to Emacs key event and then feed the command loop."
@@ -593,20 +618,7 @@ instead."
                                   exwm--connection (car keysym)
                                   (logand state (lognot (cdr keysym)))))
                  (setq event (exwm-input--mimic-read-event raw-event))
-                 (or exwm-input-line-mode-passthrough
-                     exwm-input--during-command
-                     ;; Forward the event when there is an incomplete key
-                     ;; sequence or when the minibuffer is active.
-                     exwm-input--line-mode-cache
-                     (eq (active-minibuffer-window) (selected-window))
-                     ;;
-                     (memq event exwm-input--global-prefix-keys)
-                     (memq event exwm-input-prefix-keys)
-                     (when overriding-terminal-local-map
-                       (lookup-key overriding-terminal-local-map
-                                   (vector event)))
-                     (lookup-key (current-local-map) (vector event))
-                     (gethash event exwm-input--simulation-keys)))
+                 (exwm-input--event-passthrough-p event))
         (setq mode xcb:Allow:AsyncKeyboard)
         (exwm-input--cache-event event)
         (exwm-input--unread-event raw-event))
@@ -657,6 +669,31 @@ instead."
                      :mode xcb:Allow:AsyncKeyboard
                      :time xcb:Time:CurrentTime))
   (xcb:flush exwm--connection))
+
+(defun exwm-input--on-ButtonPress-line-mode (buffer button-event)
+  "Handle button events in line mode.
+BUFFER is the `exwm-mode' buffer the event was generated
+on. BUTTON-EVENT is the X event converted into an Emacs event.
+
+The return value is used as event_mode to release the original
+button event."
+  (with-current-buffer buffer
+    (let ((read-event (exwm-input--mimic-read-event button-event)))
+      (if (and read-event
+               (exwm-input--event-passthrough-p read-event))
+          ;; The event should be forwarded to emacs
+          (progn
+            (exwm-input--cache-event read-event)
+            (exwm-input--unread-event button-event)
+            xcb:Allow:SyncPointer)
+        ;; The event should be replayed
+        xcb:Allow:ReplayPointer))))
+
+(defun exwm-input--on-ButtonPress-char-mode ()
+  "Handle button events in char-mode.
+The return value is used as event_mode to release the original
+button event."
+  xcb:Allow:ReplayPointer)
 
 (defun exwm-input--current-input-mode ()
   "Return current input mode.
