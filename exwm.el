@@ -4,8 +4,8 @@
 
 ;; Author: Chris Feng <chris.w.feng@gmail.com>
 ;; Maintainer: Chris Feng <chris.w.feng@gmail.com>
-;; Version: 0.19
-;; Package-Requires: ((xelb "0.15"))
+;; Version: 0.20
+;; Package-Requires: ((xelb "0.16"))
 ;; Keywords: unix
 ;; URL: https://github.com/ch11ng/exwm
 
