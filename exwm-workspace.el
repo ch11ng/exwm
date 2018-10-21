@@ -553,8 +553,9 @@ for internal use only."
           (exwm-workspace--set-active frame t))
          ((equal output-old output-new)
           (exwm-workspace--set-active frame t)
-          (exwm-workspace--set-active old-frame nil)
-          (setq workspaces-to-hide (list old-frame)))
+          (unless (eq frame old-frame)
+            (exwm-workspace--set-active old-frame nil)
+            (setq workspaces-to-hide (list old-frame))))
          (active-new)
          (t
           (dolist (w exwm-workspace--list)
@@ -626,7 +627,8 @@ for internal use only."
                              :dst-x (/ (frame-pixel-width frame) 2)
                              :dst-y (/ (frame-pixel-height frame) 2)))
           (xcb:flush exwm--connection))))
-    (when (frame-live-p old-frame)
+    (when (and (not (eq frame old-frame))
+               (frame-live-p old-frame))
       (with-selected-frame old-frame
         (run-hooks 'focus-out-hook)))
     (run-hooks 'focus-in-hook)
