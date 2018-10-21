@@ -756,6 +756,7 @@ button event."
                        (exwm--buffer->id (window-buffer)))))
   (when id
     (exwm--log "id=#x%x" id)
+    (setq exwm--selected-input-mode 'line-mode)
     (exwm-input--grab-keyboard id)
     (exwm-input--update-mode-line id)))
 
@@ -766,6 +767,7 @@ button event."
                        (exwm--buffer->id (window-buffer)))))
   (when id
     (exwm--log "id=#x%x" id)
+    (setq exwm--selected-input-mode  'char-mode)
     (exwm-input--release-keyboard id)
     (exwm-input--update-mode-line id)))
 

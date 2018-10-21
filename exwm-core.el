@@ -158,7 +158,11 @@ least SECS seconds later."
 (defvar-local exwm--mode-line-format nil) ;save mode-line-format
 (defvar-local exwm--floating-frame-position nil) ;set when hidden.
 (defvar-local exwm--fixed-size nil)              ;fixed size
-(defvar-local exwm--input-mode 'line-mode)       ;Keyboard grabbed.
+(defvar-local exwm--selected-input-mode 'line-mode
+  "Input mode as selected by the user.
+One of `line-mode' or `char-mode'.")
+(defvar-local exwm--input-mode 'line-mode
+  "Actual input mode, i.e. whether mouse and keyboard are grabbed.")
 ;; Properties
 (defvar-local exwm--desktop nil "_NET_WM_DESKTOP.")
 (defvar-local exwm-window-type nil "_NET_WM_WINDOW_TYPE.")
