@@ -411,7 +411,7 @@ ARGS are additional arguments to CALLBACK."
                  (when window (select-window window))))
              (with-current-buffer buffer
                (when (derived-mode-p 'exwm-mode)
-                 (cl-case (exwm-input--current-input-mode)
+                 (cl-case exwm--input-mode
                    (line-mode
                     (setq mode (exwm-input--on-ButtonPress-line-mode buffer button-event)))
                    (char-mode
@@ -427,7 +427,7 @@ ARGS are additional arguments to CALLBACK."
     (exwm--log "major-mode=%s buffer=%s"
                major-mode (buffer-name (current-buffer)))
     (if (derived-mode-p 'exwm-mode)
-        (cl-case (exwm-input--current-input-mode)
+        (cl-case exwm--input-mode
           (line-mode
            (exwm-input--on-KeyPress-line-mode obj data))
           (char-mode
@@ -688,17 +688,10 @@ The return value is used as event_mode to release the original
 button event."
   xcb:Allow:ReplayPointer)
 
-(defun exwm-input--current-input-mode ()
-  "Return current input mode.
-The return value is one of the symbols \\='line-mode or \\=`char-mode.
-
-Current buffer must be an `exwm-mode' buffer."
-  exwm--input-mode)
-
 (defun exwm-input--update-mode-line (id)
   "Update the propertized `mode-line-process' for window ID."
   (let (help-echo cmd mode)
-    (cl-case (exwm-input--current-input-mode)
+    (cl-case exwm--input-mode
       (line-mode
        (setq mode "line"
              help-echo "mouse-1: Switch to char-mode"
@@ -763,6 +756,7 @@ Current buffer must be an `exwm-mode' buffer."
                        (exwm--buffer->id (window-buffer)))))
   (when id
     (exwm--log "id=#x%x" id)
+    (setq exwm--selected-input-mode 'line-mode)
     (exwm-input--grab-keyboard id)
     (exwm-input--update-mode-line id)))
 
@@ -773,6 +767,7 @@ Current buffer must be an `exwm-mode' buffer."
                        (exwm--buffer->id (window-buffer)))))
   (when id
     (exwm--log "id=#x%x" id)
+    (setq exwm--selected-input-mode  'char-mode)
     (exwm-input--release-keyboard id)
     (exwm-input--update-mode-line id)))
 
@@ -784,7 +779,7 @@ Current buffer must be an `exwm-mode' buffer."
   (when id
     (exwm--log "id=#x%x" id)
     (with-current-buffer (exwm--id->buffer id)
-      (cl-case (exwm-input--current-input-mode)
+      (cl-case exwm--input-mode
         (line-mode
          (exwm-input-release-keyboard id))
         (char-mode
