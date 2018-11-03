@@ -128,6 +128,7 @@ Please manually run the hook `exwm-workspace-list-change-hook' afterwards.")
 (defvar exwm-workspace--workareas nil "Workareas (struts excluded).")
 
 (defvar exwm-input--during-command)
+(defvar exwm-input--event-hook)
 (defvar exwm-layout-show-all-buffers)
 (defvar exwm-manage--desktop)
 (declare-function exwm-input--on-buffer-list-update "exwm-input.el" ())
@@ -1584,6 +1585,9 @@ applied to all subsequently created X frames."
   (add-hook 'after-make-frame-functions
             #'exwm-workspace--on-after-make-frame)
   (add-hook 'delete-frame-functions #'exwm-workspace--on-delete-frame)
+  (when (exwm-workspace--minibuffer-own-frame-p)
+    (add-hook 'exwm-input--event-hook
+              #'exwm-workspace--on-echo-area-clear))
   ;; Switch to the first workspace
   (exwm-workspace-switch 0 t)
   ;; Prevent frame parameters introduced by this module from being
@@ -1604,6 +1608,9 @@ applied to all subsequently created X frames."
                #'exwm-workspace--on-after-make-frame)
   (remove-hook 'delete-frame-functions
                #'exwm-workspace--on-delete-frame)
+  (when (exwm-workspace--minibuffer-own-frame-p)
+    (remove-hook 'exwm-input--event-hook
+                 #'exwm-workspace--on-echo-area-clear))
   ;; Hide & reparent out all frames (save-set can't be used here since
   ;; X windows will be re-mapped).
   (setq exwm-workspace--current nil)
