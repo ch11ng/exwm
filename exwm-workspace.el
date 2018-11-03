@@ -1203,7 +1203,18 @@ Please check `exwm-workspace--minibuffer-own-frame-p' first."
                 input-method-use-echo-area)
       (setq exwm-workspace--display-echo-area-timer
             (run-with-timer exwm-workspace-display-echo-area-timeout nil
-                            #'exwm-workspace--on-echo-area-clear)))))
+                            #'exwm-workspace--echo-area-maybe-clear)))))
+
+(defun exwm-workspace--echo-area-maybe-clear ()
+  "Eventually clear the echo area container."
+  (exwm--log)
+  (if (not (current-message))
+      (exwm-workspace--on-echo-area-clear)
+    ;; Reschedule.
+    (cancel-timer exwm-workspace--display-echo-area-timer)
+    (setq exwm-workspace--display-echo-area-timer
+          (run-with-timer exwm-workspace-display-echo-area-timeout nil
+                          #'exwm-workspace--echo-area-maybe-clear))))
 
 (defun exwm-workspace--on-echo-area-clear ()
   "Run in echo-area-clear-hook to hide echo area container."
