@@ -296,7 +296,9 @@ selected by `other-buffer'."
     (dolist (window windows)
       (with-current-buffer (window-buffer window)
         (when (derived-mode-p 'exwm-mode)
-          (switch-to-prev-buffer window))))))
+          (if (window-prev-buffers window)
+              (switch-to-prev-buffer window)
+            (switch-to-next-buffer window)))))))
 
 (defun exwm-layout--refresh-workspace (frame)
   "Refresh workspace frame FRAME."
@@ -346,14 +348,18 @@ selected by `other-buffer'."
     ;; Set some sensible buffer to vacated windows.
     (let ((exwm-layout--other-buffer-exclude-buffers covered-buffers))
       (dolist (window vacated-windows)
-        (switch-to-prev-buffer window)))
+        (if (window-prev-buffers window)
+            (switch-to-prev-buffer window)
+          (switch-to-next-buffer window))))
     ;; Make sure windows floating / on other workspaces are excluded
     (let ((exwm-layout--other-buffer-exclude-exwm-mode-buffers t))
       (dolist (window (window-list frame 'nomini))
         (with-current-buffer (window-buffer window)
           (when (and (derived-mode-p 'exwm-mode)
                      (or exwm--floating-frame (not (eq frame exwm--frame))))
-            (switch-to-prev-buffer window)))))
+            (if (window-prev-buffers window)
+                (switch-to-prev-buffer window)
+              (switch-to-next-buffer window))))))
     (exwm-layout--set-client-list-stacking)
     (xcb:flush exwm--connection)))
 
