@@ -27,11 +27,11 @@
 ;; that.
 
 ;; To use this module, load, enable it and configure
-;; `exwm-randr-workspace-output-plist' and `exwm-randr-screen-change-hook'
+;; `exwm-randr-workspace-monitor-plist' and `exwm-randr-screen-change-hook'
 ;; as follows:
 ;;
 ;;   (require 'exwm-randr)
-;;   (setq exwm-randr-workspace-output-plist '(0 "VGA1"))
+;;   (setq exwm-randr-workspace-monitor-plist '(0 "VGA1"))
 ;;   (add-hook 'exwm-randr-screen-change-hook
 ;;             (lambda ()
 ;;               (start-process-shell-command
@@ -63,21 +63,33 @@
   "Normal hook run when screen changes."
   :type 'hook)
 
-(defcustom exwm-randr-workspace-output-plist nil
-  "Plist mapping workspace to output.
+(defcustom exwm-randr-workspace-monitor-plist nil
+  "Plist mapping workspaces to monitors.
 
-If an output is not available, the workspaces mapped to it are displayed on
-the primary output until it becomes available.  Unspecified workspaces are
-all mapped to the primary output.  For example, with the following value
-workspace other than 1 and 3 would always be displayed on the primary output
-where workspace 1 and 3 would be displayed on their corresponding output
-whenever the outputs are available.
+In RandR 1.5 a monitor is a rectangle region decoupled from the physical
+size of screens, and can be identified with `xrandr --listmonitors' (name of
+the primary monitor is prefixed with an `*').  When no monitor is created it
+automatically fallback to RandR 1.2 output which represents the physical
+screen size.  RandR 1.5 monitors can be created with `xrandr --setmonitor'.
+For example, to split an output (`LVDS-1') of size 1280x800 into two
+side-by-side monitors one could invoke (the digits after `/' are size in mm)
 
-  '(1 \"HDMI-1\" 3 \"DP-1\")
+    xrandr --setmonitor *LVDS-1-L 640/135x800/163+0+0 LVDS-1
+    xrandr --setmonitor LVDS-1-R 640/135x800/163+640+0 none
 
-The outputs available can be identified by running the 'xrandr' utility with
-the first one in result being the primary output."
+If a monitor is not active, the workspaces mapped to it are displayed on the
+primary monitor until it becomes active (if ever).  Unspecified workspaces
+are all mapped to the primary monitor.  For example, with the following
+setting workspace other than 1 and 3 would always be displayed on the
+primary monitor where workspace 1 and 3 would be displayed on their
+corresponding monitors whenever the monitors are active.
+
+  \\='(1 \"HDMI-1\" 3 \"DP-1\")"
   :type '(plist :key-type integer :value-type string))
+
+(with-no-warnings
+  (define-obsolete-variable-alias 'exwm-randr-workspace-output-plist
+    'exwm-randr-workspace-monitor-plist "27.1"))
 
 (defvar exwm-workspace--fullscreen-frame-count)
 (defvar exwm-workspace--list)
@@ -89,57 +101,54 @@ the first one in result being the primary output."
 (declare-function exwm-workspace--show-minibuffer "exwm-workspace.el" ())
 (declare-function exwm-workspace--update-workareas "exwm-workspace.el" ())
 
+(defun exwm-randr--get-monitors ()
+  "Get RandR monitors."
+  (let (monitor-name geometry monitor-plist primary-monitor)
+    (with-slots (monitors)
+        (xcb:+request-unchecked+reply exwm--connection
+            (make-instance 'xcb:randr:GetMonitors
+                           :window exwm--root
+                           :get-active 1))
+      (dolist (monitor monitors)
+        (with-slots (name primary x y width height) monitor
+          (setq monitor-name (x-get-atom-name name)
+                geometry (make-instance 'xcb:RECTANGLE
+                                        :x x
+                                        :y y
+                                        :width width
+                                        :height height)
+                monitor-plist (plist-put monitor-plist monitor-name geometry))
+          ;; Save primary monitor when available.
+          (when (/= 0 primary)
+            (setq primary-monitor monitor-name)))))
+    (exwm--log "Primary monitor: %s" primary-monitor)
+    (exwm--log "Monitors: %s" monitor-plist)
+    (list primary-monitor monitor-plist)))
+
 (defun exwm-randr--refresh ()
   "Refresh workspaces according to the updated RandR info."
-  (let (output-name geometry output-plist primary-output default-geometry
-                    container-output-alist container-frame-alist)
-    ;; Query all outputs
-    (with-slots (config-timestamp outputs)
-        (xcb:+request-unchecked+reply exwm--connection
-            (make-instance 'xcb:randr:GetScreenResourcesCurrent
-                           :window exwm--root))
-      (dolist (output outputs)
-        (with-slots (crtc connection name)
-            (xcb:+request-unchecked+reply exwm--connection
-                (make-instance 'xcb:randr:GetOutputInfo
-                               :output output
-                               :config-timestamp config-timestamp))
-          (setf output-name             ;UTF-8 encoded
-                (decode-coding-string (apply #'unibyte-string name) 'utf-8))
-          (if (or (/= connection xcb:randr:Connection:Connected)
-                  (= 0 crtc))           ;FIXME
-              (plist-put output-plist output-name nil)
-            (with-slots (x y width height)
-                (xcb:+request-unchecked+reply exwm--connection
-                    (make-instance 'xcb:randr:GetCrtcInfo
-                                   :crtc crtc
-                                   :config-timestamp config-timestamp))
-              (setq geometry (make-instance 'xcb:RECTANGLE
-                                            :x x :y y
-                                            :width width :height height)
-                    output-plist (plist-put output-plist output-name geometry))
-              (unless primary-output
-                (setq primary-output output-name
-                      default-geometry geometry)))))))
-    (exwm--log "(randr) outputs: %s" output-plist)
-    (when output-plist
+  (let* ((result (exwm-randr--get-monitors))
+         (primary-monitor (elt result 0))
+         (monitor-plist (elt result 1))
+         container-monitor-alist container-frame-alist)
+    (when (and primary-monitor monitor-plist)
       (when exwm-workspace--fullscreen-frame-count
         ;; Not all workspaces are fullscreen; reset this counter.
         (setq exwm-workspace--fullscreen-frame-count 0))
       (dotimes (i (exwm-workspace--count))
-        (let* ((output (plist-get exwm-randr-workspace-output-plist i))
-               (geometry (lax-plist-get output-plist output))
+        (let* ((monitor (plist-get exwm-randr-workspace-monitor-plist i))
+               (geometry (lax-plist-get monitor-plist monitor))
                (frame (elt exwm-workspace--list i))
                (container (frame-parameter frame 'exwm-container)))
           (unless geometry
-            (setq geometry default-geometry
-                  output primary-output))
-          (setq container-output-alist (nconc
-                                        `((,container . ,(intern output)))
-                                        container-output-alist)
+            (setq monitor primary-monitor
+                  geometry (lax-plist-get monitor-plist primary-monitor)))
+          (setq container-monitor-alist (nconc
+                                         `((,container . ,(intern monitor)))
+                                         container-monitor-alist)
                 container-frame-alist (nconc `((,container . ,frame))
                                              container-frame-alist))
-          (set-frame-parameter frame 'exwm-randr-output output)
+          (set-frame-parameter frame 'exwm-randr-monitor monitor)
           (set-frame-parameter frame 'exwm-geometry geometry)))
       ;; Update workareas.
       (exwm-workspace--update-workareas)
@@ -156,23 +165,24 @@ the first one in result being the primary output."
       ;; Update active/inactive workspaces.
       (dolist (w exwm-workspace--list)
         (exwm-workspace--set-active w nil))
+      ;; Mark the workspace on the top of each monitor as active.
       (dolist (xwin
                (reverse
                 (slot-value (xcb:+request-unchecked+reply exwm--connection
                                 (make-instance 'xcb:QueryTree
                                                :window exwm--root))
                             'children)))
-        (let ((output (cdr (assq xwin container-output-alist))))
-          (when output
-            (setq container-output-alist
-                  (rassq-delete-all output container-output-alist))
+        (let ((monitor (cdr (assq xwin container-monitor-alist))))
+          (when monitor
+            (setq container-monitor-alist
+                  (rassq-delete-all monitor container-monitor-alist))
             (exwm-workspace--set-active (cdr (assq xwin container-frame-alist))
                                         t))))
       (xcb:flush exwm--connection)
       (run-hooks 'exwm-randr-refresh-hook))))
 
 (defun exwm-randr--on-ScreenChangeNotify (_data _synthetic)
-  (exwm--log "(RandR) ScreenChangeNotify")
+  (exwm--log)
   (run-hooks 'exwm-randr-screen-change-hook)
   (exwm-randr--refresh))
 
@@ -184,8 +194,8 @@ the first one in result being the primary output."
     (with-slots (major-version minor-version)
         (xcb:+request-unchecked+reply exwm--connection
             (make-instance 'xcb:randr:QueryVersion
-                           :major-version 1 :minor-version 3))
-      (if (or (/= major-version 1) (< minor-version 3))
+                           :major-version 1 :minor-version 5))
+      (if (or (/= major-version 1) (< minor-version 5))
           (error "[EXWM] The server only support RandR version up to %d.%d"
                  major-version minor-version)
         ;; External monitor(s) may already be connected.
@@ -193,26 +203,15 @@ the first one in result being the primary output."
         (exwm-randr--refresh)
         (xcb:+event exwm--connection 'xcb:randr:ScreenChangeNotify
                     #'exwm-randr--on-ScreenChangeNotify)
-        ;; (xcb:+event exwm--connection 'xcb:randr:Notify
-        ;;             (lambda (_data _synthetic)
-        ;;               (exwm--log "(RandR) Notify")
-        ;;               (exwm-randr--refresh)))
         (xcb:+request exwm--connection
             (make-instance 'xcb:randr:SelectInput
                            :window exwm--root
-                           :enable xcb:randr:NotifyMask:ScreenChange
-                           ;; :enable (eval-when-compile
-                           ;;           (logior
-                           ;;            xcb:randr:NotifyMask:ScreenChange
-                           ;;            xcb:randr:NotifyMask:OutputChange
-                           ;;            xcb:randr:NotifyMask:OutputProperty
-                           ;;            xcb:randr:NotifyMask:CrtcChange))
-                           ))
+                           :enable xcb:randr:NotifyMask:ScreenChange))
         (xcb:flush exwm--connection)
         (add-hook 'exwm-workspace-list-change-hook #'exwm-randr--refresh))))
   ;; Prevent frame parameters introduced by this module from being
   ;; saved/restored.
-  (dolist (i '(exwm-randr-output))
+  (dolist (i '(exwm-randr-monitor))
     (unless (assq i frameset-filter-alist)
       (push (cons i :never) frameset-filter-alist))))
 

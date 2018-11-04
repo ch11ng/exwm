@@ -374,7 +374,7 @@ NIL if FRAME is not a workspace"
   (run-hooks 'exwm-workspace--update-workareas-hook))
 
 (defun exwm-workspace--set-active (frame active)
-  "Make frame FRAME active on its output."
+  "Make frame FRAME active on its monitor."
   (exwm--log "active=%s; frame=%s" frame active)
   (set-frame-parameter frame 'exwm-active active)
   (if active
@@ -543,15 +543,15 @@ for internal use only."
         (set-frame-parameter (buffer-local-value 'exwm--frame (window-buffer))
                              'exwm-selected-window (selected-window)))
       ;; Show/Hide X windows.
-      (let ((output-old (frame-parameter old-frame 'exwm-randr-output))
-            (output-new (frame-parameter frame 'exwm-randr-output))
+      (let ((monitor-old (frame-parameter old-frame 'exwm-randr-monitor))
+            (monitor-new (frame-parameter frame 'exwm-randr-monitor))
             (active-old (exwm-workspace--active-p old-frame))
             (active-new (exwm-workspace--active-p frame))
             workspaces-to-hide)
         (cond
          ((not active-old)
           (exwm-workspace--set-active frame t))
-         ((equal output-old output-new)
+         ((equal monitor-old monitor-new)
           (exwm-workspace--set-active frame t)
           (unless (eq frame old-frame)
             (exwm-workspace--set-active old-frame nil)
@@ -560,8 +560,8 @@ for internal use only."
          (t
           (dolist (w exwm-workspace--list)
             (when (and (exwm-workspace--active-p w)
-                       (equal output-new
-                              (frame-parameter w 'exwm-randr-output)))
+                       (equal monitor-new
+                              (frame-parameter w 'exwm-randr-monitor)))
               (exwm-workspace--set-active w nil)
               (setq workspaces-to-hide (append workspaces-to-hide (list w)))))
           (exwm-workspace--set-active frame t)))
@@ -818,8 +818,8 @@ INDEX must not exceed the current number of workspaces."
           ;; Floating.
           (setq container (frame-parameter exwm--floating-frame
                                            'exwm-container))
-          (unless (equal (frame-parameter old-frame 'exwm-randr-output)
-                         (frame-parameter frame 'exwm-randr-output))
+          (unless (equal (frame-parameter old-frame 'exwm-randr-monitor)
+                         (frame-parameter frame 'exwm-randr-monitor))
             (with-slots (x y)
                 (xcb:+request-unchecked+reply exwm--connection
                     (make-instance 'xcb:GetGeometry
@@ -1240,7 +1240,7 @@ Please check `exwm-workspace--minibuffer-own-frame-p' first."
     ;; prevent potential problems.  The values do not matter here as
     ;; they'll be updated by the RandR module later.
     (let ((w (car exwm-workspace--list)))
-      (dolist (param '(exwm-randr-output
+      (dolist (param '(exwm-randr-monitor
                        exwm-geometry))
         (set-frame-parameter frame param (frame-parameter w param))))
     (xcb:+request exwm--connection
