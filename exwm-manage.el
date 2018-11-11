@@ -674,11 +674,20 @@ border-width: %d; sibling: #x%x; stack-mode: %d"
         (exwm--log "id=#x%x" window)
         ;; With this we ensure that a "window hierarchy change" happens after
         ;; mapping the window, as some servers (XQuartz) do not generate it.
-        (xcb:+request exwm--connection
-            (make-instance 'xcb:ConfigureWindow
-                           :window window
-                           :value-mask xcb:ConfigWindow:StackMode
-                           :stack-mode xcb:StackMode:Above))
+        (with-current-buffer (exwm--id->buffer window)
+          (if exwm--floating-frame
+              (xcb:+request exwm--connection
+                  (make-instance 'xcb:ConfigureWindow
+                                 :window window
+                                 :value-mask xcb:ConfigWindow:StackMode
+                                 :stack-mode xcb:StackMode:Above))
+            (xcb:+request exwm--connection
+                (make-instance 'xcb:ConfigureWindow
+                               :window window
+                               :value-mask (logior xcb:ConfigWindow:Sibling
+                                                   xcb:ConfigWindow:StackMode)
+                               :sibling exwm--guide-window
+                               :stack-mode xcb:StackMode:Above))))
         (xcb:flush exwm--connection)))))
 
 (defun exwm-manage--on-DestroyNotify (data synthetic)
