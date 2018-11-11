@@ -125,8 +125,10 @@ corresponding monitors whenever the monitors are active.
     (exwm--log "Monitors: %s" monitor-plist)
     (list primary-monitor monitor-plist)))
 
-(defun exwm-randr--refresh ()
+;;;###autoload
+(defun exwm-randr-refresh ()
   "Refresh workspaces according to the updated RandR info."
+  (interactive)
   (let* ((result (exwm-randr--get-monitors))
          (primary-monitor (elt result 0))
          (monitor-plist (elt result 1))
@@ -180,6 +182,9 @@ corresponding monitors whenever the monitors are active.
                                         t))))
       (xcb:flush exwm--connection)
       (run-hooks 'exwm-randr-refresh-hook))))
+
+(define-obsolete-function-alias 'exwm-randr--refresh #'exwm-randr-refresh
+  "27.1")
 
 (defun exwm-randr--on-ScreenChangeNotify (_data _synthetic)
   (exwm--log)
