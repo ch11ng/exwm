@@ -416,16 +416,21 @@
       (exwm-workspace-switch (elt data 0)))
      ;; _NET_ACTIVE_WINDOW.
      ((= type xcb:Atom:_NET_ACTIVE_WINDOW)
-      (let ((buffer (exwm--id->buffer id)))
+      (let ((buffer (exwm--id->buffer id))
+            iconic window)
         (when (buffer-live-p buffer)
           (with-current-buffer buffer
             (when (eq exwm--frame exwm-workspace--current)
-              (when (exwm-layout--iconic-state-p)
+              (setq iconic (exwm-layout--iconic-state-p))
+              (when iconic
                 ;; State change: iconic => normal.
                 (set-window-buffer (frame-selected-window exwm--frame)
                                    (current-buffer)))
               ;; Focus transfer.
-              (select-window (get-buffer-window nil t)))))))
+              (setq window (get-buffer-window nil t))
+              (when (or iconic
+                        (not (eq window (selected-window))))
+                (select-window window)))))))
      ;; _NET_CLOSE_WINDOW.
      ((= type xcb:Atom:_NET_CLOSE_WINDOW)
       (let ((buffer (exwm--id->buffer id)))
