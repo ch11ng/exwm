@@ -70,6 +70,7 @@ You can still make the X windows floating afterwards."
                         (const :tag "Prefix keys" prefix-keys)
                         (const :tag "Simulation keys" simulation-keys)
                         (const :tag "Workspace" workspace)
+                        (const :tag "Managed" managed)
                         ;; For forward compatibility.
                         (other))
                        :value-type (sexp :tag "Value" nil))))
@@ -214,22 +215,31 @@ You can still make the X windows floating afterwards."
       (exwm--update-hints id)
       (exwm-manage--update-geometry id)
       (exwm-manage--update-mwm-hints id)
-      ;; No need to manage (please check OverrideRedirect outside)
-      (when (or
-             (not
-              (or (not exwm-window-type)
-                  (memq xcb:Atom:_NET_WM_WINDOW_TYPE_UTILITY exwm-window-type)
-                  (memq xcb:Atom:_NET_WM_WINDOW_TYPE_DIALOG exwm-window-type)
-                  (memq xcb:Atom:_NET_WM_WINDOW_TYPE_NORMAL exwm-window-type)))
-             ;; Check the _MOTIF_WM_HINTS property.
-             (and (not exwm--mwm-hints-decorations)
-                  (not exwm--hints-input)
-                  ;; Floating windows only
-                  (or exwm-transient-for exwm--fixed-size
-                      (memq xcb:Atom:_NET_WM_WINDOW_TYPE_UTILITY
-                            exwm-window-type)
-                      (memq xcb:Atom:_NET_WM_WINDOW_TYPE_DIALOG
-                            exwm-window-type))))
+      (setq exwm--configurations (exwm-manage--get-configurations))
+      ;; OverrideRedirect is not checked here.
+      (when (and
+             ;; The user has specified to manage it.
+             (not (plist-get exwm--configurations 'managed))
+             (or
+              ;; The user has specified not to manage it.
+              (plist-member exwm--configurations 'managed)
+              ;; This is not a type of X window we can manage.
+              (and exwm-window-type
+                   (not (cl-intersection
+                         exwm-window-type
+                         (list xcb:Atom:_NET_WM_WINDOW_TYPE_UTILITY
+                               xcb:Atom:_NET_WM_WINDOW_TYPE_DIALOG
+                               xcb:Atom:_NET_WM_WINDOW_TYPE_NORMAL))))
+              ;; Check the _MOTIF_WM_HINTS property to not manage floating X
+              ;; windows without decoration.
+              (and (not exwm--mwm-hints-decorations)
+                   (not exwm--hints-input)
+                   ;; Floating windows only
+                   (or exwm-transient-for exwm--fixed-size
+                       (memq xcb:Atom:_NET_WM_WINDOW_TYPE_UTILITY
+                             exwm-window-type)
+                       (memq xcb:Atom:_NET_WM_WINDOW_TYPE_DIALOG
+                             exwm-window-type)))))
         (exwm--log "No need to manage #x%x" id)
         ;; Update struts.
         (when (memq xcb:Atom:_NET_WM_WINDOW_TYPE_DOCK exwm-window-type)
@@ -277,7 +287,6 @@ You can still make the X windows floating afterwards."
         (let ((kill-buffer-query-functions nil))
           (kill-buffer (current-buffer)))
         (throw 'return 'ignored))
-      (setq exwm--configurations (exwm-manage--get-configurations))
       (let ((index (plist-get exwm--configurations 'workspace)))
         (when (and index (< index (length exwm-workspace--list)))
           (setq exwm--frame (elt exwm-workspace--list index))))
