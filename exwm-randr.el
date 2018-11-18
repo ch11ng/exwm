@@ -123,8 +123,9 @@ corresponding monitors whenever the monitors are active.
                                         :width width
                                         :height height)
                 monitor-plist (plist-put monitor-plist monitor-name geometry))
-          ;; Save primary monitor when available.
-          (when (/= 0 primary)
+          ;; Save primary monitor when available (fallback to the first one).
+          (when (or (/= 0 primary)
+                    (not primary-monitor))
             (setq primary-monitor monitor-name)))))
     (exwm--log "Primary monitor: %s" primary-monitor)
     (exwm--log "Monitors: %s" monitor-plist)
