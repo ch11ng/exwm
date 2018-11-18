@@ -91,6 +91,8 @@ corresponding monitors whenever the monitors are active.
   (define-obsolete-variable-alias 'exwm-randr-workspace-output-plist
     'exwm-randr-workspace-monitor-plist "27.1"))
 
+(defvar exwm-randr--last-timestamp 0 "Used for debouncing events.")
+
 (defvar exwm-workspace--fullscreen-frame-count)
 (defvar exwm-workspace--list)
 (declare-function exwm-workspace--count "exwm-workspace.el")
@@ -103,12 +105,15 @@ corresponding monitors whenever the monitors are active.
 
 (defun exwm-randr--get-monitors ()
   "Get RandR monitors."
+  (exwm--log)
   (let (monitor-name geometry monitor-plist primary-monitor)
-    (with-slots (monitors)
+    (with-slots (timestamp monitors)
         (xcb:+request-unchecked+reply exwm--connection
             (make-instance 'xcb:randr:GetMonitors
                            :window exwm--root
                            :get-active 1))
+      (when (> timestamp exwm-randr--last-timestamp)
+        (setq exwm-randr--last-timestamp timestamp))
       (dolist (monitor monitors)
         (with-slots (name primary x y width height) monitor
           (setq monitor-name (x-get-atom-name name)
@@ -129,6 +134,7 @@ corresponding monitors whenever the monitors are active.
 (defun exwm-randr-refresh ()
   "Refresh workspaces according to the updated RandR info."
   (interactive)
+  (exwm--log)
   (let* ((result (exwm-randr--get-monitors))
          (primary-monitor (elt result 0))
          (monitor-plist (elt result 1))
@@ -187,9 +193,42 @@ corresponding monitors whenever the monitors are active.
   "27.1")
 
 (defun exwm-randr--on-ScreenChangeNotify (_data _synthetic)
+  "Handle `ScreenChangeNotify' event.
+
+Run `exwm-randr-screen-change-hook' (usually user scripts to configure RandR)."
   (exwm--log)
-  (run-hooks 'exwm-randr-screen-change-hook)
-  (exwm-randr--refresh))
+  (run-hooks 'exwm-randr-screen-change-hook))
+
+(defun exwm-randr--on-Notify (data _synthetic)
+  "Handle `CrtcChangeNotify' and `OutputChangeNotify' events.
+
+Refresh when any CRTC/output changes."
+  (exwm--log)
+  (let ((evt (make-instance 'xcb:randr:Notify))
+        notify)
+    (xcb:unmarshal evt data)
+    (with-slots (subCode u) evt
+      (cl-case subCode
+        (xcb:randr:Notify:CrtcChange
+         (setq notify (slot-value u 'cc)))
+        (xcb:randr:Notify:OutputChange
+         (setq notify (slot-value u 'oc))))
+      (when notify
+        (with-slots (timestamp) notify
+          (when (> timestamp exwm-randr--last-timestamp)
+            (exwm-randr-refresh)
+            (setq exwm-randr--last-timestamp timestamp)))))))
+
+(defun exwm-randr--on-ConfigureNotify (data _synthetic)
+  "Handle `ConfigureNotify' event.
+
+Refresh when any RandR 1.5 monitor changes."
+  (exwm--log)
+  (let ((evt (make-instance 'xcb:ConfigureNotify)))
+    (xcb:unmarshal evt data)
+    (with-slots (window) evt
+      (when (eq window exwm--root)
+        (exwm-randr-refresh)))))
 
 (defun exwm-randr--init ()
   "Initialize RandR extension and EXWM RandR module."
@@ -205,15 +244,23 @@ corresponding monitors whenever the monitors are active.
                  major-version minor-version)
         ;; External monitor(s) may already be connected.
         (run-hooks 'exwm-randr-screen-change-hook)
-        (exwm-randr--refresh)
+        (exwm-randr-refresh)
+        ;; Listen for `ScreenChangeNotify' to notify external tools to
+        ;; configure RandR and `CrtcChangeNotify/OutputChangeNotify' to
+        ;; refresh the workspace layout.
         (xcb:+event exwm--connection 'xcb:randr:ScreenChangeNotify
                     #'exwm-randr--on-ScreenChangeNotify)
+        (xcb:+event exwm--connection 'xcb:randr:Notify #'exwm-randr--on-Notify)
+        (xcb:+event exwm--connection 'xcb:ConfigureNotify
+                    #'exwm-randr--on-ConfigureNotify)
         (xcb:+request exwm--connection
             (make-instance 'xcb:randr:SelectInput
                            :window exwm--root
-                           :enable xcb:randr:NotifyMask:ScreenChange))
+                           :enable (logior xcb:randr:NotifyMask:ScreenChange
+                                           xcb:randr:NotifyMask:CrtcChange
+                                           xcb:randr:NotifyMask:OutputChange)))
         (xcb:flush exwm--connection)
-        (add-hook 'exwm-workspace-list-change-hook #'exwm-randr--refresh))))
+        (add-hook 'exwm-workspace-list-change-hook #'exwm-randr-refresh))))
   ;; Prevent frame parameters introduced by this module from being
   ;; saved/restored.
   (dolist (i '(exwm-randr-monitor))
@@ -222,7 +269,7 @@ corresponding monitors whenever the monitors are active.
 
 (defun exwm-randr--exit ()
   "Exit the RandR module."
-  (remove-hook 'exwm-workspace-list-change-hook #'exwm-randr--refresh))
+  (remove-hook 'exwm-workspace-list-change-hook #'exwm-randr-refresh))
 
 (defun exwm-randr-enable ()
   "Enable RandR support for EXWM."
