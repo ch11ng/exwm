@@ -565,7 +565,7 @@ instead."
           (cl-return-from exwm-input--translate translation)))))
   key)
 
-(defun exwm-input--cache-event (event)
+(defun exwm-input--cache-event (event &optional temp-line-mode)
   "Cache EVENT."
   (setq exwm-input--line-mode-cache
         (vconcat exwm-input--line-mode-cache (vector event)))
@@ -575,8 +575,12 @@ instead."
   ;; When the key sequence is complete (not a keymap).
   ;; Note that `exwm-input--line-mode-cache' might get translated to nil, for
   ;; example 'mouse--down-1-maybe-follows-link' does this.
-  (unless (and exwm-input--line-mode-cache
-               (keymapp (key-binding exwm-input--line-mode-cache)))
+  (if (and exwm-input--line-mode-cache
+           (keymapp (key-binding exwm-input--line-mode-cache)))
+      ;; Grab keyboard temporarily to intercept the complete key sequence.
+      (when temp-line-mode
+        (setq exwm-input--temp-line-mode t)
+        (exwm-input--grab-keyboard))
     (setq exwm-input--line-mode-cache nil)
     (when exwm-input--temp-line-mode
       (setq exwm-input--temp-line-mode nil)
@@ -652,10 +656,7 @@ Current buffer must be an `exwm-mode' buffer."
                  (setq event (exwm-input--mimic-read-event raw-event)))
         (if (not (derived-mode-p 'exwm-mode))
             (exwm-input--unread-event raw-event)
-          ;; Grab keyboard temporarily.
-          (setq exwm-input--temp-line-mode t)
-          (exwm-input--grab-keyboard)
-          (exwm-input--cache-event event)
+          (exwm-input--cache-event event t)
           (exwm-input--unread-event raw-event)))))
   (xcb:+request exwm--connection
       (make-instance 'xcb:AllowEvents
