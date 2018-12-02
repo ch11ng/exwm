@@ -221,7 +221,7 @@ ARGS are additional arguments to CALLBACK."
     (with-slots (time root event root-x root-y event-x event-y state) evt
       (setq buffer (exwm--id->buffer event)
             window (get-buffer-window buffer t))
-      (exwm--log "EnterNotify: buffer=%s; window=%s" buffer window)
+      (exwm--log "buffer=%s; window=%s" buffer window)
       (when (and buffer window (not (eq window (selected-window))))
         (setq frame (window-frame window)
               frame-xid (frame-parameter frame 'exwm-id))
@@ -257,6 +257,7 @@ ARGS are additional arguments to CALLBACK."
         (xcb:flush exwm--connection)))))
 
 (defun exwm-input--on-keysyms-update ()
+  (exwm--log)
   (let ((exwm-input--global-prefix-keys nil))
     (exwm-input--update-global-prefix-keys)))
 
@@ -486,6 +487,7 @@ ARGS are additional arguments to CALLBACK."
     (xcb:flush exwm--connection)))
 
 (defun exwm-input--set-key (key command)
+  (exwm--log "key: %s, command: %s" key command)
   (global-set-key key command)
   (cl-pushnew key exwm-input--global-keys))
 
@@ -567,6 +569,7 @@ instead."
 
 (defun exwm-input--cache-event (event &optional temp-line-mode)
   "Cache EVENT."
+  (exwm--log "%s" event)
   (setq exwm-input--line-mode-cache
         (vconcat exwm-input--line-mode-cache (vector event)))
   ;; Attempt to translate this key sequence.
@@ -673,6 +676,7 @@ The return value is used as event_mode to release the original
 button event."
   (with-current-buffer buffer
     (let ((read-event (exwm-input--mimic-read-event button-event)))
+      (exwm--log "%s" read-event)
       (if (and read-event
                (exwm-input--event-passthrough-p read-event))
           ;; The event should be forwarded to emacs
@@ -687,10 +691,12 @@ button event."
   "Handle button events in char-mode.
 The return value is used as event_mode to release the original
 button event."
+  (exwm--log)
   xcb:Allow:ReplayPointer)
 
 (defun exwm-input--update-mode-line (id)
   "Update the propertized `mode-line-process' for window ID."
+  (exwm--log "#x%x" id)
   (let (help-echo cmd mode)
     (cl-case exwm--input-mode
       (line-mode
@@ -822,6 +828,7 @@ button event."
 EXWM will prompt for the key to send.  This command can be prefixed to send
 multiple keys."
   (interactive "p")
+  (exwm--log)
   (unless (derived-mode-p 'exwm-mode)
     (cl-return-from exwm-input-send-next-key))
   (when (> times 12) (setq times 12))
@@ -840,6 +847,7 @@ multiple keys."
 
 (defun exwm-input--set-simulation-keys (simulation-keys &optional no-refresh)
   "Set simulation keys."
+  (exwm--log "%s" simulation-keys)
   (unless no-refresh
     ;; Unbind simulation keys.
     (let ((hash (buffer-local-value 'exwm-input--simulation-keys
@@ -941,6 +949,7 @@ ends unless it's specifically saved in the Customize interface for
                         (format "Simulate %s as" (key-description original))
                         ?\C-g)))
      (list original simulated)))
+  (exwm--log "original: %s, simulated: %s" original-key simulated-key)
   (when (and original-key simulated-key)
     (let ((entry `((,original-key . ,simulated-key))))
       (setq exwm-input-simulation-keys (append exwm-input-simulation-keys
@@ -949,6 +958,7 @@ ends unless it's specifically saved in the Customize interface for
 
 (defun exwm-input--unset-simulation-keys ()
   "Clear simulation keys and key bindings defined."
+  (exwm--log)
   (when (hash-table-p exwm-input--simulation-keys)
     (maphash (lambda (key _value)
                (when (sequencep key)
@@ -961,6 +971,7 @@ ends unless it's specifically saved in the Customize interface for
 
 SIMULATION-KEYS is an alist of the form (original-key . simulated-key),
 where both ORIGINAL-KEY and SIMULATED-KEY are key sequences."
+  (exwm--log)
   (make-local-variable 'exwm-input--simulation-keys)
   (use-local-map (copy-keymap exwm-mode-map))
   (let ((exwm-input--local-simulation-keys t))
@@ -970,6 +981,7 @@ where both ORIGINAL-KEY and SIMULATED-KEY are key sequences."
 (cl-defun exwm-input-send-simulation-key (times)
   "Fake a key event according to the last input key sequence."
   (interactive "p")
+  (exwm--log)
   (unless (derived-mode-p 'exwm-mode)
     (cl-return-from exwm-input-send-simulation-key))
   (let ((keys (gethash (this-single-command-keys)
@@ -989,6 +1001,7 @@ where both ORIGINAL-KEY and SIMULATED-KEY are key sequences."
 
 (defun exwm-input--init ()
   "Initialize the keyboard module."
+  (exwm--log)
   ;; Refresh keyboard mapping
   (xcb:keysyms:init exwm--connection #'exwm-input--on-keysyms-update)
   ;; Create the X window and intern the atom used to fetch timestamp.
@@ -1046,10 +1059,12 @@ where both ORIGINAL-KEY and SIMULATED-KEY are key sequences."
 
 (defun exwm-input--post-init ()
   "The second stage in the initialization of the input module."
+  (exwm--log)
   (exwm-input--update-global-prefix-keys))
 
 (defun exwm-input--exit ()
   "Exit the input module."
+  (exwm--log)
   (exwm-input--unset-simulation-keys)
   (remove-hook 'pre-command-hook #'exwm-input--on-pre-command)
   (remove-hook 'post-command-hook #'exwm-input--on-post-command)

@@ -86,13 +86,13 @@ You shall use the default value if using auto-hide minibuffer."
 
 (defun exwm-systemtray--embed (icon)
   "Embed an icon."
-  (exwm--log "(System Tray) Try to embed #x%x" icon)
+  (exwm--log "Try to embed #x%x" icon)
   (let ((info (xcb:+request-unchecked+reply exwm-systemtray--connection
                   (make-instance 'xcb:xembed:get-_XEMBED_INFO
                                  :window icon)))
         width* height* visible)
     (when info
-      (exwm--log "(System Tray) Embed #x%x" icon)
+      (exwm--log "Embed #x%x" icon)
       (with-slots (width height)
           (xcb:+request-unchecked+reply exwm-systemtray--connection
               (make-instance 'xcb:GetGeometry :drawable icon))
@@ -101,7 +101,7 @@ You shall use the default value if using auto-hide minibuffer."
         (when (< width* exwm-systemtray--icon-min-size)
           (setq width* exwm-systemtray--icon-min-size
                 height* (round (* height (/ (float width*) width)))))
-        (exwm--log "(System Tray) Resize from %dx%d to %dx%d"
+        (exwm--log "Resize from %dx%d to %dx%d"
                    width height width* height*))
       ;; Add this icon to save-set.
       (xcb:+request exwm-systemtray--connection
@@ -151,7 +151,7 @@ You shall use the default value if using auto-hide minibuffer."
         ;; Default to visible.
         (setq visible t))
       (when visible
-        (exwm--log "(System Tray) Map the window")
+        (exwm--log "Map the window")
         (xcb:+request exwm-systemtray--connection
             (make-instance 'xcb:MapWindow :window icon)))
       (xcb:+request exwm-systemtray--connection
@@ -175,7 +175,7 @@ You shall use the default value if using auto-hide minibuffer."
 
 (defun exwm-systemtray--unembed (icon)
   "Unembed an icon."
-  (exwm--log "(System Tray) Unembed #x%x" icon)
+  (exwm--log "Unembed #x%x" icon)
   (xcb:+request exwm-systemtray--connection
       (make-instance 'xcb:UnmapWindow :window icon))
   (xcb:+request exwm-systemtray--connection
@@ -189,6 +189,7 @@ You shall use the default value if using auto-hide minibuffer."
 
 (defun exwm-systemtray--refresh ()
   "Refresh the system tray."
+  (exwm--log)
   ;; Make sure to redraw the embedder.
   (xcb:+request exwm-systemtray--connection
       (make-instance 'xcb:UnmapWindow
@@ -222,6 +223,7 @@ You shall use the default value if using auto-hide minibuffer."
 
 (defun exwm-systemtray--on-DestroyNotify (data _synthetic)
   "Unembed icons on DestroyNotify."
+  (exwm--log)
   (let ((obj (make-instance 'xcb:DestroyNotify)))
     (xcb:unmarshal obj data)
     (with-slots (window) obj
@@ -230,6 +232,7 @@ You shall use the default value if using auto-hide minibuffer."
 
 (defun exwm-systemtray--on-ReparentNotify (data _synthetic)
   "Unembed icons on ReparentNotify."
+  (exwm--log)
   (let ((obj (make-instance 'xcb:ReparentNotify)))
     (xcb:unmarshal obj data)
     (with-slots (window parent) obj
@@ -239,6 +242,7 @@ You shall use the default value if using auto-hide minibuffer."
 
 (defun exwm-systemtray--on-ResizeRequest (data _synthetic)
   "Resize the tray icon on ResizeRequest."
+  (exwm--log)
   (let ((obj (make-instance 'xcb:ResizeRequest))
         attr)
     (xcb:unmarshal obj data)
@@ -266,6 +270,7 @@ You shall use the default value if using auto-hide minibuffer."
 
 (defun exwm-systemtray--on-PropertyNotify (data _synthetic)
   "Map/Unmap the tray icon on PropertyNotify."
+  (exwm--log)
   (let ((obj (make-instance 'xcb:PropertyNotify))
         attr info visible)
     (xcb:unmarshal obj data)
@@ -279,7 +284,7 @@ You shall use the default value if using auto-hide minibuffer."
         (when info
           (setq visible (/= 0 (logand (slot-value info 'flags)
                                       xcb:xembed:MAPPED)))
-          (exwm--log "(System Tray) #x%x visible? %s" window visible)
+          (exwm--log "#x%x visible? %s" window visible)
           (if visible
               (xcb:+request exwm-systemtray--connection
                   (make-instance 'xcb:MapWindow :window window))
@@ -297,6 +302,7 @@ You shall use the default value if using auto-hide minibuffer."
       (when (eq type xcb:Atom:_NET_SYSTEM_TRAY_OPCODE)
         (setq data32 (slot-value data 'data32)
               opcode (elt data32 1))
+        (exwm--log "opcode: %s" opcode)
         (cond ((= opcode xcb:systemtray:opcode:REQUEST-DOCK)
                (unless (assoc (elt data32 2) exwm-systemtray--list)
                  (exwm-systemtray--embed (elt data32 2))))
@@ -304,10 +310,11 @@ You shall use the default value if using auto-hide minibuffer."
               ((or (= opcode xcb:systemtray:opcode:BEGIN-MESSAGE)
                    (= opcode xcb:systemtray:opcode:CANCEL-MESSAGE)))
               (t
-               (exwm--log "(System Tray) Unknown opcode message: %s" obj)))))))
+               (exwm--log "Unknown opcode message: %s" obj)))))))
 
 (defun exwm-systemtray--on-KeyPress (data _synthetic)
   "Forward all KeyPress events to Emacs frame."
+  (exwm--log)
   ;; This function is only executed when there's no autohide minibuffer,
   ;; a workspace frame has the input focus and the pointer is over a
   ;; tray icon.
@@ -325,6 +332,7 @@ You shall use the default value if using auto-hide minibuffer."
 
 (defun exwm-systemtray--on-workspace-switch ()
   "Reparent/Refresh the system tray in `exwm-workspace-switch-hook'."
+  (exwm--log)
   (unless (exwm-workspace--minibuffer-own-frame-p)
     (xcb:+request exwm-systemtray--connection
         (make-instance 'xcb:ReparentWindow
@@ -339,6 +347,7 @@ You shall use the default value if using auto-hide minibuffer."
 
 (defun exwm-systemtray--on-randr-refresh ()
   "Reposition/Refresh the system tray in `exwm-randr-refresh-hook'."
+  (exwm--log)
   (unless (exwm-workspace--minibuffer-own-frame-p)
     (xcb:+request exwm-systemtray--connection
         (make-instance 'xcb:ConfigureWindow
@@ -353,6 +362,7 @@ You shall use the default value if using auto-hide minibuffer."
 
 (cl-defun exwm-systemtray--init ()
   "Initialize system tray module."
+  (exwm--log)
   (cl-assert (not exwm-systemtray--connection))
   (cl-assert (not exwm-systemtray--list))
   (cl-assert (not exwm-systemtray--selection-owner-window))
@@ -493,6 +503,7 @@ You shall use the default value if using auto-hide minibuffer."
 
 (defun exwm-systemtray--exit ()
   "Exit the systemtray module."
+  (exwm--log)
   (when exwm-systemtray--connection
     ;; Hide & reparent out the embedder before disconnection to prevent
     ;; embedded icons from being reparented to an Emacs frame (which is the
@@ -521,6 +532,7 @@ You shall use the default value if using auto-hide minibuffer."
 
 (defun exwm-systemtray-enable ()
   "Enable system tray support for EXWM."
+  (exwm--log)
   (add-hook 'exwm-init-hook #'exwm-systemtray--init)
   (add-hook 'exwm-exit-hook #'exwm-systemtray--exit))
 

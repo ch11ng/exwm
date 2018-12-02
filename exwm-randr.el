@@ -123,12 +123,12 @@ corresponding monitors whenever the monitors are active.
                                         :width width
                                         :height height)
                 monitor-plist (plist-put monitor-plist monitor-name geometry))
+          (exwm--log "%s: %sx%s+%s+%s" monitor-name x y width height)
           ;; Save primary monitor when available (fallback to the first one).
           (when (or (/= 0 primary)
                     (not primary-monitor))
             (setq primary-monitor monitor-name)))))
     (exwm--log "Primary monitor: %s" primary-monitor)
-    (exwm--log "Monitors: %s" monitor-plist)
     (list primary-monitor monitor-plist)))
 
 ;;;###autoload
@@ -233,6 +233,7 @@ Refresh when any RandR 1.5 monitor changes."
 
 (defun exwm-randr--init ()
   "Initialize RandR extension and EXWM RandR module."
+  (exwm--log)
   (if (= 0 (slot-value (xcb:get-extension-data exwm--connection 'xcb:randr)
                        'present))
       (error "[EXWM] RandR extension is not supported by the server")
@@ -270,10 +271,12 @@ Refresh when any RandR 1.5 monitor changes."
 
 (defun exwm-randr--exit ()
   "Exit the RandR module."
+  (exwm--log)
   (remove-hook 'exwm-workspace-list-change-hook #'exwm-randr-refresh))
 
 (defun exwm-randr-enable ()
   "Enable RandR support for EXWM."
+  (exwm--log)
   (add-hook 'exwm-init-hook #'exwm-randr--init)
   (add-hook 'exwm-exit-hook #'exwm-randr--exit))
 

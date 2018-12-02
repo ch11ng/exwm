@@ -107,6 +107,7 @@
 (defun exwm-reset ()
   "Reset the state of the selected window (non-fullscreen, line-mode, etc)."
   (interactive)
+  (exwm--log)
   (with-current-buffer (window-buffer)
     (when (derived-mode-p 'exwm-mode)
       (when (exwm-layout--fullscreen-p)
@@ -119,6 +120,7 @@
 (defun exwm-restart ()
   "Restart EXWM."
   (interactive)
+  (exwm--log)
   (when (exwm--confirm-kill-emacs "[EXWM] Restart? " 'no-check)
     (let* ((attr (process-attributes (emacs-pid)))
            (args (cdr (assq 'args attr)))
@@ -146,6 +148,7 @@
 
 (defun exwm--update-desktop (xwin)
   "Update _NET_WM_DESKTOP."
+  (exwm--log "#x%x" xwin)
   (with-current-buffer (exwm--id->buffer xwin)
     (let ((reply (xcb:+request-unchecked+reply exwm--connection
                      (make-instance 'xcb:ewmh:get-_NET_WM_DESKTOP
@@ -172,6 +175,7 @@
 
 (defun exwm--update-window-type (id &optional force)
   "Update _NET_WM_WINDOW_TYPE."
+  (exwm--log "#x%x" id)
   (with-current-buffer (exwm--id->buffer id)
     (unless (and exwm-window-type (not force))
       (let ((reply (xcb:+request-unchecked+reply exwm--connection
@@ -182,6 +186,7 @@
 
 (defun exwm--update-class (id &optional force)
   "Update WM_CLASS."
+  (exwm--log "#x%x" id)
   (with-current-buffer (exwm--id->buffer id)
     (unless (and exwm-instance-name exwm-class-name (not force))
       (let ((reply (xcb:+request-unchecked+reply exwm--connection
@@ -194,6 +199,7 @@
 
 (defun exwm--update-utf8-title (id &optional force)
   "Update _NET_WM_NAME."
+  (exwm--log "#x%x" id)
   (with-current-buffer (exwm--id->buffer id)
     (when (or force (not exwm-title))
       (let ((reply (xcb:+request-unchecked+reply exwm--connection
@@ -206,6 +212,7 @@
 
 (defun exwm--update-ctext-title (id &optional force)
   "Update WM_NAME."
+  (exwm--log "#x%x" id)
   (with-current-buffer (exwm--id->buffer id)
     (unless (or exwm--title-is-utf8
                 (and exwm-title (not force)))
@@ -218,11 +225,13 @@
 
 (defun exwm--update-title (id)
   "Update _NET_WM_NAME or WM_NAME."
+  (exwm--log "#x%x" id)
   (exwm--update-utf8-title id)
   (exwm--update-ctext-title id))
 
 (defun exwm--update-transient-for (id &optional force)
   "Update WM_TRANSIENT_FOR."
+  (exwm--log "#x%x" id)
   (with-current-buffer (exwm--id->buffer id)
     (unless (and exwm-transient-for (not force))
       (let ((reply (xcb:+request-unchecked+reply exwm--connection
@@ -233,6 +242,7 @@
 
 (defun exwm--update-normal-hints (id &optional force)
   "Update WM_NORMAL_HINTS."
+  (exwm--log "#x%x" id)
   (with-current-buffer (exwm--id->buffer id)
     (unless (and (not force)
                  (or exwm--normal-hints-x exwm--normal-hints-y
@@ -280,6 +290,7 @@
 
 (defun exwm--update-hints (id &optional force)
   "Update WM_HINTS."
+  (exwm--log "#x%x" id)
   (with-current-buffer (exwm--id->buffer id)
     (unless (and (not force) exwm--hints-input exwm--hints-urgency)
       (let ((reply (xcb:+request-unchecked+reply exwm--connection
@@ -301,6 +312,7 @@
 
 (defun exwm--update-protocols (id &optional force)
   "Update WM_PROTOCOLS."
+  (exwm--log "#x%x" id)
   (with-current-buffer (exwm--id->buffer id)
     (unless (and exwm--protocols (not force))
       (let ((reply (xcb:+request-unchecked+reply exwm--connection
@@ -311,6 +323,7 @@
 
 (defun exwm--update-struts-legacy (id)
   "Update _NET_WM_STRUT."
+  (exwm--log "#x%x" id)
   (let ((pair (assq id exwm-workspace--id-struts-alist))
         reply struts)
     (unless (and pair (< 4 (length (cdr pair))))
@@ -331,6 +344,7 @@
 
 (defun exwm--update-struts-partial (id)
   "Update _NET_WM_STRUT_PARTIAL."
+  (exwm--log "#x%x" id)
   (let ((reply (xcb:+request-unchecked+reply exwm--connection
                    (make-instance 'xcb:ewmh:get-_NET_WM_STRUT_PARTIAL
                                   :window id)))
@@ -350,6 +364,7 @@
 
 (defun exwm--update-struts (id)
   "Update _NET_WM_STRUT_PARTIAL or _NET_WM_STRUT."
+  (exwm--log "#x%x" id)
   (exwm--update-struts-partial id)
   (exwm--update-struts-legacy id))
 
@@ -386,9 +401,10 @@
               ((= atom xcb:Atom:WM_PROTOCOLS)
                (exwm--update-protocols id t))
               ((= atom xcb:Atom:_NET_WM_USER_TIME)) ;ignored
-              (t (exwm--log "Unhandled PropertyNotify: %s(%d)"
-                            (x-get-atom-name atom exwm-workspace--current)
-                            atom)))))))
+              (t
+               (exwm--log "Unhandled: %s(%d)"
+                          (x-get-atom-name atom exwm-workspace--current)
+                          atom)))))))
 
 (defun exwm--on-ClientMessage (raw-data _synthetic)
   "Handle ClientMessage event."
@@ -534,11 +550,13 @@
                    (= (elt data 0) xcb:icccm:WM_STATE:IconicState))
           (with-current-buffer buffer
             (bury-buffer)))))
-     (t (exwm--log "Unhandled client message: %s" obj)))))
+     (t
+      (exwm--log "Unhandled: %s(%d)"
+                 (x-get-atom-name type exwm-workspace--current) type)))))
 
 (defun exwm--on-SelectionClear (data _synthetic)
   "Handle SelectionClear events."
-  (exwm--log "SelectionClear")
+  (exwm--log)
   (let ((obj (make-instance 'xcb:SelectionClear))
         owner selection)
     (xcb:unmarshal obj data)
@@ -550,6 +568,7 @@
 
 (defun exwm--init-icccm-ewmh ()
   "Initialize ICCCM/EWMH support."
+  (exwm--log)
   ;; Handle PropertyNotify event
   (xcb:+event exwm--connection 'xcb:PropertyNotify #'exwm--on-PropertyNotify)
   ;; Handle relevant client messages
@@ -693,6 +712,7 @@
 
 REPLACE specifies what to do in case there already is a window
 manager.  If t, replace it, if nil, abort and ask the user if `ask'."
+  (exwm--log "%s" replace)
   (with-slots (owner)
       (xcb:+request-unchecked+reply exwm--connection
           (make-instance 'xcb:GetSelectionOwner
@@ -767,6 +787,7 @@ manager.  If t, replace it, if nil, abort and ask the user if `ask'."
 (cl-defun exwm-init (&optional frame)
   "Initialize EXWM."
   (interactive)
+  (exwm--log "%s" frame)
   (if frame
       ;; The frame might not be selected if it's created by emacslicnet.
       (select-frame-set-input-focus frame)
@@ -825,6 +846,7 @@ manager.  If t, replace it, if nil, abort and ask the user if `ask'."
 (defun exwm-exit ()
   "Exit EXWM."
   (interactive)
+  (exwm--log)
   (run-hooks 'exwm-exit-hook)
   (setq confirm-kill-emacs nil)
   ;; Exit modules.
@@ -840,6 +862,7 @@ manager.  If t, replace it, if nil, abort and ask the user if `ask'."
 
 (defun exwm-enable (&optional undo)
   "Enable/Disable EXWM."
+  (exwm--log "%s" undo)
   (pcase undo
     (`undo                              ;prevent reinitialization
      (remove-hook 'window-setup-hook #'exwm-init)
@@ -866,6 +889,7 @@ manager.  If t, replace it, if nil, abort and ask the user if `ask'."
 
 (defun exwm--server-stop ()
   "Stop the subordinate Emacs server."
+  (exwm--log)
   (server-force-delete exwm--server-name)
   (when exwm--server-process
     (delete-process exwm--server-process)
@@ -874,6 +898,7 @@ manager.  If t, replace it, if nil, abort and ask the user if `ask'."
 (defun exwm--server-eval-at (&rest args)
   "Wrapper of `server-eval-at' used to advice subrs."
   ;; Start the subordinate Emacs server if it's not alive
+  (exwm--log "%s" args)
   (unless (server-running-p exwm--server-name)
     (when exwm--server-process (delete-process exwm--server-process))
     (setq exwm--server-process
@@ -912,6 +937,7 @@ manager.  If t, replace it, if nil, abort and ask the user if `ask'."
 
 (defun exwm--confirm-kill-emacs (prompt &optional force)
   "Confirm before exiting Emacs."
+  (exwm--log)
   (when (cond
          ((and force (not (eq force 'no-check)))
           ;; Force killing Emacs.

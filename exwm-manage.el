@@ -565,7 +565,7 @@ Would you like to kill it? "
     (with-slots (window x y width height
                         border-width sibling stack-mode value-mask)
         obj
-      (exwm--log "ConfigureRequest from #x%x (#x%x) @%dx%d%+d%+d; \
+      (exwm--log "#x%x (#x%x) @%dx%d%+d%+d; \
 border-width: %d; sibling: #x%x; stack-mode: %d"
                  window value-mask width height x y
                  border-width sibling stack-mode)
@@ -663,7 +663,7 @@ border-width: %d; sibling: #x%x; stack-mode: %d"
             (progn (xcb:+request exwm--connection
                        (make-instance 'xcb:MapWindow :window window))
                    (xcb:flush exwm--connection))
-          (exwm--log "MapRequest from #x%x" window)
+          (exwm--log "#x%x" window)
           (exwm-manage--manage-window window))))))
 
 (defun exwm-manage--on-UnmapNotify (data _synthetic)
@@ -705,7 +705,7 @@ border-width: %d; sibling: #x%x; stack-mode: %d"
     (exwm--log)
     (let ((obj (make-instance 'xcb:DestroyNotify)))
       (xcb:unmarshal obj data)
-      (exwm--log "DestroyNotify from #x%x" (slot-value obj 'window))
+      (exwm--log "#x%x" (slot-value obj 'window))
       (exwm-manage--unmanage-window (slot-value obj 'window)))))
 
 (defun exwm-manage--init ()
@@ -732,6 +732,7 @@ border-width: %d; sibling: #x%x; stack-mode: %d"
 
 (defun exwm-manage--exit ()
   "Exit the manage module."
+  (exwm--log)
   (dolist (pair exwm--id-buffer-alist)
     (exwm-manage--unmanage-window (car pair) 'quit))
   (remove-hook 'after-make-frame-functions #'exwm-manage--add-frame)

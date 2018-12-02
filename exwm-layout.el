@@ -479,6 +479,7 @@ windows."
 
 See also `exwm-layout-enlarge-window'."
   (interactive "p")
+  (exwm--log "%s" delta)
   (exwm-layout-enlarge-window delta t))
 
 ;;;###autoload
@@ -487,6 +488,7 @@ See also `exwm-layout-enlarge-window'."
 
 See also `exwm-layout-enlarge-window'."
   (interactive "p")
+  (exwm--log "%s" delta)
   (exwm-layout-enlarge-window (- delta)))
 
 ;;;###autoload
@@ -495,6 +497,7 @@ See also `exwm-layout-enlarge-window'."
 
 See also `exwm-layout-enlarge-window'."
   (interactive "p")
+  (exwm--log "%s" delta)
   (exwm-layout-enlarge-window (- delta) t))
 
 ;;;###autoload

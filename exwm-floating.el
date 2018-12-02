@@ -83,6 +83,7 @@ This is also used by X window containers.")
 
 (defun exwm-floating--set-allowed-actions (id tilling)
   "Set _NET_WM_ALLOWED_ACTIONS."
+  (exwm--log "#x%x" id)
   (xcb:+request exwm--connection
       (make-instance 'xcb:ewmh:set-_NET_WM_ALLOWED_ACTIONS
                      :window id
@@ -326,6 +327,7 @@ This is also used by X window containers.")
 
 (defun exwm-floating--unset-floating (id)
   "Make window ID non-floating."
+  (exwm--log "#x%x" id)
   (let ((buffer (exwm--id->buffer id)))
     (with-current-buffer buffer
       (when exwm--floating-frame
@@ -400,6 +402,7 @@ This is also used by X window containers.")
 (cl-defun exwm-floating-toggle-floating ()
   "Toggle the current window between floating and non-floating states."
   (interactive)
+  (exwm--log)
   (unless (derived-mode-p 'exwm-mode)
     (cl-return-from exwm-floating-toggle-floating))
   (with-current-buffer (window-buffer)
@@ -411,6 +414,7 @@ This is also used by X window containers.")
 (defun exwm-floating-hide ()
   "Hide the current floating X window (which would show again when selected)."
   (interactive)
+  (exwm--log)
   (when (and (derived-mode-p 'exwm-mode)
              exwm--floating-frame)
     (exwm-layout--hide exwm--id)
@@ -418,6 +422,7 @@ This is also used by X window containers.")
 
 (defun exwm-floating--start-moveresize (id &optional type)
   "Start move/resize."
+  (exwm--log "#x%x" id)
   (let ((buffer-or-id (or (exwm--id->buffer id) id))
         frame container-or-id x y width height cursor)
     (if (bufferp buffer-or-id)
@@ -581,6 +586,7 @@ This is also used by X window containers.")
 
 (defun exwm-floating--stop-moveresize (&rest _args)
   "Stop move/resize."
+  (exwm--log)
   (xcb:+request exwm--connection
       (make-instance 'xcb:UngrabPointer :time xcb:Time:CurrentTime))
   (when exwm-floating--moveresize-calculate
@@ -641,6 +647,7 @@ This is also used by X window containers.")
   "Move a floating window right by DELTA-X pixels and down by DELTA-Y pixels.
 
 Both DELTA-X and DELTA-Y default to 1.  This command should be bound locally."
+  (exwm--log "delta-x: %s, delta-y: %s" delta-x delta-y)
   (unless (and (derived-mode-p 'exwm-mode) exwm--floating-frame)
     (user-error "[EXWM] `exwm-floating-move' is only for floating X windows"))
   (unless delta-x (setq delta-x 1))
@@ -663,6 +670,7 @@ Both DELTA-X and DELTA-Y default to 1.  This command should be bound locally."
 
 (defun exwm-floating--init ()
   "Initialize floating module."
+  (exwm--log)
   ;; Check border width.
   (unless (and (integerp exwm-floating-border-width)
                (> exwm-floating-border-width 0))
@@ -708,7 +716,8 @@ Both DELTA-X and DELTA-Y default to 1.  This command should be bound locally."
         (xcb:cursor:load-cursor exwm--connection "left_side")))
 
 (defun exwm-floating--exit ()
-  "Exit the floating module.")
+  "Exit the floating module."
+  (exwm--log))
 
 
 

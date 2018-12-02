@@ -307,7 +307,8 @@ NIL if FRAME is not a workspace"
                 ;; Make left/top processed first.
                 (push struts* exwm-workspace--struts)
               (setq exwm-workspace--struts
-                    (append exwm-workspace--struts (list struts*))))))))))
+                    (append exwm-workspace--struts (list struts*))))))))
+    (exwm--log "%s" exwm-workspace--struts)))
 
 (defun exwm-workspace--update-workareas ()
   "Update `exwm-workspace--workareas'."
@@ -371,6 +372,7 @@ NIL if FRAME is not a workspace"
     ;; Save the result.
     (setq exwm-workspace--workareas workareas)
     (xcb:flush exwm--connection))
+  (exwm--log "%s" exwm-workspace--workareas)
   (run-hooks 'exwm-workspace--update-workareas-hook))
 
 (defun exwm-workspace--set-active (frame active)
@@ -451,7 +453,8 @@ NIL if FRAME is not a workspace"
                        :window (frame-parameter exwm-workspace--minibuffer
                                                 'exwm-outer-id)
                        :value-mask xcb:ConfigWindow:Width
-                       :width width))))
+                       :width width))
+    (exwm--log "y: %s, width: %s" y width)))
 
 (defun exwm-workspace--switch-map-nth-prefix (&optional prefix-digits)
   "Allow selecting a workspace by number.
@@ -647,6 +650,7 @@ Passing a workspace frame as the first option is for internal use only."
      (t 0))))
   (unless frame-or-index
     (setq frame-or-index 0))
+  (exwm--log "%s" frame-or-index)
   (if (or (framep frame-or-index)
           (< frame-or-index (exwm-workspace--count)))
       (exwm-workspace-switch frame-or-index)
@@ -747,6 +751,7 @@ before it."
 
 INDEX must not exceed the current number of workspaces."
   (interactive)
+  (exwm--log "%s" index)
   (if (and index
            ;; No need to move if it's the last one.
            (< index (exwm-workspace--count)))
@@ -757,6 +762,7 @@ INDEX must not exceed the current number of workspaces."
 (defun exwm-workspace-delete (&optional frame-or-index)
   "Delete the workspace FRAME-OR-INDEX."
   (interactive)
+  (exwm--log "%s" frame-or-index)
   (when (< 1 (exwm-workspace--count))
     (delete-frame
      (if frame-or-index
@@ -765,6 +771,7 @@ INDEX must not exceed the current number of workspaces."
 
 (defun exwm-workspace--set-desktop (id)
   "Set _NET_WM_DESKTOP for X window ID."
+  (exwm--log "#x%x" id)
   (with-current-buffer (exwm--id->buffer id)
     (let ((desktop (exwm-workspace--position exwm--frame)))
       (setq exwm--desktop desktop)
@@ -789,6 +796,7 @@ INDEX must not exceed the current number of workspaces."
   (let ((frame (exwm-workspace--workspace-from-frame-or-index frame-or-index))
         old-frame container)
     (unless id (setq id (exwm--buffer->id (window-buffer))))
+    (exwm--log "Moving #x%x to %s" id frame-or-index)
     (with-current-buffer (exwm--id->buffer id)
       (unless (eq exwm--frame frame)
         (unless exwm-workspace-show-all-buffers
@@ -984,6 +992,7 @@ INDEX must not exceed the current number of workspaces."
 
 (defun exwm-workspace--x-create-frame (orig-fun params)
   "Set override-redirect on the frame created by `x-create-frame'."
+  (exwm--log)
   (let ((frame (funcall orig-fun params)))
     (xcb:+request exwm--connection
         (make-instance 'xcb:ChangeWindowAttributes
@@ -1005,6 +1014,7 @@ Please check `exwm-workspace--minibuffer-own-frame-p' first."
 (defun exwm-workspace-attach-minibuffer ()
   "Attach the minibuffer so that it always shows."
   (interactive)
+  (exwm--log)
   (when (and (exwm-workspace--minibuffer-own-frame-p)
              (not (exwm-workspace--minibuffer-attached-p)))
     ;; Reset the frame size.
@@ -1029,6 +1039,7 @@ Please check `exwm-workspace--minibuffer-own-frame-p' first."
 (defun exwm-workspace-detach-minibuffer ()
   "Detach the minibuffer so that it automatically hides."
   (interactive)
+  (exwm--log)
   (when (and (exwm-workspace--minibuffer-own-frame-p)
              (exwm-workspace--minibuffer-attached-p))
     (setq exwm-workspace--attached-minibuffer-height 0)
@@ -1046,6 +1057,7 @@ Please check `exwm-workspace--minibuffer-own-frame-p' first."
 (defun exwm-workspace-toggle-minibuffer ()
   "Attach the minibuffer if it's detached, or detach it if it's attached."
   (interactive)
+  (exwm--log)
   (when (exwm-workspace--minibuffer-own-frame-p)
     (if (exwm-workspace--minibuffer-attached-p)
         (exwm-workspace-detach-minibuffer)
@@ -1071,6 +1083,7 @@ Please check `exwm-workspace--minibuffer-own-frame-p' first."
       (when (and (integerp max-mini-window-height)
                  (> height max-mini-window-height))
         (setq height max-mini-window-height))
+      (exwm--log "%s" height)
       (set-frame-height exwm-workspace--minibuffer height))))
 
 (defun exwm-workspace--on-ConfigureNotify (data _synthetic)
@@ -1081,6 +1094,7 @@ Please check `exwm-workspace--minibuffer-own-frame-p' first."
     (with-slots (window height) obj
       (when (eq (frame-parameter exwm-workspace--minibuffer 'exwm-outer-id)
                 window)
+        (exwm--log)
         (when (and (floatp max-mini-window-height)
                    (> height (* max-mini-window-height
                                 (exwm-workspace--current-height))))
@@ -1122,6 +1136,7 @@ Please check `exwm-workspace--minibuffer-own-frame-p' first."
 
 (defun exwm-workspace--show-minibuffer ()
   "Show the minibuffer frame."
+  (exwm--log)
   ;; Cancel pending timer.
   (when exwm-workspace--display-echo-area-timer
     (cancel-timer exwm-workspace--display-echo-area-timer)
@@ -1143,6 +1158,7 @@ Please check `exwm-workspace--minibuffer-own-frame-p' first."
 
 (defun exwm-workspace--hide-minibuffer ()
   "Hide the minibuffer frame."
+  (exwm--log)
   ;; Hide the minibuffer frame.
   (if (exwm-workspace--minibuffer-attached-p)
       (xcb:+request exwm--connection
@@ -1164,6 +1180,7 @@ Please check `exwm-workspace--minibuffer-own-frame-p' first."
 
 (defun exwm-workspace--on-minibuffer-setup ()
   "Run in minibuffer-setup-hook to show the minibuffer and its container."
+  (exwm--log)
   (when (and (= 1 (minibuffer-depth))
              (not (exwm-workspace--client-p)))
     (add-hook 'post-command-hook #'exwm-workspace--update-minibuffer-height)
@@ -1185,6 +1202,7 @@ Please check `exwm-workspace--minibuffer-own-frame-p' first."
 
 (defun exwm-workspace--on-minibuffer-exit ()
   "Run in minibuffer-exit-hook to hide the minibuffer container."
+  (exwm--log)
   (when (and (= 1 (minibuffer-depth))
              (not (exwm-workspace--client-p)))
     (remove-hook 'post-command-hook #'exwm-workspace--update-minibuffer-height)
@@ -1216,6 +1234,7 @@ Please check `exwm-workspace--minibuffer-own-frame-p' first."
 
 (defun exwm-workspace--set-desktop-geometry ()
   "Set _NET_DESKTOP_GEOMETRY."
+  (exwm--log)
   ;; We don't support large desktop so it's the same with screen size.
   (xcb:+request exwm--connection
       (make-instance 'xcb:ewmh:set-_NET_DESKTOP_GEOMETRY
@@ -1225,6 +1244,7 @@ Please check `exwm-workspace--minibuffer-own-frame-p' first."
 
 (defun exwm-workspace--add-frame-as-workspace (frame)
   "Configure frame FRAME to be treated as a workspace."
+  (exwm--log "%s" frame)
   (setq exwm-workspace--list (nconc exwm-workspace--list (list frame)))
   (let ((outer-id (string-to-number (frame-parameter frame
                                                      'outer-window-id)))
@@ -1389,6 +1409,7 @@ Please check `exwm-workspace--minibuffer-own-frame-p' first."
 
 (defun exwm-workspace--update-ewmh-props ()
   "Update EWMH properties to match the workspace list."
+  (exwm--log)
   (let ((num-workspaces (exwm-workspace--count)))
     ;; Avoid setting 0 desktops.
     (when (= 0 num-workspaces)
@@ -1408,6 +1429,7 @@ Please check `exwm-workspace--minibuffer-own-frame-p' first."
 NEW-X-PARAMETERS is an alist of frame parameters, merged into current
 `window-system-default-frame-alist' for the X Window System.  The parameters are
 applied to all subsequently created X frames."
+  (exwm--log)
   ;; The parameters are modified in place; take current
   ;; ones or insert a new X-specific list.
   (let ((x-parameters (or (assq 'x window-system-default-frame-alist)
@@ -1427,6 +1449,7 @@ applied to all subsequently created X frames."
   (interactive "e"))
 
 (defun exwm-workspace--init-minibuffer-frame ()
+  (exwm--log)
   ;; Initialize workspaces without minibuffers.
   (setq exwm-workspace--minibuffer
         (make-frame '((window-system . x) (minibuffer . only)
@@ -1497,6 +1520,7 @@ applied to all subsequently created X frames."
               :test #'equal))
 
 (defun exwm-workspace--exit-minibuffer-frame ()
+  (exwm--log)
   ;; Only on minibuffer-frame.
   (remove-hook 'minibuffer-setup-hook #'exwm-workspace--on-minibuffer-setup)
   (remove-hook 'minibuffer-exit-hook #'exwm-workspace--on-minibuffer-exit)
@@ -1520,6 +1544,7 @@ applied to all subsequently created X frames."
 
 (defun exwm-workspace--init ()
   "Initialize workspace module."
+  (exwm--log)
   ;; Prevent unexpected exit
   (setq exwm-workspace--fullscreen-frame-count 0)
   (exwm-workspace--modify-all-x-frames-parameters
@@ -1584,6 +1609,7 @@ applied to all subsequently created X frames."
 
 (defun exwm-workspace--exit ()
   "Exit the workspace module."
+  (exwm--log)
   (when (exwm-workspace--minibuffer-own-frame-p)
     (exwm-workspace--exit-minibuffer-frame))
   (advice-remove 'x-create-frame #'exwm-workspace--x-create-frame)
@@ -1618,6 +1644,7 @@ applied to all subsequently created X frames."
 
 (defun exwm-workspace--post-init ()
   "The second stage in the initialization of the workspace module."
+  (exwm--log)
   (when exwm-workspace--client
     ;; Reset the 'fullscreen' frame parameter to make emacsclinet frames
     ;; fullscreen (even without the RandR module enabled).
