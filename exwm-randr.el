@@ -95,6 +95,8 @@ corresponding monitors whenever the monitors are active.
 
 (defvar exwm-workspace--fullscreen-frame-count)
 (defvar exwm-workspace--list)
+(defvar exwm-randr--prev-screen-change-seqnum nil
+  "The most recent ScreenChangeNotify sequence number.")
 (declare-function exwm-workspace--count "exwm-workspace.el")
 (declare-function exwm-workspace--set-active "exwm-workspace.el"
                   (frame active))
@@ -193,12 +195,17 @@ corresponding monitors whenever the monitors are active.
 (define-obsolete-function-alias 'exwm-randr--refresh #'exwm-randr-refresh
   "27.1")
 
-(defun exwm-randr--on-ScreenChangeNotify (_data _synthetic)
+(defun exwm-randr--on-ScreenChangeNotify (data _synthetic)
   "Handle `ScreenChangeNotify' event.
 
 Run `exwm-randr-screen-change-hook' (usually user scripts to configure RandR)."
   (exwm--log)
-  (run-hooks 'exwm-randr-screen-change-hook))
+  (let ((evt (make-instance 'xcb:randr:ScreenChangeNotify)))
+    (xcb:unmarshal evt data)
+    (let ((seqnum (slot-value evt '~sequence)))
+      (unless (equal seqnum exwm-randr--prev-screen-change-seqnum)
+        (setq exwm-randr--prev-screen-change-seqnum seqnum)
+        (run-hooks 'exwm-randr-screen-change-hook)))))
 
 (defun exwm-randr--on-Notify (data _synthetic)
   "Handle `CrtcChangeNotify' and `OutputChangeNotify' events.
