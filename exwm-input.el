@@ -117,6 +117,9 @@ defined in `exwm-mode-map' here."
 
 (defvar exwm-input--simulation-keys nil "Simulation keys in line-mode.")
 
+(defvar exwm-input--skip-buffer-list-update nil
+  "Skip the upcoming 'buffer-list-update'.")
+
 (defvar exwm-input--temp-line-mode nil
   "Non-nil indicates it's in temporary line-mode for char-mode.")
 
@@ -264,6 +267,7 @@ ARGS are additional arguments to CALLBACK."
 (defun exwm-input--on-buffer-list-update ()
   "Run in `buffer-list-update-hook' to track input focus."
   (when (and (not (eq this-command #'handle-switch-frame))
+             (not exwm-input--skip-buffer-list-update)
              (not (exwm-workspace--client-p))
              ;; The following conditions filter out events relating to temp
              ;; buffers.

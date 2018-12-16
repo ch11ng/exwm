@@ -91,6 +91,7 @@ You can still make the X windows floating afterwards."
 (defvar exwm-manage--ping-lock nil
   "Non-nil indicates EXWM is pinging a window.")
 
+(defvar exwm-input--skip-buffer-list-update)
 (defvar exwm-input-prefix-keys)
 (defvar exwm-workspace--current)
 (defvar exwm-workspace--id-struts-alist)
@@ -201,7 +202,8 @@ You can still make the X windows floating afterwards."
         (make-instance 'xcb:ChangeSaveSet
                        :mode xcb:SetMode:Insert
                        :window id))
-    (with-current-buffer (generate-new-buffer "*EXWM*")
+    (with-current-buffer (let ((exwm-input--skip-buffer-list-update t))
+                           (generate-new-buffer "*EXWM*"))
       ;; Keep the oldest X window first.
       (setq exwm--id-buffer-alist
             (nconc exwm--id-buffer-alist `((,id . ,(current-buffer)))))
@@ -284,7 +286,8 @@ You can still make the X windows floating afterwards."
                              :stack-mode xcb:StackMode:Below)))
         (xcb:flush exwm--connection)
         (setq exwm--id-buffer-alist (assq-delete-all id exwm--id-buffer-alist))
-        (let ((kill-buffer-query-functions nil))
+        (let ((kill-buffer-query-functions nil)
+              (exwm-input--skip-buffer-list-update t))
           (kill-buffer (current-buffer)))
         (throw 'return 'ignored))
       (let ((index (plist-get exwm--configurations 'workspace)))
