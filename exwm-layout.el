@@ -32,6 +32,10 @@
   :version "25.3"
   :group 'exwm)
 
+(defcustom exwm-layout-auto-iconify t
+  "Non-nil to automatically iconify unused X windows when possible."
+  :type 'boolean)
+
 (defcustom exwm-layout-show-all-buffers nil
   "Non-nil to allow switching to buffers on other workspaces."
   :type 'boolean)
@@ -76,6 +80,20 @@
   (when (derived-mode-p 'exwm-mode)
     (memq xcb:Atom:_NET_WM_STATE_FULLSCREEN exwm--ewmh-state)))
 
+(defun exwm-layout--auto-iconify ()
+  (when (and exwm-layout-auto-iconify
+             (not exwm-transient-for))
+    (let ((xwin exwm--id)
+          (state exwm-state))
+      (dolist (pair exwm--id-buffer-alist)
+        (with-current-buffer (cdr pair)
+          (when (and exwm--floating-frame
+                     (eq exwm-transient-for xwin)
+                     (not (eq exwm-state state)))
+            (if (eq state xcb:icccm:WM_STATE:NormalState)
+                (exwm-layout--refresh-floating exwm--floating-frame)
+              (exwm-layout--hide exwm--id))))))))
+
 (defun exwm-layout--show (id &optional window)
   "Show window ID exactly fit in the Emacs window WINDOW."
   (exwm--log "Show #x%x in %s" id window)
@@ -111,7 +129,8 @@
                 height height*)))
       (exwm--set-geometry id x y width height)
       (xcb:+request exwm--connection (make-instance 'xcb:MapWindow :window id))
-      (exwm-layout--set-state id xcb:icccm:WM_STATE:NormalState)))
+      (exwm-layout--set-state id xcb:icccm:WM_STATE:NormalState)
+      (exwm-layout--auto-iconify)))
   (xcb:flush exwm--connection))
 
 (defun exwm-layout--hide (id)
@@ -141,6 +160,7 @@
                          :window id :value-mask xcb:CW:EventMask
                          :event-mask exwm--client-event-mask))
       (exwm-layout--set-state id xcb:icccm:WM_STATE:IconicState)
+      (exwm-layout--auto-iconify)
       (xcb:flush exwm--connection))))
 
 ;;;###autoload
