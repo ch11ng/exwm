@@ -382,6 +382,7 @@ ARGS are additional arguments to CALLBACK."
             buffer (exwm--id->buffer event)
             window (get-buffer-window buffer t))
       (cond ((and (eq button-event exwm-input-move-event)
+                  buffer
                   ;; Either an undecorated or a floating X window.
                   (with-current-buffer buffer
                     (or (not (derived-mode-p 'exwm-mode))
@@ -390,12 +391,13 @@ ARGS are additional arguments to CALLBACK."
              (exwm-floating--start-moveresize
               event xcb:ewmh:_NET_WM_MOVERESIZE_MOVE))
             ((and (eq button-event exwm-input-resize-event)
+                  buffer
                   (with-current-buffer buffer
                     (or (not (derived-mode-p 'exwm-mode))
                         exwm--floating-frame)))
              ;; Resize
              (exwm-floating--start-moveresize event))
-            (t
+            (buffer
              ;; Click to focus
              (unless (eq window (selected-window))
                (setq frame (window-frame window))
@@ -414,13 +416,18 @@ ARGS are additional arguments to CALLBACK."
                    (select-window window)
                  (setq window (get-buffer-window buffer t))
                  (when window (select-window window))))
+             ;; Also process keybindings.
              (with-current-buffer buffer
                (when (derived-mode-p 'exwm-mode)
                  (cl-case exwm--input-mode
                    (line-mode
-                    (setq mode (exwm-input--on-ButtonPress-line-mode buffer button-event)))
+                    (setq mode (exwm-input--on-ButtonPress-line-mode
+                                buffer button-event)))
                    (char-mode
-                    (setq mode (exwm-input--on-ButtonPress-char-mode)))))))))
+                    (setq mode (exwm-input--on-ButtonPress-char-mode)))))))
+            (t
+             ;; Replay this event by default.
+             (setq mode xcb:Allow:ReplayPointer))))
     (xcb:+request exwm--connection
         (make-instance 'xcb:AllowEvents :mode mode :time xcb:Time:CurrentTime))
     (xcb:flush exwm--connection)))
