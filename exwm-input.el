@@ -897,7 +897,17 @@ multiple keys."
   (declare (obsolete nil "26"))
   (exwm-input--set-simulation-keys simulation-keys))
 
-(defcustom exwm-input-simulation-keys nil
+(defcustom exwm-input-simulation-keys
+  '(([?\C-b] . [left])
+    ([?\C-f] . [right])
+    ([?\C-p] . [up])
+    ([?\C-n] . [down])
+    ([?\C-a] . [home])
+    ([?\C-e] . [end])
+    ([?\M-v] . [prior])
+    ([?\C-v] . [next])
+    ([?\C-d] . [delete])
+    ([?\C-k] . [S-end delete]))
   "Simulation keys.
 
 It is an alist of the form (original-key . simulated-key), where both
@@ -915,8 +925,9 @@ Notes:
 * The predefined examples in the Customize interface are not guaranteed to
   work for all applications.  This can be tweaked on a per application basis
   with `exwm-input-set-local-simulation-keys'."
-  :type '(alist :key-type (choice (key-sequence :tag "Original"))
-                :value-type (choice (key-sequence :tag "Move left" [left])
+  :type '(alist :key-type (key-sequence :tag "Original")
+                :value-type (choice (key-sequence :tag "User-defined")
+                                    (key-sequence :tag "Move left" [left])
                                     (key-sequence :tag "Move right" [right])
                                     (key-sequence :tag "Move up" [up])
                                     (key-sequence :tag "Move down" [down])
@@ -928,8 +939,7 @@ Notes:
                                     (key-sequence :tag "Paste" [C-v])
                                     (key-sequence :tag "Delete" [delete])
                                     (key-sequence :tag "Delete to EOL"
-                                                  [S-end delete])
-                                    (key-sequence :tag "User-defined")))
+                                                  [S-end delete])))
   :set (lambda (symbol value)
          (set symbol value)
          (exwm-input--set-simulation-keys value)))
