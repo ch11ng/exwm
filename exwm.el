@@ -833,9 +833,9 @@ manager.  If t, replace it, if nil, abort and ask the user if `ask'."
         (exwm--unlock)
         (exwm-workspace--post-init)
         (exwm-input--post-init)
+        (run-hooks 'exwm-init-hook)
         ;; Manage existing windows
-        (exwm-manage--scan)
-        (run-hooks 'exwm-init-hook))
+        (exwm-manage--scan))
     ((quit error)
      (exwm-exit)
      ;; Rethrow error
