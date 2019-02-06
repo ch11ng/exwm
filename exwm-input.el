@@ -542,9 +542,9 @@ instead."
     (exwm-input--update-global-prefix-keys)))
 
 ;; Putting (t . EVENT) into `unread-command-events' does not really work
-;; as documented for Emacs < 27.
+;; as documented for Emacs < 26.2.
 (eval-and-compile
-  (if (< emacs-major-version 27)
+  (if (string-version-lessp emacs-version "26.2")
       (defsubst exwm-input--unread-event (event)
         (setq unread-command-events
               (append unread-command-events (list event))))
@@ -909,7 +909,7 @@ Notes:
 * Setting the value directly (rather than customizing it) after EXWM
   finishes initialization has no effect.
 * Original-keys consist of multiple key events are only supported in Emacs
-  27 and later.
+  26.2 and later.
 * A minority of applications do not accept simulated keys by default.  It's
   required to customize them to accept events sent by SendEvent.
 * The predefined examples in the Customize interface are not guaranteed to
@@ -1035,14 +1035,7 @@ where both ORIGINAL-KEY and SIMULATED-KEY are key sequences."
       (make-instance 'xcb:ewmh:set-_NET_WM_NAME
                      :window exwm-input--timestamp-window
                      :data "EXWM: exwm-input--timestamp-window"))
-  (let ((atom "_TIME"))
-    (setq exwm-input--timestamp-atom
-          (slot-value (xcb:+request-unchecked+reply exwm--connection
-                          (make-instance 'xcb:InternAtom
-                                         :only-if-exists 0
-                                         :name-len (length atom)
-                                         :name atom))
-                      'atom)))
+  (setq exwm-input--timestamp-atom (exwm--intern-atom "_TIME"))
   ;; Initialize global keys.
   (dolist (i exwm-input-global-keys)
     (exwm-input--set-key (car i) (cdr i)))

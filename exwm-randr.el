@@ -48,7 +48,9 @@
 ;;; Code:
 
 (require 'xcb-randr)
+
 (require 'exwm-core)
+(require 'exwm-workspace)
 
 (defgroup exwm-randr nil
   "RandR."
@@ -93,17 +95,8 @@ corresponding monitors whenever the monitors are active.
 
 (defvar exwm-randr--last-timestamp 0 "Used for debouncing events.")
 
-(defvar exwm-workspace--fullscreen-frame-count)
-(defvar exwm-workspace--list)
 (defvar exwm-randr--prev-screen-change-seqnum nil
   "The most recent ScreenChangeNotify sequence number.")
-(declare-function exwm-workspace--count "exwm-workspace.el")
-(declare-function exwm-workspace--set-active "exwm-workspace.el"
-                  (frame active))
-(declare-function exwm-workspace--set-desktop-geometry "exwm-workspace.el" ())
-(declare-function exwm-workspace--set-fullscreen "exwm-workspace.el" (frame))
-(declare-function exwm-workspace--show-minibuffer "exwm-workspace.el" ())
-(declare-function exwm-workspace--update-workareas "exwm-workspace.el" ())
 
 (defun exwm-randr--get-monitors ()
   "Get RandR monitors."

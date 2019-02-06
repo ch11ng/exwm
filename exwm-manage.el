@@ -715,14 +715,7 @@ border-width: %d; sibling: #x%x; stack-mode: %d"
   "Initialize manage module."
   ;; Intern _MOTIF_WM_HINTS
   (exwm--log)
-  (let ((atom-name "_MOTIF_WM_HINTS"))
-    (setq exwm-manage--_MOTIF_WM_HINTS
-          (slot-value (xcb:+request-unchecked+reply exwm--connection
-                          (make-instance 'xcb:InternAtom
-                                         :only-if-exists 0
-                                         :name-len (length atom-name)
-                                         :name atom-name))
-                      'atom)))
+  (setq exwm-manage--_MOTIF_WM_HINTS (exwm--intern-atom "_MOTIF_WM_HINTS"))
   (add-hook 'after-make-frame-functions #'exwm-manage--add-frame)
   (add-hook 'delete-frame-functions #'exwm-manage--remove-frame)
   (xcb:+event exwm--connection 'xcb:ConfigureRequest

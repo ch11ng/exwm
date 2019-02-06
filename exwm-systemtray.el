@@ -33,7 +33,9 @@
 (require 'xcb-icccm)
 (require 'xcb-xembed)
 (require 'xcb-systemtray)
+
 (require 'exwm-core)
+(require 'exwm-workspace)
 
 (defclass exwm-systemtray--icon ()
   ((width :initarg :width)
@@ -77,12 +79,7 @@ You shall use the default value if using auto-hide minibuffer."
 (defvar exwm-systemtray--selection-owner-window nil
   "The selection owner window.")
 
-(defvar exwm-workspace--current)
-(defvar exwm-workspace--minibuffer)
-(defvar exwm-workspace--workareas)
-(defvar exwm-workspace-current-index)
 (defvar xcb:Atom:_NET_SYSTEM_TRAY_S0)
-(declare-function exwm-workspace--minibuffer-own-frame-p "exwm-workspace.el")
 
 (defun exwm-systemtray--embed (icon)
   "Embed an icon."

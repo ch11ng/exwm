@@ -8,7 +8,8 @@ It features:
 + Dynamic workspace support
 + ICCCM/EWMH compliance
 + (Optional) RandR (multi-monitor) support
-+ (Optional) Built-in system tray
++ (Optional) Builtin system tray
++ (Optional) Builtin input method
 
 Please check out the
 [screenshots](https://github.com/ch11ng/exwm/wiki/Screenshots)
