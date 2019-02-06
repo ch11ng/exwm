@@ -915,8 +915,9 @@ Notes:
 * The predefined examples in the Customize interface are not guaranteed to
   work for all applications.  This can be tweaked on a per application basis
   with `exwm-input-set-local-simulation-keys'."
-  :type '(alist :key-type (choice (key-sequence :tag "Original"))
-                :value-type (choice (key-sequence :tag "Move left" [left])
+  :type '(alist :key-type (key-sequence :tag "Original")
+                :value-type (choice (key-sequence :tag "User-defined")
+                                    (key-sequence :tag "Move left" [left])
                                     (key-sequence :tag "Move right" [right])
                                     (key-sequence :tag "Move up" [up])
                                     (key-sequence :tag "Move down" [down])
@@ -928,8 +929,7 @@ Notes:
                                     (key-sequence :tag "Paste" [C-v])
                                     (key-sequence :tag "Delete" [delete])
                                     (key-sequence :tag "Delete to EOL"
-                                                  [S-end delete])
-                                    (key-sequence :tag "User-defined")))
+                                                  [S-end delete])))
   :set (lambda (symbol value)
          (set symbol value)
          (exwm-input--set-simulation-keys value)))
