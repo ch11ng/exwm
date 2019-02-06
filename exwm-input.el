@@ -140,6 +140,9 @@ defined in `exwm-mode-map' here."
 (defvar exwm-input--update-focus-window nil "The (Emacs) window to be focused.
 This value should always be overwritten.")
 
+(defvar exwm-input--event-hook nil
+  "Hook to run when EXWM receives an event.")
+
 (defvar exwm-workspace--current)
 (declare-function exwm-floating--do-moveresize "exwm-floating.el"
                   (data _synthetic))
@@ -430,7 +433,8 @@ ARGS are additional arguments to CALLBACK."
              (setq mode xcb:Allow:ReplayPointer))))
     (xcb:+request exwm--connection
         (make-instance 'xcb:AllowEvents :mode mode :time xcb:Time:CurrentTime))
-    (xcb:flush exwm--connection)))
+    (xcb:flush exwm--connection))
+  (run-hooks 'exwm-input--event-hook))
 
 (defun exwm-input--on-KeyPress (data _synthetic)
   "Handle KeyPress event."
@@ -444,7 +448,8 @@ ARGS are additional arguments to CALLBACK."
            (exwm-input--on-KeyPress-line-mode obj data))
           (char-mode
            (exwm-input--on-KeyPress-char-mode obj data)))
-      (exwm-input--on-KeyPress-char-mode obj))))
+      (exwm-input--on-KeyPress-char-mode obj)))
+  (run-hooks 'exwm-input--event-hook))
 
 (defun exwm-input--on-CreateNotify (data _synthetic)
   "Handle CreateNotify events."
