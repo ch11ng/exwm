@@ -31,7 +31,8 @@
 (defun exwm-config-default ()
   "Default configuration of EXWM."
   ;; Set the initial workspace number.
-  (setq exwm-workspace-number 4)
+  (unless (get 'exwm-workspace-number 'saved-value)
+    (setq exwm-workspace-number 4)
   ;; Make class name the buffer name
   (add-hook 'exwm-update-class-hook
             (lambda ()
@@ -51,6 +52,19 @@
                       (lambda (command)
                         (interactive (list (read-shell-command "$ ")))
                         (start-process-shell-command command nil command)))
+  ;; Line-editing shortcuts
+  (unless (get 'exwm-input-simulation-keys 'saved-value)
+    (setq exwm-input-simulation-keys
+          '(([?\C-b] . [left])
+            ([?\C-f] . [right])
+            ([?\C-p] . [up])
+            ([?\C-n] . [down])
+            ([?\C-a] . [home])
+            ([?\C-e] . [end])
+            ([?\M-v] . [prior])
+            ([?\C-v] . [next])
+            ([?\C-d] . [delete])
+            ([?\C-k] . [S-end delete]))))
   ;; Enable EXWM
   (exwm-enable)
   ;; Configure Ido
