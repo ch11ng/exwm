@@ -99,6 +99,12 @@
   "Subrs (primitives) that would normally block EXWM."
   :type '(repeat function))
 
+(defcustom exwm-replace 'ask
+  "Whether to replace existing window manager."
+  :type '(radio (const :tag "Ask" ask)
+                (const :tag "Replace by default" t)
+                (const :tag "Do not replace" nil)))
+
 (defconst exwm--server-name "server-exwm"
   "Name of the subordinate Emacs server.")
 
@@ -721,7 +727,7 @@ manager.  If t, replace it, if nil, abort and ask the user if `ask'."
       (when (eq replace 'ask)
         (setq replace (yes-or-no-p "Replace existing window manager? ")))
       (when (not replace)
-        (error "Other window manager detected")))
+        (user-error "Other window manager detected")))
     (let ((new-owner (xcb:generate-id exwm--connection)))
       (xcb:+request exwm--connection
           (make-instance 'xcb:CreateWindow
@@ -812,7 +818,7 @@ manager.  If t, replace it, if nil, abort and ask the user if `ask'."
         (xcb:icccm:init exwm--connection t)
         (xcb:ewmh:init exwm--connection t)
         ;; Try to register window manager selection.
-        (exwm--wmsn-acquire 'ask)
+        (exwm--wmsn-acquire exwm-replace)
         (when (xcb:+request-checked+request-check exwm--connection
                   (make-instance 'xcb:ChangeWindowAttributes
                                  :window exwm--root
@@ -836,6 +842,7 @@ manager.  If t, replace it, if nil, abort and ask the user if `ask'."
         (run-hooks 'exwm-init-hook)
         ;; Manage existing windows
         (exwm-manage--scan))
+    (user-error)
     ((quit error)
      (exwm-exit)
      ;; Rethrow error
