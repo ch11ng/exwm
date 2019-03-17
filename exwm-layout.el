@@ -158,7 +158,7 @@
       (xcb:+request exwm--connection
           (make-instance 'xcb:ChangeWindowAttributes
                          :window id :value-mask xcb:CW:EventMask
-                         :event-mask exwm--client-event-mask))
+                         :event-mask (exwm--get-client-event-mask)))
       (exwm-layout--set-state id xcb:icccm:WM_STATE:IconicState)
       (exwm-layout--auto-iconify)
       (xcb:flush exwm--connection))))

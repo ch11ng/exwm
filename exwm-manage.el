@@ -195,7 +195,7 @@ You can still make the X windows floating afterwards."
     (when (xcb:+request-checked+request-check exwm--connection
               (make-instance 'xcb:ChangeWindowAttributes
                              :window id :value-mask xcb:CW:EventMask
-                             :event-mask exwm--client-event-mask))
+                             :event-mask (exwm--get-client-event-mask)))
       (throw 'return 'dead))
     ;; Add this X window to save-set.
     (xcb:+request exwm--connection
@@ -257,7 +257,7 @@ You can still make the X windows floating afterwards."
                                      exwm-window-type)
                                ;; Listen for PropertyChange (struts) and
                                ;; UnmapNotify/DestroyNotify event of the dock.
-                               exwm--client-event-mask
+                               (exwm--get-client-event-mask)
                              xcb:EventMask:NoEvent)))
         ;; The window needs to be mapped
         (xcb:+request exwm--connection

@@ -150,11 +150,12 @@ least SECS seconds later."
                         ,function
                         ,@args))
 
-(defconst exwm--client-event-mask (logior xcb:EventMask:StructureNotify
-                                          xcb:EventMask:PropertyChange
-                                          (if mouse-autoselect-window
-                                              xcb:EventMask:EnterWindow 0))
-  "Event mask set on all managed windows.")
+(defun exwm--get-client-event-mask ()
+  "Return event mask set on all managed windows."
+  (logior xcb:EventMask:StructureNotify
+          xcb:EventMask:PropertyChange
+          (if mouse-autoselect-window
+              xcb:EventMask:EnterWindow 0)))
 
 ;; Internal variables
 (defvar-local exwm--id nil)               ;window ID

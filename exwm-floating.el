@@ -342,7 +342,7 @@ This is also used by X window containers.")
         (xcb:+request exwm--connection
             (make-instance 'xcb:ChangeWindowAttributes
                            :window id :value-mask xcb:CW:EventMask
-                           :event-mask exwm--client-event-mask))
+                           :event-mask (exwm--get-client-event-mask)))
         ;; Reparent the floating frame back to the root window.
         (let ((frame-id (frame-parameter exwm--floating-frame 'exwm-outer-id))
               (frame-container (frame-parameter exwm--floating-frame
