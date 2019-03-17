@@ -176,9 +176,9 @@ NIL if FRAME is not a workspace"
                      (= (length key) 1)
                      (<= 0 (elt key 0) 127))
             (define-key map key
-              `(lambda ()
-                 (interactive)
-                 (exwm-workspace--switch-map-select-nth ,i)))))))
+              (lambda ()
+                (interactive)
+                (exwm-workspace--switch-map-select-nth i)))))))
     (define-key map "\C-a" (lambda () (interactive) (goto-history-element 1)))
     (define-key map "\C-e" (lambda ()
                              (interactive)
@@ -497,17 +497,17 @@ PREFIX-DIGITS is a list of the digits introduced so far."
       ;; Go ahead if there are enough digits to select any workspace.
       (set-transient-map
        (let ((map (make-sparse-keymap))
-             (cmd `(lambda ()
+             (cmd (let ((digits (cons d prefix-digits)))
+                    (lambda ()
                      (interactive)
-                     (exwm-workspace--switch-map-nth-prefix
-                      ',(cons d prefix-digits)))))
+                     (exwm-workspace--switch-map-nth-prefix digits)))))
          (dotimes (i 10)
            (define-key map (int-to-string i) cmd))
          ;; Accept
          (define-key map [return]
-           `(lambda ()
-              (interactive)
-              (exwm-workspace--switch-map-select-nth ,n)))
+           (lambda ()
+             (interactive)
+             (exwm-workspace--switch-map-select-nth n)))
          map)))))
 
 (defun exwm-workspace--switch-map-select-nth (n)
