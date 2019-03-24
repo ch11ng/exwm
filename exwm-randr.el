@@ -101,7 +101,8 @@ corresponding monitors whenever the monitors are active.
 (defun exwm-randr--get-monitors ()
   "Get RandR monitors."
   (exwm--log)
-  (let (monitor-name geometry monitor-plist primary-monitor)
+  (let (monitor-name geometry monitor-geometry-alist primary-monitor
+                     monitor-position-alist monitor-alias-alist)
     (with-slots (timestamp monitors)
         (xcb:+request-unchecked+reply exwm--connection
             (make-instance 'xcb:randr:GetMonitors
@@ -117,14 +118,36 @@ corresponding monitors whenever the monitors are active.
                                         :y y
                                         :width width
                                         :height height)
-                monitor-plist (plist-put monitor-plist monitor-name geometry))
+                monitor-geometry-alist (cons (cons monitor-name geometry)
+                                             monitor-geometry-alist))
           (exwm--log "%s: %sx%s+%s+%s" monitor-name x y width height)
           ;; Save primary monitor when available (fallback to the first one).
           (when (or (/= 0 primary)
                     (not primary-monitor))
             (setq primary-monitor monitor-name)))))
     (exwm--log "Primary monitor: %s" primary-monitor)
-    (list primary-monitor monitor-plist)))
+    ;; In a mirroring setup some monitors overlap and should be treated
+    ;; as one.
+    (setq monitor-position-alist (with-slots (x y)
+                                     (cdr (assoc primary-monitor
+                                                 monitor-geometry-alist))
+                                   (list (cons primary-monitor (vector x y)))))
+    (setq monitor-alias-alist (list (cons primary-monitor primary-monitor)))
+    (dolist (pair monitor-geometry-alist)
+      (setq monitor-name (car pair)
+            geometry (cdr pair))
+      (unless (assoc monitor-name monitor-alias-alist)
+        (let* ((position (vector (slot-value geometry 'x)
+                                 (slot-value geometry 'y)))
+               (alias (car (rassoc position monitor-position-alist))))
+          (if alias
+              (setq monitor-alias-alist (cons (cons monitor-name alias)
+                                              monitor-alias-alist))
+            (setq monitor-position-alist (cons (cons monitor-name position)
+                                               monitor-position-alist)
+                  monitor-alias-alist (cons (cons monitor-name monitor-name)
+                                            monitor-alias-alist))))))
+    (list primary-monitor monitor-geometry-alist monitor-alias-alist)))
 
 ;;;###autoload
 (defun exwm-randr-refresh ()
@@ -133,20 +156,25 @@ corresponding monitors whenever the monitors are active.
   (exwm--log)
   (let* ((result (exwm-randr--get-monitors))
          (primary-monitor (elt result 0))
-         (monitor-plist (elt result 1))
+         (monitor-geometry-alist (elt result 1))
+         (monitor-alias-alist (elt result 2))
          container-monitor-alist container-frame-alist)
-    (when (and primary-monitor monitor-plist)
+    (when (and primary-monitor monitor-geometry-alist)
       (when exwm-workspace--fullscreen-frame-count
         ;; Not all workspaces are fullscreen; reset this counter.
         (setq exwm-workspace--fullscreen-frame-count 0))
       (dotimes (i (exwm-workspace--count))
         (let* ((monitor (plist-get exwm-randr-workspace-monitor-plist i))
-               (geometry (lax-plist-get monitor-plist monitor))
+               (geometry (cdr (assoc monitor monitor-geometry-alist)))
                (frame (elt exwm-workspace--list i))
                (container (frame-parameter frame 'exwm-container)))
-          (unless geometry
+          (if geometry
+              ;; Unify monitor names in case it's a mirroring setup.
+              (setq monitor (cdr (assoc monitor monitor-alias-alist)))
+            ;; Missing monitors fallback to the primary one.
             (setq monitor primary-monitor
-                  geometry (lax-plist-get monitor-plist primary-monitor)))
+                  geometry (cdr (assoc primary-monitor
+                                       monitor-geometry-alist))))
           (setq container-monitor-alist (nconc
                                          `((,container . ,(intern monitor)))
                                          container-monitor-alist)
