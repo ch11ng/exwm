@@ -540,8 +540,8 @@ Would you like to kill it? "
       (signal-process pid 'SIGKILL)
       ;; Ensure it's dead
       (run-with-timer exwm-manage-ping-timeout nil
-                      `(lambda ()
-                         (xcb:+request exwm--connection ,request))))
+                      (lambda ()
+                        (xcb:+request exwm--connection request))))
     (xcb:flush exwm--connection)))
 
 (defun exwm-manage--add-frame (frame)

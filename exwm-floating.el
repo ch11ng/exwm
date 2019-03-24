@@ -486,91 +486,91 @@ This is also used by X window containers.")
           (cond ((= type xcb:ewmh:_NET_WM_MOVERESIZE_MOVE)
                  (setq cursor exwm-floating--cursor-move
                        exwm-floating--moveresize-calculate
-                       `(lambda (x y)
-                          (vector ,buffer-or-id
-                                  ,(eval-when-compile
-                                     (logior xcb:ConfigWindow:X
-                                             xcb:ConfigWindow:Y))
-                                  (- x ,win-x) (- y ,win-y) 0 0))))
+                       (lambda (x y)
+                         (vector buffer-or-id
+                                 (eval-when-compile
+                                   (logior xcb:ConfigWindow:X
+                                           xcb:ConfigWindow:Y))
+                                 (- x win-x) (- y win-y) 0 0))))
                 ((= type xcb:ewmh:_NET_WM_MOVERESIZE_SIZE_TOPLEFT)
                  (setq cursor exwm-floating--cursor-top-left
                        exwm-floating--moveresize-calculate
-                       `(lambda (x y)
-                          (vector ,buffer-or-id
-                                  ,(eval-when-compile
-                                     (logior xcb:ConfigWindow:X
-                                             xcb:ConfigWindow:Y
-                                             xcb:ConfigWindow:Width
-                                             xcb:ConfigWindow:Height))
-                                  (- x ,win-x) (- y ,win-y)
-                                  (- ,(+ root-x width) x)
-                                  (- ,(+ root-y height) y)))))
+                       (lambda (x y)
+                         (vector buffer-or-id
+                                 (eval-when-compile
+                                   (logior xcb:ConfigWindow:X
+                                           xcb:ConfigWindow:Y
+                                           xcb:ConfigWindow:Width
+                                           xcb:ConfigWindow:Height))
+                                 (- x win-x) (- y win-y)
+                                 (- (+ root-x width) x)
+                                 (- (+ root-y height) y)))))
                 ((= type xcb:ewmh:_NET_WM_MOVERESIZE_SIZE_TOP)
                  (setq cursor exwm-floating--cursor-top
                        exwm-floating--moveresize-calculate
-                       `(lambda (x y)
-                          (vector ,buffer-or-id
-                                  ,(eval-when-compile
-                                     (logior xcb:ConfigWindow:Y
-                                             xcb:ConfigWindow:Height))
-                                  0 (- y ,win-y) 0 (- ,(+ root-y height) y)))))
+                       (lambda (_x y)
+                         (vector buffer-or-id
+                                 (eval-when-compile
+                                   (logior xcb:ConfigWindow:Y
+                                           xcb:ConfigWindow:Height))
+                                 0 (- y win-y) 0 (- (+ root-y height) y)))))
                 ((= type xcb:ewmh:_NET_WM_MOVERESIZE_SIZE_TOPRIGHT)
                  (setq cursor exwm-floating--cursor-top-right
                        exwm-floating--moveresize-calculate
-                       `(lambda (x y)
-                          (vector ,buffer-or-id
-                                  ,(eval-when-compile
-                                     (logior xcb:ConfigWindow:Y
-                                             xcb:ConfigWindow:Width
-                                             xcb:ConfigWindow:Height))
-                                  0 (- y ,win-y) (- x ,(- root-x width))
-                                  (- ,(+ root-y height) y)))))
+                       (lambda (x y)
+                         (vector buffer-or-id
+                                 (eval-when-compile
+                                   (logior xcb:ConfigWindow:Y
+                                           xcb:ConfigWindow:Width
+                                           xcb:ConfigWindow:Height))
+                                 0 (- y win-y) (- x (- root-x width))
+                                 (- (+ root-y height) y)))))
                 ((= type xcb:ewmh:_NET_WM_MOVERESIZE_SIZE_RIGHT)
                  (setq cursor exwm-floating--cursor-right
                        exwm-floating--moveresize-calculate
-                       `(lambda (x y)
-                          (vector ,buffer-or-id
-                                  ,xcb:ConfigWindow:Width
-                                  0 0 (- x ,(- root-x width)) 0))))
+                       (lambda (x _y)
+                         (vector buffer-or-id
+                                 xcb:ConfigWindow:Width
+                                 0 0 (- x (- root-x width)) 0))))
                 ((= type xcb:ewmh:_NET_WM_MOVERESIZE_SIZE_BOTTOMRIGHT)
                  (setq cursor exwm-floating--cursor-bottom-right
                        exwm-floating--moveresize-calculate
-                       `(lambda (x y)
-                          (vector ,buffer-or-id
-                                  ,(eval-when-compile
-                                     (logior xcb:ConfigWindow:Width
-                                             xcb:ConfigWindow:Height))
-                                  0 0 (- x ,(- root-x width))
-                                  (- y ,(- root-y height))))))
+                       (lambda (x y)
+                         (vector buffer-or-id
+                                 (eval-when-compile
+                                   (logior xcb:ConfigWindow:Width
+                                           xcb:ConfigWindow:Height))
+                                 0 0 (- x (- root-x width))
+                                 (- y (- root-y height))))))
                 ((= type xcb:ewmh:_NET_WM_MOVERESIZE_SIZE_BOTTOM)
                  (setq cursor exwm-floating--cursor-bottom
                        exwm-floating--moveresize-calculate
-                       `(lambda (x y)
-                          (vector ,buffer-or-id
-                                  ,xcb:ConfigWindow:Height
-                                  0 0 0 (- y ,(- root-y height))))))
+                       (lambda (_x y)
+                         (vector buffer-or-id
+                                 xcb:ConfigWindow:Height
+                                 0 0 0 (- y (- root-y height))))))
                 ((= type xcb:ewmh:_NET_WM_MOVERESIZE_SIZE_BOTTOMLEFT)
                  (setq cursor exwm-floating--cursor-bottom-left
                        exwm-floating--moveresize-calculate
-                       `(lambda (x y)
-                          (vector ,buffer-or-id
-                                  ,(eval-when-compile
-                                     (logior xcb:ConfigWindow:X
-                                             xcb:ConfigWindow:Width
-                                             xcb:ConfigWindow:Height))
-                                  (- x ,win-x)
-                                  0
-                                  (- ,(+ root-x width) x)
-                                  (- y ,(- root-y height))))))
+                       (lambda (x y)
+                         (vector buffer-or-id
+                                 (eval-when-compile
+                                   (logior xcb:ConfigWindow:X
+                                           xcb:ConfigWindow:Width
+                                           xcb:ConfigWindow:Height))
+                                 (- x win-x)
+                                 0
+                                 (- (+ root-x width) x)
+                                 (- y (- root-y height))))))
                 ((= type xcb:ewmh:_NET_WM_MOVERESIZE_SIZE_LEFT)
                  (setq cursor exwm-floating--cursor-left
                        exwm-floating--moveresize-calculate
-                       `(lambda (x y)
-                          (vector ,buffer-or-id
-                                  ,(eval-when-compile
-                                     (logior xcb:ConfigWindow:X
-                                             xcb:ConfigWindow:Width))
-                                  (- x ,win-x) 0 (- ,(+ root-x width) x) 0)))))
+                       (lambda (x _y)
+                         (vector buffer-or-id
+                                 (eval-when-compile
+                                   (logior xcb:ConfigWindow:X
+                                           xcb:ConfigWindow:Width))
+                                 (- x win-x) 0 (- (+ root-x width) x) 0)))))
           ;; Select events and change cursor (should always succeed)
           (xcb:+request-unchecked+reply exwm--connection
               (make-instance 'xcb:GrabPointer
