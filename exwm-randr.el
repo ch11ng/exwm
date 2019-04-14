@@ -98,11 +98,13 @@ corresponding monitors whenever the monitors are active.
 (defvar exwm-randr--prev-screen-change-seqnum nil
   "The most recent ScreenChangeNotify sequence number.")
 
+(defvar exwm-randr--compatibility-mode nil
+  "Non-nil when the server does not support RandR 1.5 protocol.")
+
 (defun exwm-randr--get-monitors ()
-  "Get RandR monitors."
+  "Get RandR 1.5 monitors."
   (exwm--log)
-  (let (monitor-name geometry monitor-geometry-alist primary-monitor
-                     monitor-position-alist monitor-alias-alist)
+  (let (monitor-name geometry monitor-geometry-alist primary-monitor)
     (with-slots (timestamp monitors)
         (xcb:+request-unchecked+reply exwm--connection
             (make-instance 'xcb:randr:GetMonitors
@@ -126,8 +128,58 @@ corresponding monitors whenever the monitors are active.
                     (not primary-monitor))
             (setq primary-monitor monitor-name)))))
     (exwm--log "Primary monitor: %s" primary-monitor)
-    ;; In a mirroring setup some monitors overlap and should be treated
-    ;; as one.
+    (list primary-monitor monitor-geometry-alist
+          (exwm-randr--get-monitor-alias primary-monitor
+                                         monitor-geometry-alist))))
+
+(defun exwm-randr--get-outputs ()
+  "Get RandR 1.2 outputs.
+
+Only used when RandR 1.5 is not supported by the server."
+  (exwm--log)
+  (let (output-name geometry output-geometry-alist primary-output)
+    (with-slots (config-timestamp outputs)
+        (xcb:+request-unchecked+reply exwm--connection
+            (make-instance 'xcb:randr:GetScreenResourcesCurrent
+                           :window exwm--root))
+      (when (> config-timestamp exwm-randr--last-timestamp)
+        (setq exwm-randr--last-timestamp config-timestamp))
+      (dolist (output outputs)
+        (with-slots (crtc connection name)
+            (xcb:+request-unchecked+reply exwm--connection
+                (make-instance 'xcb:randr:GetOutputInfo
+                               :output output
+                               :config-timestamp config-timestamp))
+          (when (and (= connection xcb:randr:Connection:Connected)
+                     (/= crtc 0))
+            (with-slots (x y width height)
+                (xcb:+request-unchecked+reply exwm--connection
+                    (make-instance 'xcb:randr:GetCrtcInfo
+                                   :crtc crtc
+                                   :config-timestamp config-timestamp))
+              (setq output-name (decode-coding-string
+                                 (apply #'unibyte-string name) 'utf-8)
+                    geometry (make-instance 'xcb:RECTANGLE
+                                            :x x
+                                            :y y
+                                            :width width
+                                            :height height)
+                    output-geometry-alist (cons (cons output-name geometry)
+                                                output-geometry-alist))
+              (exwm--log "%s: %sx%s+%s+%s" output-name x y width height)
+              ;; The primary output is the first one.
+              (unless primary-output
+                (setq primary-output output-name)))))))
+    (exwm--log "Primary output: %s" primary-output)
+    (list primary-output output-geometry-alist
+          (exwm-randr--get-monitor-alias primary-output
+                                         output-geometry-alist))))
+
+(defun exwm-randr--get-monitor-alias (primary-monitor monitor-geometry-alist)
+  "Generate monitor aliases using PRIMARY-MONITOR MONITOR-GEOMETRY-ALIST.
+
+In a mirroring setup some monitors overlap and should be treated as one."
+  (let (monitor-position-alist monitor-alias-alist monitor-name geometry)
     (setq monitor-position-alist (with-slots (x y)
                                      (cdr (assoc primary-monitor
                                                  monitor-geometry-alist))
@@ -147,14 +199,16 @@ corresponding monitors whenever the monitors are active.
                                                monitor-position-alist)
                   monitor-alias-alist (cons (cons monitor-name monitor-name)
                                             monitor-alias-alist))))))
-    (list primary-monitor monitor-geometry-alist monitor-alias-alist)))
+    monitor-alias-alist))
 
 ;;;###autoload
 (defun exwm-randr-refresh ()
   "Refresh workspaces according to the updated RandR info."
   (interactive)
   (exwm--log)
-  (let* ((result (exwm-randr--get-monitors))
+  (let* ((result (if exwm-randr--compatibility-mode
+                     (exwm-randr--get-outputs)
+                   (exwm-randr--get-monitors)))
          (primary-monitor (elt result 0))
          (monitor-geometry-alist (elt result 1))
          (monitor-alias-alist (elt result 2))
@@ -262,35 +316,41 @@ Refresh when any RandR 1.5 monitor changes."
 (defun exwm-randr--init ()
   "Initialize RandR extension and EXWM RandR module."
   (exwm--log)
-  (if (= 0 (slot-value (xcb:get-extension-data exwm--connection 'xcb:randr)
-                       'present))
-      (error "[EXWM] RandR extension is not supported by the server")
-    (with-slots (major-version minor-version)
-        (xcb:+request-unchecked+reply exwm--connection
-            (make-instance 'xcb:randr:QueryVersion
-                           :major-version 1 :minor-version 5))
-      (if (or (/= major-version 1) (< minor-version 5))
-          (error "[EXWM] The server only support RandR version up to %d.%d"
-                 major-version minor-version)
-        ;; External monitor(s) may already be connected.
-        (run-hooks 'exwm-randr-screen-change-hook)
-        (exwm-randr-refresh)
-        ;; Listen for `ScreenChangeNotify' to notify external tools to
-        ;; configure RandR and `CrtcChangeNotify/OutputChangeNotify' to
-        ;; refresh the workspace layout.
-        (xcb:+event exwm--connection 'xcb:randr:ScreenChangeNotify
-                    #'exwm-randr--on-ScreenChangeNotify)
-        (xcb:+event exwm--connection 'xcb:randr:Notify #'exwm-randr--on-Notify)
-        (xcb:+event exwm--connection 'xcb:ConfigureNotify
-                    #'exwm-randr--on-ConfigureNotify)
-        (xcb:+request exwm--connection
-            (make-instance 'xcb:randr:SelectInput
-                           :window exwm--root
-                           :enable (logior xcb:randr:NotifyMask:ScreenChange
-                                           xcb:randr:NotifyMask:CrtcChange
-                                           xcb:randr:NotifyMask:OutputChange)))
-        (xcb:flush exwm--connection)
-        (add-hook 'exwm-workspace-list-change-hook #'exwm-randr-refresh))))
+  (when (= 0 (slot-value (xcb:get-extension-data exwm--connection 'xcb:randr)
+                         'present))
+    (error "[EXWM] RandR extension is not supported by the server"))
+  (with-slots (major-version minor-version)
+      (xcb:+request-unchecked+reply exwm--connection
+          (make-instance 'xcb:randr:QueryVersion
+                         :major-version 1 :minor-version 5))
+    (cond ((and (= major-version 1) (= minor-version 5))
+           (setq exwm-randr--compatibility-mode nil))
+          ((and (= major-version 1) (>= minor-version 2))
+           (setq exwm-randr--compatibility-mode t))
+          (t
+           (error "[EXWM] The server only support RandR version up to %d.%d"
+                  major-version minor-version)))
+    ;; External monitor(s) may already be connected.
+    (run-hooks 'exwm-randr-screen-change-hook)
+    (exwm-randr-refresh)
+    ;; Listen for `ScreenChangeNotify' to notify external tools to
+    ;; configure RandR and `CrtcChangeNotify/OutputChangeNotify' to
+    ;; refresh the workspace layout.
+    (xcb:+event exwm--connection 'xcb:randr:ScreenChangeNotify
+                #'exwm-randr--on-ScreenChangeNotify)
+    (xcb:+event exwm--connection 'xcb:randr:Notify
+                #'exwm-randr--on-Notify)
+    (xcb:+event exwm--connection 'xcb:ConfigureNotify
+                #'exwm-randr--on-ConfigureNotify)
+    (xcb:+request exwm--connection
+        (make-instance 'xcb:randr:SelectInput
+                       :window exwm--root
+                       :enable (logior
+                                xcb:randr:NotifyMask:ScreenChange
+                                xcb:randr:NotifyMask:CrtcChange
+                                xcb:randr:NotifyMask:OutputChange)))
+    (xcb:flush exwm--connection)
+    (add-hook 'exwm-workspace-list-change-hook #'exwm-randr-refresh))
   ;; Prevent frame parameters introduced by this module from being
   ;; saved/restored.
   (dolist (i '(exwm-randr-monitor))
