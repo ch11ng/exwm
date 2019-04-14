@@ -48,7 +48,29 @@ You can still make the X windows floating afterwards."
   :type 'integer)
 
 (defcustom exwm-manage-configurations nil
-  "Per-application configurations."
+  "Per-application configurations.
+
+Configuration options allow to override various default behaviors of EXWM
+and only take effect when they are present.  Note for certain options
+specifying nil is not exactly the same as leaving them out.  Currently
+possible choices:
+* floating: Force floating (non-nil) or tiling (nil) on startup.
+* x/y/width/height: Override the initial geometry (floating X window only).
+* border-width: Override the border width (only visible when floating).
+* fullscreen: Force full screen (non-nil) on startup.
+* floating-mode-line: `mode-line-format' used when floating.
+* tiling-mode-line: `mode-line-format' used when tiling.
+* floating-header-line: `header-line-format' used when floating.
+* tiling-header-line: `header-line-format' used when tiling.
+* char-mode: Force char-mode (non-nil) on startup.
+* prefix-keys: `exwm-input-prefix-keys' local to this X window.
+* simulation-keys: `exwm-input-simulation-keys' local to this X window.
+* workspace: The initial workspace.
+* managed: Force to manage (non-nil) or not manage (nil) the X window.
+
+For each X window managed for the first time, matching criteria (sexps) are
+evaluated sequentially and the first configuration with a non-nil matching
+criterion would be applied."
   :type '(alist :key-type (sexp :tag "Matching criterion" nil)
                 :value-type
                 (plist :tag "Configurations"
