@@ -533,9 +533,11 @@ manager is shutting down."
                                  exwm--connection)))
       (xcb:flush exwm--connection)
       (with-timeout (exwm-manage-ping-timeout
-                     (if (y-or-n-p (format "'%s' is not responding.  \
+                     (if (progn
+                           (exwm-input--grab-keyboard)
+                           (y-or-n-p (format "'%s' is not responding.  \
 Would you like to kill it? "
-                                              (buffer-name)))
+                                             (buffer-name))))
                          (progn (exwm-manage--kill-client id)
                                 ;; Kill the unresponsive X window and
                                 ;; wait for DestroyNotify event.
