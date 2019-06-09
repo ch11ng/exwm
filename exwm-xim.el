@@ -546,7 +546,11 @@ The actual XIM request is in client message data or a property."
                      (logand state (lognot (cdr keysym)))))))
     (while (or (slot-value req 'event) unread-command-events)
       (unless (slot-value req 'event)
-        (setq event (pop unread-command-events)))
+        (setq event (pop unread-command-events))
+        ;; Handle events in (t . EVENT) format.
+        (when (and (consp event)
+                   (eq (car event) t))
+          (setq event (cdr event))))
       (if (or (not im-func)
               ;; `list' is the default method.
               (eq im-func #'list)
