@@ -219,6 +219,8 @@ ARGS are additional arguments to CALLBACK."
                (cdr exwm-input--timestamp-callback))
         (setq exwm-input--timestamp-callback nil)))))
 
+(defvar exwm-input--last-enter-notify-position nil)
+
 (defun exwm-input--on-EnterNotify (data _synthetic)
   "Handle EnterNotify events."
   (let ((evt (make-instance 'xcb:EnterNotify))
@@ -228,7 +230,9 @@ ARGS are additional arguments to CALLBACK."
       (setq buffer (exwm--id->buffer event)
             window (get-buffer-window buffer t))
       (exwm--log "buffer=%s; window=%s" buffer window)
-      (when (and buffer window (not (eq window (selected-window))))
+      (when (and buffer window (not (eq window (selected-window)))
+                 (not (equal exwm-input--last-enter-notify-position
+                             (vector root-x root-y))))
         (setq frame (window-frame window)
               frame-xid (frame-parameter frame 'exwm-id))
         (unless (eq frame exwm-workspace--current)
@@ -260,7 +264,8 @@ ARGS are additional arguments to CALLBACK."
                            :destination frame-xid
                            :event-mask xcb:EventMask:NoEvent
                            :event (xcb:marshal fake-evt exwm--connection)))
-        (xcb:flush exwm--connection)))))
+        (xcb:flush exwm--connection))
+      (setq exwm-input--last-enter-notify-position (vector root-x root-y)))))
 
 (defun exwm-input--on-keysyms-update ()
   (exwm--log)
