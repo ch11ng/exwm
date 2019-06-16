@@ -555,7 +555,9 @@
         (when (and (buffer-live-p buffer)
                    (= (elt data 0) xcb:icccm:WM_STATE:IconicState))
           (with-current-buffer buffer
-            (bury-buffer)))))
+            (if exwm--floating-frame
+                (call-interactively #'exwm-floating-hide)
+              (bury-buffer))))))
      (t
       (exwm--log "Unhandled: %s(%d)"
                  (x-get-atom-name type exwm-workspace--current) type)))))
