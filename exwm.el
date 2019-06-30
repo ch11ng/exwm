@@ -432,7 +432,9 @@
           (make-frame))
          ((and (> current requested)
                (> current 1))
-          (delete-frame (car (last exwm-workspace--list)))))))
+          (let ((frame (car (last exwm-workspace--list))))
+            (exwm-workspace--get-remove-frame-next-workspace frame)
+            (delete-frame frame))))))
      ;; _NET_CURRENT_DESKTOP.
      ((= type xcb:Atom:_NET_CURRENT_DESKTOP)
       (exwm-workspace-switch (elt data 0)))
