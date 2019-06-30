@@ -845,11 +845,11 @@ button event."
     (xcb:flush exwm--connection)))
 
 ;;;###autoload
-(cl-defun exwm-input-send-next-key (times)
+(cl-defun exwm-input-send-next-key (times &optional end-key)
   "Send next key to client window.
 
 EXWM will prompt for the key to send.  This command can be prefixed to send
-multiple keys."
+multiple keys.  If END-KEY is non-nil, stop sending keys if it's pressed."
   (interactive "p")
   (exwm--log)
   (unless (derived-mode-p 'exwm-mode)
@@ -861,11 +861,17 @@ multiple keys."
       (let ((exwm-input-line-mode-passthrough t))
         (catch 'break
           (while t
-            (setq key (read-key (format "Send key: %s (%d/%d)"
+            (setq key (read-key (format "Send key: %s (%d/%d) %s"
                                         (key-description keys)
-                                        (1+ i) times)))
+                                        (1+ i) times
+                                        (if end-key
+                                            (concat "To exit, press: "
+                                                    (key-description
+                                                     (list end-key)))
+                                          ""))))
             (unless (listp key) (throw 'break nil)))))
       (setq keys (vconcat keys (vector key)))
+      (when (eq key end-key) (cl-return-from exwm-input-send-next-key))
       (exwm-input--fake-key key))))
 
 (defun exwm-input--set-simulation-keys (simulation-keys &optional no-refresh)
