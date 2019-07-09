@@ -864,9 +864,14 @@ If END-KEY is non-nil, stop sending keys if that key is pressed"
 	(let ((exwm-input-line-mode-passthrough t))
 	  (catch 'break
 	    (while t
-	      (setq key (read-key (format "Send key: %s (%d/%d)"
-					  (key-description keys)
-					  (1+ i) times)))
+	      (setq key (read-key
+			 (format "Send key: %s (%d/%d) %s"
+				 (key-description keys)
+				 (1+ i) times
+				 (if end-key
+				     (concat "To exit, press: "
+					     (key-description (list end-key)))
+				   ""))))
 	      (unless (listp key) (throw 'break nil)))))
 	(setq keys (vconcat keys (vector key)))
 	(if (and end-key (eq key end-key))
