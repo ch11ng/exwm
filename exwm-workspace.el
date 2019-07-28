@@ -106,6 +106,11 @@ Please manually run the hook `exwm-workspace-list-change-hook' afterwards.")
 (defvar exwm-workspace--minibuffer nil
   "The minibuffer frame shared among all frames.")
 
+(defvar exwm-workspace--original-handle-focus-in
+  (symbol-function #'handle-focus-in))
+(defvar exwm-workspace--original-handle-focus-out
+  (symbol-function #'handle-focus-out))
+
 (defvar exwm-workspace--prompt-add-allowed nil
   "Non-nil to allow adding workspace from the prompt.")
 
@@ -648,8 +653,9 @@ for internal use only."
     (when (and (not (eq frame old-frame))
                (frame-live-p old-frame))
       (with-selected-frame old-frame
-        (run-hooks 'focus-out-hook)))
-    (run-hooks 'focus-in-hook)
+        (funcall exwm-workspace--original-handle-focus-out
+                 (list 'focus-out frame))))
+    (funcall exwm-workspace--original-handle-focus-in (list 'focus-in frame))
     (run-hooks 'exwm-workspace-switch-hook)))
 
 ;;;###autoload
