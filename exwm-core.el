@@ -251,7 +251,7 @@ One of `line-mode' or `char-mode'.")
     "---"
     "*Resizing*"
     "---"
-    ["Toggle mode-line" exwm-layout-toggle-mode-line :keys "C-c C-t C-m"]
+    ["Toggle mode-line" exwm-layout-toggle-mode-line]
     ["Enlarge window vertically" exwm-layout-enlarge-window]
     ["Enlarge window horizontally" exwm-layout-enlarge-window-horizontally]
     ["Shrink window vertically" exwm-layout-shrink-window]
@@ -289,7 +289,7 @@ One of `line-mode' or `char-mode'.")
     ["Delete current workspace" exwm-workspace-delete]
     ["Move workspace to" exwm-workspace-move]
     ["Swap workspaces" exwm-workspace-swap]
-    ["Move X window to" exwm-workspace-move-window :keys "C-c C-m"]
+    ["Move X window to" exwm-workspace-move-window]
     ["Move X window from" exwm-workspace-switch-to-buffer]
     ["Toggle minibuffer" exwm-workspace-toggle-minibuffer]
     ["Switch workspace" exwm-workspace-switch]
