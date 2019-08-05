@@ -488,23 +488,26 @@ ARGS are additional arguments to CALLBACK."
                             :key nil
                             :pointer-mode xcb:GrabMode:Async
                             :keyboard-mode xcb:GrabMode:Async))
-        keysym keycode)
+        keysyms keycode alt-modifier)
     (dolist (k exwm-input--global-prefix-keys)
-      (setq keysym (xcb:keysyms:event->keysym exwm--connection k)
+      (setq keysyms (xcb:keysyms:event->keysyms exwm--connection k)
             keycode (xcb:keysyms:keysym->keycode exwm--connection
-                                                 (car keysym)))
-      (exwm--log "Grabbing key=%s (keysym=%s keycode=%s)"
-                 (single-key-description k) keysym keycode)
-      (setf (slot-value req 'modifiers) (cdr keysym)
-            (slot-value req 'key) keycode)
-      (dolist (xwin xwins)
-        (setf (slot-value req 'grab-window) xwin)
-        (xcb:+request exwm--connection req)
+                                                 (caar keysyms)))
+      (exwm--log "Grabbing key=%s (keysyms=%s keycode=%s)"
+                 (single-key-description k) keysyms keycode)
+      (dolist (keysym keysyms)
+        (setf (slot-value req 'modifiers) (cdr keysym)
+              (slot-value req 'key) keycode)
         ;; Also grab this key with num-lock mask set.
-        (when (/= 0 xcb:keysyms:num-lock-mask)
-          (setf (slot-value req 'modifiers)
-                (logior (cdr keysym) xcb:keysyms:num-lock-mask))
-          (xcb:+request exwm--connection req))))
+        (when (and (/= 0 xcb:keysyms:num-lock-mask)
+                   (= 0 (logand (cdr keysym) xcb:keysyms:num-lock-mask)))
+          (setf alt-modifier (logior (cdr keysym) xcb:keysyms:num-lock-mask)))
+        (dolist (xwin xwins)
+          (setf (slot-value req 'grab-window) xwin)
+          (xcb:+request exwm--connection req)
+          (when alt-modifier
+            (setf (slot-value req 'modifiers) alt-modifier)
+            (xcb:+request exwm--connection req)))))
     (xcb:flush exwm--connection)))
 
 (defun exwm-input--set-key (key command)
@@ -817,12 +820,12 @@ button event."
 
 (defun exwm-input--fake-key (event)
   "Fake a key event equivalent to Emacs event EVENT."
-  (let* ((keysym (xcb:keysyms:event->keysym exwm--connection event))
+  (let* ((keysyms (xcb:keysyms:event->keysyms exwm--connection event))
          keycode id)
-    (when (= 0 (car keysym))
+    (when (= 0 (caar keysyms))
       (user-error "[EXWM] Invalid key: %s" (single-key-description event)))
     (setq keycode (xcb:keysyms:keysym->keycode exwm--connection
-                                               (car keysym)))
+                                               (caar keysyms)))
     (when (/= 0 keycode)
       (setq id (exwm--buffer->id (window-buffer (selected-window))))
       (exwm--log "id=#x%x event=%s keycode" id event keycode)
@@ -839,7 +842,7 @@ button event."
                                                   :child 0
                                                   :root-x 0 :root-y 0
                                                   :event-x 0 :event-y 0
-                                                  :state (cdr keysym)
+                                                  :state (cdar keysyms)
                                                   :same-screen 1)
                                    exwm--connection)))))
     (xcb:flush exwm--connection)))

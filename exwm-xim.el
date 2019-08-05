@@ -530,7 +530,7 @@ The actual XIM request is in client message data or a property."
 (defun exwm-xim--handle-forward-event-request (req lsb conn client-xwin)
   (let ((im-func (with-current-buffer (window-buffer)
                    input-method-function))
-        key-event keysym event result)
+        key-event keysym keysyms event result)
     ;; Note: The flag slot is ignored.
     ;; Do conversion in client's byte-order.
     (let ((xcb:lsb lsb))
@@ -564,11 +564,11 @@ The actual XIM request is in client message data or a property."
               req
             (if raw-event
                 (setq event raw-event)
-              (setq keysym (xcb:keysyms:event->keysym exwm-xim--conn event))
+              (setq keysyms (xcb:keysyms:event->keysyms exwm-xim--conn event))
               (with-slots (detail state) key-event
                 (setf detail (xcb:keysyms:keysym->keycode exwm-xim--conn
-                                                          (car keysym))
-                      state (cdr keysym)))
+                                                          (caar keysyms))
+                      state (cdar keysyms)))
               (setq event (let ((xcb:lsb lsb))
                             (xcb:marshal key-event conn))))
             (when event
