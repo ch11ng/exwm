@@ -277,11 +277,7 @@ ARGS are additional arguments to CALLBACK."
   (when (and (not (eq this-command #'handle-switch-frame))
              (not exwm-input--skip-buffer-list-update)
              (not (exwm-workspace--client-p))
-             ;; The following conditions filter out events relating to temp
-             ;; buffers.
-             (eq (current-buffer) (window-buffer))
-             (not (string-prefix-p " *temp*"
-                                   (buffer-name (car (last (buffer-list)))))))
+             (eq (current-buffer) (window-buffer)))
     (exwm--log "current-buffer=%S selected-window=%S"
                (current-buffer) (selected-window))
     (redirect-frame-focus (selected-frame) nil)
