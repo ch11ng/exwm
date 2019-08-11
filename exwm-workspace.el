@@ -1337,6 +1337,7 @@ Please check `exwm-workspace--minibuffer-own-frame-p' first."
   (if exwm-workspace--create-silently
       (setq exwm-workspace--switch-history-outdated t)
     (exwm-workspace-switch frame t)
+    (message "Added %s as workspace %d" frame exwm-workspace-current-index)
     (run-hooks 'exwm-workspace-list-change-hook)))
 
 (defun exwm-workspace--get-remove-frame-next-workspace (frame)
@@ -1629,8 +1630,9 @@ applied to all subsequently created X frames."
       (nconc initial-workspaces (list (make-frame '((window-system . x)
                                                     (client . nil))))))
     ;; Configure workspaces
-    (dolist (i initial-workspaces)
-      (exwm-workspace--add-frame-as-workspace i)))
+    (let ((exwm-workspace--create-silently t))
+      (dolist (i initial-workspaces)
+        (exwm-workspace--add-frame-as-workspace i))))
   (xcb:flush exwm--connection)
   ;; We have to advice `x-create-frame' or every call to it would hang EXWM
   (advice-add 'x-create-frame :around #'exwm-workspace--x-create-frame)
