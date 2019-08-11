@@ -74,28 +74,64 @@ criterion would be applied."
   :type '(alist :key-type (sexp :tag "Matching criterion" nil)
                 :value-type
                 (plist :tag "Configurations"
-                       :key-type
-                       (choice
-                        (const :tag "Floating" floating)
-                        (const :tag "X" x)
-                        (const :tag "Y" y)
-                        (const :tag "Width" width)
-                        (const :tag "Height" height)
-                        (const :tag "Border width" border-width)
-                        (const :tag "Fullscreen" fullscreen)
-                        (const :tag "Floating mode-line" floating-mode-line)
-                        (const :tag "Tiling mode-line" tiling-mode-line)
-                        (const :tag "Floating header-line"
-                               floating-header-line)
-                        (const :tag "Tiling header-line" tiling-header-line)
-                        (const :tag "Char-mode" char-mode)
-                        (const :tag "Prefix keys" prefix-keys)
-                        (const :tag "Simulation keys" simulation-keys)
-                        (const :tag "Workspace" workspace)
-                        (const :tag "Managed" managed)
+                       :options
+                       (((const :tag "Floating" floating) boolean)
+                        ((const :tag "X" x) number)
+                        ((const :tag "Y" y) number)
+                        ((const :tag "Width" width) number)
+                        ((const :tag "Height" height) number)
+                        ((const :tag "Border width" border-width) integer)
+                        ((const :tag "Fullscreen" fullscreen) boolean)
+                        ((const :tag "Floating mode-line" floating-mode-line)
+                         sexp)
+                        ((const :tag "Tiling mode-line" tiling-mode-line) sexp)
+                        ((const :tag "Floating header-line"
+                                floating-header-line)
+                         sexp)
+                        ((const :tag "Tiling header-line" tiling-header-line)
+                         sexp)
+                        ((const :tag "Char-mode" char-mode) boolean)
+                        ((const :tag "Prefix keys" prefix-keys)
+                         (repeat key-sequence))
+                        ((const :tag "Simulation keys" simulation-keys)
+                         (alist :key-type (key-sequence :tag "From")
+                                :value-type (key-sequence :tag "To")))
+                        ((const :tag "Workspace" workspace) integer)
+                        ((const :tag "Managed" managed) boolean)
                         ;; For forward compatibility.
-                        (other))
-                       :value-type (sexp :tag "Value" nil))))
+                        ((other) sexp))))
+  ;; TODO: This is admittedly ugly.  We'd be better off with an event type.
+  :get (lambda (symbol)
+         (mapcar (lambda (pair)
+                   (let* ((match (car pair))
+                          (config (cdr pair))
+                          (prefix-keys (plist-get config 'prefix-keys)))
+                     (when prefix-keys
+                       (setq config (copy-tree config)
+                             config (plist-put config 'prefix-keys
+                                               (mapcar (lambda (i)
+                                                         (if (sequencep i)
+                                                             i
+                                                           (vector i)))
+                                                       prefix-keys))))
+                     (cons match config)))
+                 (default-value symbol)))
+  :set (lambda (symbol value)
+         (set symbol
+              (mapcar (lambda (pair)
+                        (let* ((match (car pair))
+                               (config (cdr pair))
+                               (prefix-keys (plist-get config 'prefix-keys)))
+                          (when prefix-keys
+                            (setq config (copy-tree config)
+                                  config (plist-put config 'prefix-keys
+                                                    (mapcar (lambda (i)
+                                                              (if (sequencep i)
+                                                                  (aref i 0)
+                                                                i))
+                                                            prefix-keys))))
+                          (cons match config)))
+                      value))))
 
 ;; FIXME: Make the following values as small as possible.
 (defconst exwm-manage--height-delta-min 5)
