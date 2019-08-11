@@ -331,27 +331,37 @@ You shall use the default value if using auto-hide minibuffer."
   "Reparent/Refresh the system tray in `exwm-workspace-switch-hook'."
   (exwm--log)
   (unless (exwm-workspace--minibuffer-own-frame-p)
-    (xcb:+request exwm-systemtray--connection
-        (make-instance 'xcb:ReparentWindow
-                       :window exwm-systemtray--embedder-window
-                       :parent (string-to-number
-                                (frame-parameter exwm-workspace--current
-                                                 'window-id))
-                       :x 0
-                       :y (- (frame-pixel-height exwm-workspace--current)
-                             exwm-systemtray-height))))
+    (let ((geometry (frame-geometry exwm-workspace--current)))
+      (xcb:+request exwm-systemtray--connection
+          (make-instance 'xcb:ReparentWindow
+                         :window exwm-systemtray--embedder-window
+                         :parent (string-to-number
+                                  (frame-parameter exwm-workspace--current
+                                                   'window-id))
+                         :x 0
+                         :y (- (elt (elt exwm-workspace--workareas
+                                         exwm-workspace-current-index)
+                                    3)
+                               (or (cddr (assq 'menu-bar-size geometry)) 0)
+                               (or (cddr (assq 'tool-bar-size geometry)) 0)
+                               exwm-systemtray-height)))))
   (exwm-systemtray--refresh))
 
 (defun exwm-systemtray--on-randr-refresh ()
   "Reposition/Refresh the system tray in `exwm-randr-refresh-hook'."
   (exwm--log)
   (unless (exwm-workspace--minibuffer-own-frame-p)
-    (xcb:+request exwm-systemtray--connection
-        (make-instance 'xcb:ConfigureWindow
-                       :window exwm-systemtray--embedder-window
-                       :value-mask xcb:ConfigWindow:Y
-                       :y (- (frame-pixel-height exwm-workspace--current)
-                             exwm-systemtray-height))))
+    (let ((geometry (frame-geometry exwm-workspace--current)))
+      (xcb:+request exwm-systemtray--connection
+          (make-instance 'xcb:ConfigureWindow
+                         :window exwm-systemtray--embedder-window
+                         :value-mask xcb:ConfigWindow:Y
+                         :y (- (elt (elt exwm-workspace--workareas
+                                         exwm-workspace-current-index)
+                                    3)
+                               (or (cddr (assq 'menu-bar-size geometry)) 0)
+                               (or (cddr (assq 'tool-bar-size geometry)) 0)
+                               exwm-systemtray-height)))))
   (exwm-systemtray--refresh))
 
 (defalias 'exwm-systemtray--on-struts-update
