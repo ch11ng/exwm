@@ -140,6 +140,8 @@ defined in `exwm-mode-map' here."
 (defvar exwm-input--update-focus-window nil "The (Emacs) window to be focused.
 This value should always be overwritten.")
 
+(defvar exwm-input--echo-area-timer nil "Timer for detecting echo area dirty.")
+
 (defvar exwm-input--event-hook nil
   "Hook to run when EXWM receives an event.")
 
@@ -760,8 +762,10 @@ button event."
                              :pointer-mode xcb:GrabMode:Async
                              :keyboard-mode xcb:GrabMode:Sync))
       (exwm--log "Failed to grab keyboard for #x%x" id))
-    (with-current-buffer (exwm--id->buffer id)
-      (setq exwm--input-mode 'line-mode))))
+    (let ((buffer (exwm--id->buffer id)))
+      (when buffer
+        (with-current-buffer buffer
+          (setq exwm--input-mode 'line-mode))))))
 
 (defun exwm-input--release-keyboard (&optional id)
   "Ungrab all key events on window ID."
@@ -775,8 +779,10 @@ button event."
                              :modifiers xcb:ModMask:Any))
       (exwm--log "Failed to release keyboard for #x%x" id))
     (exwm-input--grab-global-prefix-keys id)
-    (with-current-buffer (exwm--id->buffer id)
-      (setq exwm--input-mode 'char-mode))))
+    (let ((buffer (exwm--id->buffer id)))
+      (when buffer
+        (with-current-buffer buffer
+          (setq exwm--input-mode 'char-mode))))))
 
 ;;;###autoload
 (defun exwm-input-grab-keyboard (&optional id)
@@ -1027,6 +1033,39 @@ where both ORIGINAL-KEY and SIMULATED-KEY are key sequences."
   "Run in `post-command-hook'."
   (setq exwm-input--during-command nil))
 
+(defun exwm-input--on-minibuffer-setup ()
+  "Run in `minibuffer-setup-hook' to grab keyboard if necessary."
+  (exwm--log)
+  (with-current-buffer
+      (window-buffer (frame-selected-window exwm-workspace--current))
+    (when (and (derived-mode-p 'exwm-mode)
+               (eq exwm--selected-input-mode 'char-mode))
+      (exwm-input--grab-keyboard exwm--id))))
+
+(defun exwm-input--on-minibuffer-exit ()
+  "Run in `minibuffer-exit-hook' to release keyboard if necessary."
+  (exwm--log)
+  (with-current-buffer
+      (window-buffer (frame-selected-window exwm-workspace--current))
+    (when (and (derived-mode-p 'exwm-mode)
+               (eq exwm--selected-input-mode 'char-mode)
+               (eq exwm--input-mode 'line-mode))
+      (exwm-input--release-keyboard exwm--id))))
+
+(defun exwm-input--on-echo-area-dirty ()
+  "Run when new message arrives to grab keyboard if necessary."
+  (exwm--log)
+  (when (and (not (active-minibuffer-window))
+             (not (exwm-workspace--client-p))
+             cursor-in-echo-area)
+    (exwm-input--on-minibuffer-setup)))
+
+(defun exwm-input--on-echo-area-clear ()
+  "Run in `echo-area-clear-hook' to release keyboard if necessary."
+  (exwm--log)
+  (unless (current-message)
+    (exwm-input--on-minibuffer-exit)))
+
 (defun exwm-input--init ()
   "Initialize the keyboard module."
   (exwm--log)
@@ -1075,6 +1114,12 @@ where both ORIGINAL-KEY and SIMULATED-KEY are key sequences."
   ;; Control `exwm-input--during-command'
   (add-hook 'pre-command-hook #'exwm-input--on-pre-command)
   (add-hook 'post-command-hook #'exwm-input--on-post-command)
+  ;; Grab/Release keyboard when minibuffer/echo becomes active/inactive.
+  (add-hook 'minibuffer-setup-hook #'exwm-input--on-minibuffer-setup)
+  (add-hook 'minibuffer-exit-hook #'exwm-input--on-minibuffer-exit)
+  (setq exwm-input--echo-area-timer
+        (run-with-idle-timer 0 t #'exwm-input--on-echo-area-dirty))
+  (add-hook 'echo-area-clear-hook #'exwm-input--on-echo-area-clear)
   ;; Update focus when buffer list updates
   (add-hook 'buffer-list-update-hook #'exwm-input--on-buffer-list-update))
 
@@ -1089,6 +1134,12 @@ where both ORIGINAL-KEY and SIMULATED-KEY are key sequences."
   (exwm-input--unset-simulation-keys)
   (remove-hook 'pre-command-hook #'exwm-input--on-pre-command)
   (remove-hook 'post-command-hook #'exwm-input--on-post-command)
+  (remove-hook 'minibuffer-setup-hook #'exwm-input--on-minibuffer-setup)
+  (remove-hook 'minibuffer-exit-hook #'exwm-input--on-minibuffer-exit)
+  (when exwm-input--echo-area-timer
+    (cancel-timer exwm-input--echo-area-timer)
+    (setq exwm-input--echo-area-timer nil))
+  (remove-hook 'echo-area-clear-hook #'exwm-input--on-echo-area-clear)
   (remove-hook 'buffer-list-update-hook #'exwm-input--on-buffer-list-update)
   (when exwm-input--update-focus-defer-timer
     (cancel-timer exwm-input--update-focus-defer-timer))
