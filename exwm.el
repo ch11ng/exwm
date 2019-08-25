@@ -420,7 +420,8 @@
     (setq type (slot-value obj 'type)
           id (slot-value obj 'window)
           data (slot-value (slot-value obj 'data) 'data32))
-    (exwm--log "atom=%s(%s)" (x-get-atom-name type exwm-workspace--current) type)
+    (exwm--log "atom=%s(%s)" (x-get-atom-name type exwm-workspace--current)
+               type)
     (cond
      ;; _NET_NUMBER_OF_DESKTOPS.
      ((= type xcb:Atom:_NET_NUMBER_OF_DESKTOPS)
@@ -459,7 +460,7 @@
      ((= type xcb:Atom:_NET_CLOSE_WINDOW)
       (let ((buffer (exwm--id->buffer id)))
         (when (buffer-live-p buffer)
-          (kill-buffer buffer))))
+          (exwm--defer 0 #'kill-buffer buffer))))
      ;; _NET_WM_MOVERESIZE
      ((= type xcb:Atom:_NET_WM_MOVERESIZE)
       (let ((direction (elt data 2))

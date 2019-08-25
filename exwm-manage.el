@@ -513,8 +513,10 @@ manager is shutting down."
   (catch 'return
     (when (or (not exwm--id)
               (xcb:+request-checked+request-check exwm--connection
-                  (make-instance 'xcb:MapWindow
-                                 :window exwm--id)))
+                  (make-instance 'xcb:ChangeWindowAttributes
+                                 :window exwm--id
+                                 :value-mask xcb:CW:EventMask
+                                 :event-mask (exwm--get-client-event-mask))))
       ;; The X window is no longer alive so just close the buffer.
       (when exwm--floating-frame
         (let ((window (frame-parameter exwm--floating-frame 'exwm-outer-id))
