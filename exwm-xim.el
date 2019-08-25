@@ -588,6 +588,8 @@ The actual XIM request is in client message data or a property."
               ;; Always show key strokes.
               (let ((input-method-use-echo-area t))
                 (setq result (funcall im-func event))
+                ;; Clear echo area for the input method.
+                (message nil)
                 ;; This also works for portable character encoding.
                 (setq result
                       (encode-coding-string (concat result)
