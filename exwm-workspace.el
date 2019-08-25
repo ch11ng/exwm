@@ -804,7 +804,7 @@ INDEX must not exceed the current number of workspaces."
                          :data desktop)))))
 
 ;;;###autoload
-(defun exwm-workspace-move-window (frame-or-index &optional id)
+(cl-defun exwm-workspace-move-window (frame-or-index &optional id)
   "Move window ID to workspace FRAME-OR-INDEX."
   (interactive (list
                 (cond
@@ -819,6 +819,8 @@ INDEX must not exceed the current number of workspaces."
   (let ((frame (exwm-workspace--workspace-from-frame-or-index frame-or-index))
         old-frame container)
     (unless id (setq id (exwm--buffer->id (window-buffer))))
+    (unless id
+      (cl-return-from exwm-workspace-move-window))
     (exwm--log "Moving #x%x to %s" id frame-or-index)
     (with-current-buffer (exwm--id->buffer id)
       (unless (eq exwm--frame frame)
