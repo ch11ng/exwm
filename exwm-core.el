@@ -271,7 +271,8 @@ One of `line-mode' or `char-mode'.")
             (when (sequencep key)
               (setq result (append result
                                    `([
-                                      ,(key-description value)
+                                      ,(format "Send '%s'"
+                                               (key-description value))
                                       (lambda ()
                                         (interactive)
                                         (dolist (i ',value)
