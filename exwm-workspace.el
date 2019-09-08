@@ -1338,8 +1338,10 @@ Please check `exwm-workspace--minibuffer-own-frame-p' first."
   (exwm-workspace--update-ewmh-props)
   (if exwm-workspace--create-silently
       (setq exwm-workspace--switch-history-outdated t)
-    (exwm-workspace-switch frame t)
-    (message "Added %s as workspace %d" frame exwm-workspace-current-index)
+    (let ((original-index exwm-workspace-current-index))
+      (exwm-workspace-switch frame t)
+      (message "Created %s as workspace %d; switched from %d"
+               frame exwm-workspace-current-index original-index))
     (run-hooks 'exwm-workspace-list-change-hook)))
 
 (defun exwm-workspace--get-remove-frame-next-workspace (frame)
