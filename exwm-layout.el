@@ -102,11 +102,15 @@
          (y (pop edges))
          (width (- (pop edges) x))
          (height (- (pop edges) y))
-         frame-x frame-y frame-width frame-height)
+         geometry frame-x frame-y frame-width frame-height)
     (with-current-buffer (exwm--id->buffer id)
       (when exwm--floating-frame
         (setq frame-width (frame-pixel-width exwm--floating-frame)
-              frame-height (frame-pixel-height exwm--floating-frame))
+              geometry (frame-geometry exwm--floating-frame)
+              frame-height (+ (frame-pixel-height exwm--floating-frame)
+                              ;; Use `frame-outer-height' in the future.
+                              (or (cddr (assq 'menu-bar-size geometry)) 0)
+                              (or (cddr (assq 'tool-bar-size geometry)) 0)))
         (when exwm--floating-frame-position
           (setq frame-x (elt exwm--floating-frame-position 0)
                 frame-y (elt exwm--floating-frame-position 1)

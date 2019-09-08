@@ -211,10 +211,14 @@ This is also used by X window containers.")
     ;; The frame will be made visible by `select-frame-set-input-focus'.
     (make-frame-invisible frame)
     (let* ((edges (window-inside-pixel-edges window))
+           (geometry (frame-geometry frame))
            (frame-width (+ width (- (frame-pixel-width frame)
                                     (- (elt edges 2) (elt edges 0)))))
            (frame-height (+ height (- (frame-pixel-height frame)
-                                      (- (elt edges 3) (elt edges 1)))))
+                                      (- (elt edges 3) (elt edges 1)))
+                            ;; Use `frame-outer-height' in the future.
+                            (or (cddr (assq 'menu-bar-size geometry)) 0)
+                            (or (cddr (assq 'tool-bar-size geometry)) 0)))
            (floating-mode-line (plist-get exwm--configurations
                                           'floating-mode-line))
            (floating-header-line (plist-get exwm--configurations
@@ -466,7 +470,7 @@ This is also used by X window containers.")
                 height (frame-pixel-height frame))
           (unless type
             ;; Determine the resize type according to the pointer position
-            ;; Clicking the center 1/3 part to resize has not effect
+            ;; Clicking the center 1/3 part to resize has no effect
             (setq x (/ (* 3 win-x) (float width))
                   y (/ (* 3 win-y) (float height))
                   type (cond ((and (< x 1) (< y 1))
@@ -603,7 +607,8 @@ This is also used by X window containers.")
   "Perform move/resize."
   (when exwm-floating--moveresize-calculate
     (let* ((obj (make-instance 'xcb:MotionNotify))
-           result value-mask x y width height buffer-or-id container-or-id)
+           result value-mask x y width height buffer-or-id container-or-id
+           geometry y-offset)
       (xcb:unmarshal obj data)
       (setq result (funcall exwm-floating--moveresize-calculate
                             (slot-value obj 'root-x) (slot-value obj 'root-y))
@@ -613,13 +618,19 @@ This is also used by X window containers.")
             y (aref result 3)
             width (max 1 (aref result 4))
             height (max 1 (aref result 5)))
-      (setq container-or-id
-            (if (bufferp buffer-or-id)
-                ;; Managed.
-                (with-current-buffer buffer-or-id
-                  (frame-parameter exwm--floating-frame 'exwm-container))
-              ;; Unmanaged.
-              buffer-or-id))
+      (if (not (bufferp buffer-or-id))
+          ;; Unmanaged.
+          (setq container-or-id buffer-or-id)
+        ;; Managed.
+        (setq container-or-id
+              (with-current-buffer buffer-or-id
+                (frame-parameter exwm--floating-frame 'exwm-container))
+              geometry (frame-geometry exwm--floating-frame)
+              ;; Use `frame-outer-height' in the future.
+              y-offset (+ (or (cddr (assq 'menu-bar-size geometry)) 0)
+                          (or (cddr (assq 'tool-bar-size geometry)) 0))
+              y (- y y-offset)
+              height (+ height y-offset)))
       (xcb:+request exwm--connection
           (make-instance 'xcb:ConfigureWindow
                          :window container-or-id
