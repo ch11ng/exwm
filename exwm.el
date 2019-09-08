@@ -872,6 +872,7 @@ manager.  If t, replace it, if nil, abort and ask the user if `ask'."
     (xcb:disconnect exwm--connection))
   (setq exwm--connection nil))
 
+;;;###autoload
 (defun exwm-enable (&optional undo)
   "Enable/Disable EXWM."
   (exwm--log "%s" undo)
