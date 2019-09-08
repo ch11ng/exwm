@@ -33,6 +33,27 @@
 (require 'xcb-ewmh)
 (require 'xcb-debug)
 
+(defcustom exwm-debug-log-time-function #'exwm-debug-log-uptime
+  "Function used for generating timestamps in `exwm-debug' logs.
+
+Here are some predefined candidates:
+`exwm-debug-log-uptime': Display the uptime of this Emacs instance.
+`exwm-debug-log-time': Display time of day.
+`nil': Disable timestamp."
+  :group 'exwm
+  :type `(choice (const :tag "Emacs uptime" ,#'exwm-debug-log-uptime)
+                 (const :tag "Time of day" ,#'exwm-debug-log-time)
+                 (const :tag "Off" nil)
+                 (function :tag "Other")))
+
+(defun exwm-debug-log-uptime ()
+  "Add uptime to `exwm-debug' logs."
+  (emacs-uptime "[%.2h:%.2m:%.2s] "))
+
+(defun exwm-debug-log-time ()
+  "Add time of day to `exwm-debug' logs."
+  (format-time-string "[%T] "))
+
 (defvar exwm--connection nil "X connection.")
 
 (defvar exwm--wmsn-window nil
@@ -79,7 +100,10 @@ FORMAT-STRING is a string specifying the message to output, as in
 `format'.  The OBJECTS arguments specify the substitutions."
   (unless format-string (setq format-string ""))
   `(when exwm-debug
-     (xcb-debug:message ,(concat "%s:\t" format-string "\n")
+     (xcb-debug:message ,(concat "%s%s:\t" format-string "\n")
+                        (if exwm-debug-log-time-function
+                            (funcall exwm-debug-log-time-function)
+                          "")
                         (xcb-debug:compile-time-function-name)
                         ,@objects)
      nil))
