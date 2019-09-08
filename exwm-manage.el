@@ -242,7 +242,8 @@ criterion would be applied."
   (when (derived-mode-p 'exwm-mode)
     (dolist (i exwm-manage-configurations)
       (save-current-buffer
-        (when (eval (car i) t)
+        (when (with-demoted-errors "Problematic configuration: %S"
+                (eval (car i) t))
           (cl-return-from exwm-manage--get-configurations (cdr i)))))))
 
 (defun exwm-manage--manage-window (id)
