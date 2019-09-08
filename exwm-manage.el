@@ -70,7 +70,9 @@ possible choices:
 
 For each X window managed for the first time, matching criteria (sexps) are
 evaluated sequentially and the first configuration with a non-nil matching
-criterion would be applied."
+criterion would be applied.  Apart from generic forms, one would typically
+want to match against EXWM internal variables such as `exwm-title',
+`exwm-class-name' and `exwm-instance-name'."
   :type '(alist :key-type (sexp :tag "Matching criterion" nil)
                 :value-type
                 (plist :tag "Configurations"
