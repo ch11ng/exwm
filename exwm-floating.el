@@ -44,20 +44,70 @@ context of the corresponding buffer."
 context of the corresponding buffer."
   :type 'hook)
 
+(defvar exwm-floating--border-pixel nil
+  "Border pixel drawn around floating X windows.")
+
 (defcustom exwm-floating-border-color "navy"
   "Border color of floating windows."
-  :type 'color)
+  :type 'color
+  :initialize #'custom-initialize-default
+  :set (lambda (symbol value)
+         (set-default symbol value)
+         ;; Change border color for all floating X windows.
+         (exwm-floating--init-border)
+         (dolist (pair exwm--id-buffer-alist)
+           (with-current-buffer (cdr pair)
+             (when exwm--floating-frame
+               (xcb:+request exwm--connection
+                   (make-instance 'xcb:ChangeWindowAttributes
+                                  :window
+                                  (frame-parameter exwm--floating-frame
+                                                   'exwm-container)
+                                  :value-mask xcb:CW:BorderPixel
+                                  :border-pixel
+                                  exwm-floating--border-pixel)))))
+         (when exwm--connection
+           (xcb:flush exwm--connection))))
 
 (defcustom exwm-floating-border-width 1
   "Border width of floating windows."
-  :type 'integer)
+  :type '(integer
+          :validate (lambda (widget)
+                      (when (< (widget-value widget) 0)
+                        (widget-put widget :error "Border width is at least 0")
+                        widget)))
+  :initialize #'custom-initialize-default
+  :set (lambda (symbol value)
+         (let ((delta (- value exwm-floating-border-width))
+               container)
+           (set-default symbol value)
+           ;; Change border width for all floating X windows.
+           (dolist (pair exwm--id-buffer-alist)
+             (with-current-buffer (cdr pair)
+               (when exwm--floating-frame
+                 (setq container (frame-parameter exwm--floating-frame
+                                                  'exwm-container))
+                 (with-slots (x y)
+                     (xcb:+request-unchecked+reply exwm--connection
+                         (make-instance 'xcb:GetGeometry
+                                        :drawable container))
+                   (xcb:+request exwm--connection
+                       (make-instance 'xcb:ConfigureWindow
+                                      :window container
+                                      :value-mask
+                                      (logior xcb:ConfigWindow:X
+                                              xcb:ConfigWindow:Y
+                                              xcb:ConfigWindow:BorderWidth)
+                                      :border-width value
+                                      :x (- x delta)
+                                      :y (- y delta)))))))
+           (when exwm--connection
+             (xcb:flush exwm--connection)))))
 
 (defvar exwm-floating--border-colormap nil
   "Colormap used by the border pixel.
 
 This is also used by X window containers.")
-(defvar exwm-floating--border-pixel nil
-  "Border pixel drawn around floating X windows.")
 
 ;; Cursors for moving/resizing a window
 (defvar exwm-floating--cursor-move nil)
@@ -679,32 +729,39 @@ Both DELTA-X and DELTA-Y default to 1.  This command should be bound locally."
                           nil nil))
     (xcb:flush exwm--connection)))
 
+(defun exwm-floating--init-border ()
+  "Initialize border colormap and pixel."
+  (exwm--log)
+  ;; Use the default colormap.
+  (unless exwm-floating--border-colormap
+    (with-slots (roots) (xcb:get-setup exwm--connection)
+      (with-slots (default-colormap) (car roots)
+        (setq exwm-floating--border-colormap default-colormap))))
+  ;; Free any previously allocated pixel.
+  (when exwm-floating--border-pixel
+    (xcb:+request exwm--connection
+        (make-instance 'xcb:FreeColors
+                       :cmap exwm-floating--border-colormap
+                       :plane-mask 0
+                       :pixels (vector exwm-floating--border-pixel)))
+    (setq exwm-floating--border-pixel nil))
+  ;; Allocate new pixel.
+  (let ((color (x-color-values (or exwm-floating-border-color "")))
+         reply)
+    (when color
+      (setq reply (xcb:+request-unchecked+reply exwm--connection
+                      (make-instance 'xcb:AllocColor
+                                     :cmap exwm-floating--border-colormap
+                                     :red (pop color)
+                                     :green (pop color)
+                                     :blue (pop color))))
+      (when reply
+        (setq exwm-floating--border-pixel (slot-value reply 'pixel))))))
+
 (defun exwm-floating--init ()
   "Initialize floating module."
   (exwm--log)
-  ;; Check border width.
-  (unless (and (integerp exwm-floating-border-width)
-               (> exwm-floating-border-width 0))
-    (setq exwm-floating-border-width 0))
-  ;; Initialize border pixel.
-  (when (> exwm-floating-border-width 0)
-    (setq exwm-floating--border-colormap
-          (slot-value (car (slot-value
-                            (xcb:get-setup exwm--connection) 'roots))
-                      'default-colormap))
-    (unless (stringp exwm-floating-border-color)
-      (setq exwm-floating-border-color ""))
-    (let* ((color (x-color-values exwm-floating-border-color))
-           reply)
-      (when color
-        (setq reply (xcb:+request-unchecked+reply exwm--connection
-                        (make-instance 'xcb:AllocColor
-                                       :cmap exwm-floating--border-colormap
-                                       :red (pop color)
-                                       :green (pop color)
-                                       :blue (pop color))))
-        (when reply
-          (setq exwm-floating--border-pixel (slot-value reply 'pixel))))))
+  (exwm-floating--init-border)
   ;; Initialize cursors for moving/resizing a window
   (xcb:cursor:init exwm--connection)
   (setq exwm-floating--cursor-move

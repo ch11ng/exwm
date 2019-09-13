@@ -62,7 +62,9 @@ By default `number-to-string' is applied which yields 0 1 2 ... ."
   :type 'function)
 
 (defcustom exwm-workspace-minibuffer-position nil
-  "Position of the minibuffer frame."
+  "Position of the minibuffer frame.
+
+A restart is required for this change to take effect."
   :type '(choice (const :tag "Bottom (fixed)" nil)
                  (const :tag "Bottom (auto-hide)" bottom)
                  (const :tag "Top (auto-hide)" top)))
