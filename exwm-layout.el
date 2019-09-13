@@ -40,6 +40,9 @@
   "Non-nil to allow switching to buffers on other workspaces."
   :type 'boolean)
 
+(defconst exwm-layout--floating-hidden-position -101
+  "Where to place hidden floating X windows.")
+
 (defvar exwm-layout--other-buffer-exclude-buffers nil
   "List of buffers that should not be selected by `other-buffer'.")
 
@@ -114,9 +117,8 @@
         (when exwm--floating-frame-position
           (setq frame-x (elt exwm--floating-frame-position 0)
                 frame-y (elt exwm--floating-frame-position 1)
-                ;; The frame was placed at (-1, -1).
-                x (+ x frame-x 1)
-                y (+ y frame-y 1))
+                x (+ x frame-x (- exwm-layout--floating-hidden-position))
+                y (+ y frame-y (- exwm-layout--floating-hidden-position)))
           (setq exwm--floating-frame-position nil))
         (exwm--set-geometry (frame-parameter exwm--floating-frame
                                              'exwm-container)
@@ -152,7 +154,10 @@
                                             :drawable container))))
           (setq exwm--floating-frame-position
                 (vector (slot-value geometry 'x) (slot-value geometry 'y)))
-          (exwm--set-geometry container -1 -1 1 1)))
+          (exwm--set-geometry container exwm-layout--floating-hidden-position
+                              exwm-layout--floating-hidden-position
+                              1
+                              1)))
       (xcb:+request exwm--connection
           (make-instance 'xcb:ChangeWindowAttributes
                          :window id :value-mask xcb:CW:EventMask
