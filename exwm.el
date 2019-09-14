@@ -892,10 +892,11 @@ manager.  If t, replace it, if nil, abort and ask the user if `ask'."
      ;; Ignore unrecognized command line arguments.  This can be helpful
      ;; when EXWM is launched by some session manager.
      (push #'vector command-line-functions)
-     (add-hook (if (daemonp)
-                   'after-make-frame-functions ;emacsclient
-                 'window-setup-hook)           ;emacs
-               #'exwm-init t)
+     ;; In case EXWM is to be started from a graphical Emacs instance.
+     (add-hook 'window-setup-hook #'exwm-init t)
+     ;; In case EXWM is to be started with emacsclient.
+     (add-hook 'after-make-frame-functions #'exwm-init t)
+     ;; Manage the subordinate Emacs server.
      (add-hook 'kill-emacs-hook #'exwm--server-stop)
      (dolist (i exwm-blocking-subrs)
        (advice-add i :around #'exwm--server-eval-at)))))
