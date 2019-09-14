@@ -124,12 +124,15 @@ This is also used by X window containers.")
   "Calculate move/resize parameters [buffer event-mask x y width height].")
 
 (defvar exwm-workspace--current)
+(defvar exwm-workspace--frame-y-offset)
+(defvar exwm-workspace--window-y-offset)
 (defvar exwm-workspace--workareas)
 (declare-function exwm-layout--hide "exwm-layout.el" (id))
 (declare-function exwm-layout--iconic-state-p "exwm-layout.el" (&optional id))
 (declare-function exwm-layout--refresh "exwm-layout.el" ())
 (declare-function exwm-layout--show "exwm-layout.el" (id &optional window))
 (declare-function exwm-workspace--position "exwm-workspace.el" (frame))
+(declare-function exwm-workspace--update-offsets "exwm-workspace.el" ())
 
 (defun exwm-floating--set-allowed-actions (id tilling)
   "Set _NET_WM_ALLOWED_ACTIONS."
@@ -166,8 +169,8 @@ This is also used by X window containers.")
                           (get-buffer "*scratch*")))
                   (make-frame
                    `((minibuffer . ,(minibuffer-window exwm--frame))
-                     (left . ,(* window-min-width -100))
-                     (top . ,(* window-min-height -100))
+                     (left . ,(* window-min-width -10000))
+                     (top . ,(* window-min-height -10000))
                      (width . ,window-min-width)
                      (height . ,window-min-height)
                      (unsplittable . t))))) ;and fix the size later
@@ -179,6 +182,9 @@ This is also used by X window containers.")
          (y (slot-value exwm--geometry 'y))
          (width (slot-value exwm--geometry 'width))
          (height (slot-value exwm--geometry 'height)))
+    ;; Force drawing menu-bar & tool-bar.
+    (redisplay t)
+    (exwm-workspace--update-offsets)
     (exwm--log "Floating geometry (original): %dx%d%+d%+d" width height x y)
     ;; Save frame parameters.
     (set-frame-parameter frame 'exwm-outer-id outer-id)
@@ -261,14 +267,12 @@ This is also used by X window containers.")
     ;; The frame will be made visible by `select-frame-set-input-focus'.
     (make-frame-invisible frame)
     (let* ((edges (window-inside-pixel-edges window))
-           (geometry (frame-geometry frame))
            (frame-width (+ width (- (frame-pixel-width frame)
                                     (- (elt edges 2) (elt edges 0)))))
            (frame-height (+ height (- (frame-pixel-height frame)
                                       (- (elt edges 3) (elt edges 1)))
                             ;; Use `frame-outer-height' in the future.
-                            (or (cddr (assq 'menu-bar-size geometry)) 0)
-                            (or (cddr (assq 'tool-bar-size geometry)) 0)))
+                            exwm-workspace--frame-y-offset))
            (floating-mode-line (plist-get exwm--configurations
                                           'floating-mode-line))
            (floating-header-line (plist-get exwm--configurations
@@ -293,7 +297,7 @@ This is also used by X window containers.")
                                     'floating-header-line))
                  exwm--mwm-hints-decorations)
             (setq header-line-format nil)
-          ;; The header-line need to be hidden in floating header.
+          ;; The header-line need to be hidden in floating mode.
           (setq frame-height (- frame-height (window-header-line-height
                                               (frame-root-window frame)))
                 header-line-format nil)))
@@ -304,8 +308,8 @@ This is also used by X window containers.")
                          :depth 0
                          :wid frame-container
                          :parent exwm--root
-                         :x (- x (elt edges 0))
-                         :y (- y (elt edges 1))
+                         :x x
+                         :y (- y exwm-workspace--window-y-offset)
                          :width width
                          :height height
                          :border-width
@@ -377,7 +381,7 @@ This is also used by X window containers.")
   (with-current-buffer (exwm--id->buffer id)
     (run-hooks 'exwm-floating-setup-hook))
   ;; Redraw the frame.
-  (redisplay))
+  (redisplay t))
 
 (defun exwm-floating--unset-floating (id)
   "Make window ID non-floating."
@@ -644,11 +648,38 @@ This is also used by X window containers.")
   (xcb:+request exwm--connection
       (make-instance 'xcb:UngrabPointer :time xcb:Time:CurrentTime))
   (when exwm-floating--moveresize-calculate
-    (let (result buffer-or-id)
+    (let (result buffer-or-id outer-id container-id)
       (setq result (funcall exwm-floating--moveresize-calculate 0 0)
             buffer-or-id (aref result 0))
       (when (bufferp buffer-or-id)
         (with-current-buffer buffer-or-id
+          (setq outer-id (frame-parameter exwm--floating-frame 'exwm-outer-id)
+                container-id (frame-parameter exwm--floating-frame
+                                              'exwm-container))
+          (with-slots (x y width height border-width)
+              (xcb:+request-unchecked+reply exwm--connection
+                  (make-instance 'xcb:GetGeometry
+                                 :drawable container-id))
+            ;; Notify Emacs frame about this the position change.
+            (xcb:+request exwm--connection
+                (make-instance 'xcb:SendEvent
+                               :propagate 0
+                               :destination outer-id
+                               :event-mask xcb:EventMask:StructureNotify
+                               :event
+                               (xcb:marshal
+                                (make-instance 'xcb:ConfigureNotify
+                                               :event outer-id
+                                               :window outer-id
+                                               :above-sibling xcb:Window:None
+                                               :x (+ x border-width)
+                                               :y (+ y border-width)
+                                               :width width
+                                               :height height
+                                               :border-width 0
+                                               :override-redirect 0)
+                                exwm--connection)))
+            (xcb:flush exwm--connection))
           (exwm-layout--show exwm--id
                              (frame-root-window exwm--floating-frame)))))
     (setq exwm-floating--moveresize-calculate nil)))
@@ -657,8 +688,7 @@ This is also used by X window containers.")
   "Perform move/resize."
   (when exwm-floating--moveresize-calculate
     (let* ((obj (make-instance 'xcb:MotionNotify))
-           result value-mask x y width height buffer-or-id container-or-id
-           geometry y-offset)
+           result value-mask x y width height buffer-or-id container-or-id)
       (xcb:unmarshal obj data)
       (setq result (funcall exwm-floating--moveresize-calculate
                             (slot-value obj 'root-x) (slot-value obj 'root-y))
@@ -675,12 +705,11 @@ This is also used by X window containers.")
         (setq container-or-id
               (with-current-buffer buffer-or-id
                 (frame-parameter exwm--floating-frame 'exwm-container))
-              geometry (frame-geometry exwm--floating-frame)
+              x (- x exwm-floating-border-width)
               ;; Use `frame-outer-height' in the future.
-              y-offset (+ (or (cddr (assq 'menu-bar-size geometry)) 0)
-                          (or (cddr (assq 'tool-bar-size geometry)) 0))
-              y (- y y-offset)
-              height (+ height y-offset)))
+              y (- y exwm-floating-border-width
+                   exwm-workspace--window-y-offset)
+              height (+ height exwm-workspace--window-y-offset)))
       (xcb:+request exwm--connection
           (make-instance 'xcb:ConfigureWindow
                          :window container-or-id

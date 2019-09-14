@@ -47,8 +47,8 @@
             ([?\s-w] . exwm-workspace-switch)
             ;; 's-&': Launch application.
             ([?\s-&] . (lambda (command)
-		         (interactive (list (read-shell-command "$ ")))
-		         (start-process-shell-command command nil command)))
+                         (interactive (list (read-shell-command "$ ")))
+                         (start-process-shell-command command nil command)))
             ;; 's-N': Switch to certain workspace.
             ,@(mapcar (lambda (i)
                         `(,(kbd (format "s-%d" i)) .

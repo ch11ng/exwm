@@ -52,6 +52,7 @@
 (defvar exwm-layout--timer nil "Timer used to track echo area changes.")
 
 (defvar exwm-workspace--current)
+(defvar exwm-workspace--frame-y-offset)
 (declare-function exwm-input--release-keyboard "exwm-input.el")
 (declare-function exwm-input--grab-keyboard "exwm-input.el")
 (declare-function exwm-input-grab-keyboard "exwm-input.el")
@@ -105,15 +106,13 @@
          (y (pop edges))
          (width (- (pop edges) x))
          (height (- (pop edges) y))
-         geometry frame-x frame-y frame-width frame-height)
+         frame-x frame-y frame-width frame-height)
     (with-current-buffer (exwm--id->buffer id)
       (when exwm--floating-frame
         (setq frame-width (frame-pixel-width exwm--floating-frame)
-              geometry (frame-geometry exwm--floating-frame)
               frame-height (+ (frame-pixel-height exwm--floating-frame)
                               ;; Use `frame-outer-height' in the future.
-                              (or (cddr (assq 'menu-bar-size geometry)) 0)
-                              (or (cddr (assq 'tool-bar-size geometry)) 0)))
+                              exwm-workspace--frame-y-offset))
         (when exwm--floating-frame-position
           (setq frame-x (elt exwm--floating-frame-position 0)
                 frame-y (elt exwm--floating-frame-position 1)

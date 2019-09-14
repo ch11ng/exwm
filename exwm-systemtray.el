@@ -331,41 +331,36 @@ You shall use the default value if using auto-hide minibuffer."
   "Reparent/Refresh the system tray in `exwm-workspace-switch-hook'."
   (exwm--log)
   (unless (exwm-workspace--minibuffer-own-frame-p)
-    (let ((geometry (frame-geometry exwm-workspace--current)))
-      (xcb:+request exwm-systemtray--connection
-          (make-instance 'xcb:ReparentWindow
-                         :window exwm-systemtray--embedder-window
-                         :parent (string-to-number
-                                  (frame-parameter exwm-workspace--current
-                                                   'window-id))
-                         :x 0
-                         :y (- (elt (elt exwm-workspace--workareas
-                                         exwm-workspace-current-index)
-                                    3)
-                               (or (cddr (assq 'menu-bar-size geometry)) 0)
-                               (or (cddr (assq 'tool-bar-size geometry)) 0)
-                               exwm-systemtray-height)))))
+    (exwm-workspace--update-offsets)
+    (xcb:+request exwm-systemtray--connection
+        (make-instance 'xcb:ReparentWindow
+                       :window exwm-systemtray--embedder-window
+                       :parent (string-to-number
+                                (frame-parameter exwm-workspace--current
+                                                 'window-id))
+                       :x 0
+                       :y (- (elt (elt exwm-workspace--workareas
+                                       exwm-workspace-current-index)
+                                  3)
+                             exwm-workspace--frame-y-offset
+                             exwm-systemtray-height))))
   (exwm-systemtray--refresh))
 
-(defun exwm-systemtray--on-randr-refresh ()
-  "Reposition/Refresh the system tray in `exwm-randr-refresh-hook'."
+(defun exwm-systemtray--refresh-all ()
+  "Reposition/Refresh the system tray."
   (exwm--log)
   (unless (exwm-workspace--minibuffer-own-frame-p)
-    (let ((geometry (frame-geometry exwm-workspace--current)))
-      (xcb:+request exwm-systemtray--connection
-          (make-instance 'xcb:ConfigureWindow
-                         :window exwm-systemtray--embedder-window
-                         :value-mask xcb:ConfigWindow:Y
-                         :y (- (elt (elt exwm-workspace--workareas
-                                         exwm-workspace-current-index)
-                                    3)
-                               (or (cddr (assq 'menu-bar-size geometry)) 0)
-                               (or (cddr (assq 'tool-bar-size geometry)) 0)
-                               exwm-systemtray-height)))))
+    (exwm-workspace--update-offsets)
+    (xcb:+request exwm-systemtray--connection
+        (make-instance 'xcb:ConfigureWindow
+                       :window exwm-systemtray--embedder-window
+                       :value-mask xcb:ConfigWindow:Y
+                       :y (- (elt (elt exwm-workspace--workareas
+                                       exwm-workspace-current-index)
+                                  3)
+                             exwm-workspace--frame-y-offset
+                             exwm-systemtray-height))))
   (exwm-systemtray--refresh))
-
-(defalias 'exwm-systemtray--on-struts-update
-  #'exwm-systemtray--on-randr-refresh)
 
 (cl-defun exwm-systemtray--init ()
   "Initialize system tray module."
@@ -452,11 +447,14 @@ You shall use the default value if using auto-hide minibuffer."
                     (- (line-pixel-height) exwm-systemtray-height)
                   ;; Vertically centered.
                   (/ (- (line-pixel-height) exwm-systemtray-height) 2)))
-      (let ((workarea (elt exwm-workspace--workareas
-                           exwm-workspace-current-index)))
-        (setq frame exwm-workspace--current
-              ;; Bottom aligned.
-              y (- (aref workarea 3) exwm-systemtray-height))))
+      (exwm-workspace--update-offsets)
+      (setq frame exwm-workspace--current
+            ;; Bottom aligned.
+            y (- (elt (elt exwm-workspace--workareas
+                           exwm-workspace-current-index)
+                      3)
+                 exwm-workspace--frame-y-offset
+                 exwm-systemtray-height)))
     (setq parent (string-to-number (frame-parameter frame 'window-id))
           depth (slot-value (xcb:+request-unchecked+reply
                                 exwm-systemtray--connection
@@ -501,12 +499,14 @@ You shall use the default value if using auto-hide minibuffer."
   ;; Add hook to move/reparent the embedder.
   (add-hook 'exwm-workspace-switch-hook #'exwm-systemtray--on-workspace-switch)
   (add-hook 'exwm-workspace--update-workareas-hook
-            #'exwm-systemtray--on-struts-update)
+            #'exwm-systemtray--refresh-all)
+  (add-hook 'menu-bar-mode-hook #'exwm-systemtray--refresh-all)
+  (add-hook 'tool-bar-mode-hook #'exwm-systemtray--refresh-all)
   (when (boundp 'exwm-randr-refresh-hook)
-    (add-hook 'exwm-randr-refresh-hook #'exwm-systemtray--on-randr-refresh))
+    (add-hook 'exwm-randr-refresh-hook #'exwm-systemtray--refresh-all))
   ;; The struts can be updated already.
   (when exwm-workspace--workareas
-    (exwm-systemtray--on-struts-update)))
+    (exwm-systemtray--refresh-all)))
 
 (defun exwm-systemtray--exit ()
   "Exit the systemtray module."
@@ -532,10 +532,11 @@ You shall use the default value if using auto-hide minibuffer."
     (remove-hook 'exwm-workspace-switch-hook
                  #'exwm-systemtray--on-workspace-switch)
     (remove-hook 'exwm-workspace--update-workareas-hook
-                 #'exwm-systemtray--on-struts-update)
+                 #'exwm-systemtray--refresh-all)
+    (remove-hook 'menu-bar-mode-hook #'exwm-systemtray--refresh-all)
+    (remove-hook 'tool-bar-mode-hook #'exwm-systemtray--refresh-all)
     (when (boundp 'exwm-randr-refresh-hook)
-      (remove-hook 'exwm-randr-refresh-hook
-                   #'exwm-systemtray--on-randr-refresh))))
+      (remove-hook 'exwm-randr-refresh-hook #'exwm-systemtray--refresh-all))))
 
 (defun exwm-systemtray-enable ()
   "Enable system tray support for EXWM."
