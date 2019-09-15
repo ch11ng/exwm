@@ -40,19 +40,22 @@ Here are some predefined candidates:
 `exwm-debug-log-uptime': Display the uptime of this Emacs instance.
 `exwm-debug-log-time': Display time of day.
 `nil': Disable timestamp."
-  :group 'exwm
+  :group 'exwm-debug
   :type `(choice (const :tag "Emacs uptime" ,#'exwm-debug-log-uptime)
                  (const :tag "Time of day" ,#'exwm-debug-log-time)
                  (const :tag "Off" nil)
-                 (function :tag "Other")))
+                 (function :tag "Other"))
+  :set (lambda (symbol value)
+         (set-default symbol value)
+         ;; Also change the format for XELB to make logs consistent
+         ;; (as they share the same buffer).
+         (setq xcb-debug:log-time-function value)))
 
-(defun exwm-debug-log-uptime ()
-  "Add uptime to `exwm-debug' logs."
-  (emacs-uptime "[%.2h:%.2m:%.2s] "))
+(defalias 'exwm-debug-log-uptime 'xcb-debug:log-uptime
+  "Add uptime to `exwm-debug' logs.")
 
-(defun exwm-debug-log-time ()
-  "Add time of day to `exwm-debug' logs."
-  (format-time-string "[%T] "))
+(defalias 'exwm-debug-log-time 'xcb-debug:log-time
+  "Add time of day to `exwm-debug' logs.")
 
 (defvar exwm--connection nil "X connection.")
 
