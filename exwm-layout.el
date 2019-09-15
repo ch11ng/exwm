@@ -468,7 +468,7 @@ windows."
                            :width width))
         (xcb:flush exwm--connection))))
    (t
-    (let* ((height (frame-pixel-height))
+    (let* ((height (+ (frame-pixel-height) exwm-workspace--frame-y-offset))
            (edges (window-inside-pixel-edges))
            (inner-height (- (elt edges 3) (elt edges 1)))
            (margin (- height inner-height)))
