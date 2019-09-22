@@ -1147,7 +1147,14 @@ where both ORIGINAL-KEY and SIMULATED-KEY are key sequences."
   (when exwm-input--update-focus-defer-timer
     (cancel-timer exwm-input--update-focus-defer-timer))
   (when exwm-input--update-focus-timer
-    (cancel-timer exwm-input--update-focus-timer)))
+    (cancel-timer exwm-input--update-focus-timer))
+  ;; Make input focus working even without a WM.
+  (xcb:+request exwm--connection
+      (make-instance 'xcb:SetInputFocus
+                     :revert-to xcb:InputFocus:PointerRoot
+                     :focus exwm--root
+                     :time xcb:Time:CurrentTime))
+  (xcb:flush exwm--connection))
 
 
 
