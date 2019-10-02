@@ -417,13 +417,19 @@ NIL if FRAME is not a workspace"
       (with-slots (y)
           (xcb:+request-unchecked+reply exwm--connection
               (make-instance 'xcb:GetGeometry
-                             :drawable (frame-parameter frame 'exwm-outer-id)))
+                             :drawable (frame-parameter frame
+                                                        'exwm-container)))
         (with-slots ((y* y))
             (xcb:+request-unchecked+reply exwm--connection
                 (make-instance 'xcb:GetGeometry
-                               :drawable (frame-parameter frame 'exwm-id)))
-          (setq exwm-workspace--frame-y-offset (- y* y)
-                exwm-workspace--window-y-offset (- (elt edges 1) y)))))))
+                               :drawable (frame-parameter frame
+                                                          'exwm-outer-id)))
+          (with-slots ((y** y))
+              (xcb:+request-unchecked+reply exwm--connection
+                  (make-instance 'xcb:GetGeometry
+                                 :drawable (frame-parameter frame 'exwm-id)))
+            (setq exwm-workspace--frame-y-offset (- y** y*)
+                  exwm-workspace--window-y-offset (- (elt edges 1) y))))))))
 
 (defun exwm-workspace--set-active (frame active)
   "Make frame FRAME active on its monitor."
