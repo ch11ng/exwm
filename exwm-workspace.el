@@ -167,7 +167,8 @@ NIL if FRAME is not a workspace"
 
 (defsubst exwm-workspace--client-p (&optional frame)
   "Return non-nil if FRAME is an emacsclient frame."
-  (frame-parameter frame 'client))
+  (or (frame-parameter frame 'client)
+      (not (display-graphic-p frame))))
 
 (defvar exwm-workspace--switch-map nil
   "Keymap used for interactively selecting workspace.")

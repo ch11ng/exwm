@@ -1046,6 +1046,7 @@ where both ORIGINAL-KEY and SIMULATED-KEY are key sequences."
   (with-current-buffer
       (window-buffer (frame-selected-window exwm-workspace--current))
     (when (and (derived-mode-p 'exwm-mode)
+               (not (exwm-workspace--client-p))
                (eq exwm--selected-input-mode 'char-mode))
       (exwm-input--grab-keyboard exwm--id))))
 
@@ -1055,6 +1056,7 @@ where both ORIGINAL-KEY and SIMULATED-KEY are key sequences."
   (with-current-buffer
       (window-buffer (frame-selected-window exwm-workspace--current))
     (when (and (derived-mode-p 'exwm-mode)
+               (not (exwm-workspace--client-p))
                (eq exwm--selected-input-mode 'char-mode)
                (eq exwm--input-mode 'line-mode))
       (exwm-input--release-keyboard exwm--id))))
