@@ -961,7 +961,7 @@ Notes:
          (set symbol value)
          (exwm-input--set-simulation-keys value)))
 
-(defcustom exwm-input-pre-post-command-blacklist '(exit-minibuffer)
+(defcustom exwm-input-pre-post-command-blacklist '(exit-minibuffer minibuffer-keyboard-quit)
   "Commands impossible to detect with `post-command-hook'."
   :type '(repeat function))
 
