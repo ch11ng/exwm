@@ -441,18 +441,19 @@ ARGS are additional arguments to CALLBACK."
 
 (defun exwm-input--on-KeyPress (data _synthetic)
   "Handle KeyPress event."
-  (let ((obj (make-instance 'xcb:KeyPress)))
-    (xcb:unmarshal obj data)
-    (exwm--log "major-mode=%s buffer=%s"
-               major-mode (buffer-name (current-buffer)))
-    (if (derived-mode-p 'exwm-mode)
-        (cl-case exwm--input-mode
-          (line-mode
-           (exwm-input--on-KeyPress-line-mode obj data))
-          (char-mode
-           (exwm-input--on-KeyPress-char-mode obj data)))
-      (exwm-input--on-KeyPress-char-mode obj)))
-  (run-hooks 'exwm-input--event-hook))
+  (with-current-buffer (window-buffer (selected-window))
+    (let ((obj (make-instance 'xcb:KeyPress)))
+      (xcb:unmarshal obj data)
+      (exwm--log "major-mode=%s buffer=%s"
+                 major-mode (buffer-name (current-buffer)))
+      (if (derived-mode-p 'exwm-mode)
+          (cl-case exwm--input-mode
+            (line-mode
+             (exwm-input--on-KeyPress-line-mode obj data))
+            (char-mode
+             (exwm-input--on-KeyPress-char-mode obj data)))
+        (exwm-input--on-KeyPress-char-mode obj)))
+    (run-hooks 'exwm-input--event-hook)))
 
 (defun exwm-input--on-CreateNotify (data _synthetic)
   "Handle CreateNotify events."
