@@ -976,7 +976,8 @@ Notes:
                                   (key-description (vector stop-key))
                                   (key-description keys)))
             keys (vconcat keys (vector key))))
-    (substring keys 0 -1)))
+    (when (> (length keys) 1)
+      (substring keys 0 -1))))
 
 ;;;###autoload
 (defun exwm-input-set-simulation-key (original-key simulated-key)
@@ -987,10 +988,11 @@ ends unless it's specifically saved in the Customize interface for
 `exwm-input-simulation-keys'."
   (interactive
    (let (original simulated)
-     (setq original (exwm-input--read-keys "Original keys" ?\C-g))
+     (setq original (exwm-input--read-keys "Translate from" ?\C-g))
      (when original
        (setq simulated (exwm-input--read-keys
-                        (format "Simulate %s as" (key-description original))
+                        (format "Translate from %s to"
+                                (key-description original))
                         ?\C-g)))
      (list original simulated)))
   (exwm--log "original: %s, simulated: %s" original-key simulated-key)
