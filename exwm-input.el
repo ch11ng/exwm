@@ -278,8 +278,7 @@ ARGS are additional arguments to CALLBACK."
   "Run in `buffer-list-update-hook' to track input focus."
   (when (and (not (eq this-command #'handle-switch-frame))
              (not exwm-input--skip-buffer-list-update)
-             (not (exwm-workspace--client-p))
-             (eq (current-buffer) (window-buffer)))
+             (not (exwm-workspace--client-p)))
     (exwm--log "current-buffer=%S selected-window=%S"
                (current-buffer) (selected-window))
     (redirect-frame-focus (selected-frame) nil)
