@@ -1035,6 +1035,21 @@ where both ORIGINAL-KEY and SIMULATED-KEY are key sequences."
       (dolist (key keys)
         (exwm-input--fake-key key)))))
 
+;;;###autoload
+(defmacro exwm-input-invoke-factory (keys)
+  "Make a command that invokes KEYS when called.
+
+One use is to access the keymap bound to KEYS (as prefix keys) in char-mode."
+  (let* ((keys (kbd keys))
+         (description (key-description keys)))
+    `(defun ,(intern (concat "exwm-input--invoke--" description)) ()
+       ,(format "Invoke `%s'." description)
+       (interactive)
+       (mapc (lambda (key)
+               (exwm-input--cache-event key t)
+               (exwm-input--unread-event key))
+             ',(listify-key-sequence keys)))))
+
 (defun exwm-input--on-pre-command ()
   "Run in `pre-command-hook'."
   (unless (memq this-command exwm-input-pre-post-command-blacklist)
