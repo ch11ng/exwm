@@ -164,32 +164,48 @@ This value should always be overwritten.")
 
 (defun exwm-input--set-focus (id)
   "Set input focus to window ID in a proper way."
-  (when (exwm--id->buffer id)
-    (exwm--log "id=#x%x" id)
-    (with-current-buffer (exwm--id->buffer id)
-      (exwm-input--update-timestamp
-       (lambda (timestamp id send-input-focus wm-take-focus)
-         (when send-input-focus
-           (xcb:+request exwm--connection
-               (make-instance 'xcb:SetInputFocus
-                              :revert-to xcb:InputFocus:Parent
-                              :focus id
-                              :time timestamp)))
-         (when wm-take-focus
-           (let ((event (make-instance 'xcb:icccm:WM_TAKE_FOCUS
-                                       :window id
-                                       :time timestamp)))
-             (setq event (xcb:marshal event exwm--connection))
+  (let ((from (slot-value (xcb:+request-unchecked+reply exwm--connection
+                              (make-instance 'xcb:GetInputFocus))
+                          'focus))
+        tree)
+    (if (or (exwm--id->buffer from)
+            (eq from id))
+        (exwm--log "#x%x => #x%x" (or from 0) (or id 0))
+      ;; Attempt to find the top-level X window for a 'focus proxy'.
+      (unless (= from xcb:Window:None)
+        (setq tree (xcb:+request-unchecked+reply exwm--connection
+                       (make-instance 'xcb:QueryTree
+                                      :window from)))
+        (when tree
+          (setq from (slot-value tree 'parent))))
+      (exwm--log "#x%x (corrected) => #x%x" (or from 0) (or id 0)))
+    (when (and (exwm--id->buffer id)
+               ;; Avoid redundant input focus transfer.
+               (not (eq from id)))
+      (with-current-buffer (exwm--id->buffer id)
+        (exwm-input--update-timestamp
+         (lambda (timestamp id send-input-focus wm-take-focus)
+           (when send-input-focus
              (xcb:+request exwm--connection
-                 (make-instance 'xcb:icccm:SendEvent
-                                :destination id
-                                :event event))))
-         (exwm-input--set-active-window id)
-         (xcb:flush exwm--connection))
-       id
-       (or exwm--hints-input
-           (not (memq xcb:Atom:WM_TAKE_FOCUS exwm--protocols)))
-       (memq xcb:Atom:WM_TAKE_FOCUS exwm--protocols)))))
+                 (make-instance 'xcb:SetInputFocus
+                                :revert-to xcb:InputFocus:Parent
+                                :focus id
+                                :time timestamp)))
+           (when wm-take-focus
+             (let ((event (make-instance 'xcb:icccm:WM_TAKE_FOCUS
+                                         :window id
+                                         :time timestamp)))
+               (setq event (xcb:marshal event exwm--connection))
+               (xcb:+request exwm--connection
+                   (make-instance 'xcb:icccm:SendEvent
+                                  :destination id
+                                  :event event))))
+           (exwm-input--set-active-window id)
+           (xcb:flush exwm--connection))
+         id
+         (or exwm--hints-input
+             (not (memq xcb:Atom:WM_TAKE_FOCUS exwm--protocols)))
+         (memq xcb:Atom:WM_TAKE_FOCUS exwm--protocols))))))
 
 (defun exwm-input--update-timestamp (callback &rest args)
   "Fetch the latest timestamp from the server and feed it to CALLBACK.
@@ -276,9 +292,8 @@ ARGS are additional arguments to CALLBACK."
 
 (defun exwm-input--on-buffer-list-update ()
   "Run in `buffer-list-update-hook' to track input focus."
-  (when (and (not (eq this-command #'handle-switch-frame))
-             (not exwm-input--skip-buffer-list-update)
-             (not (exwm-workspace--client-p)))
+  (when (and (not (exwm-workspace--client-p))
+             (not exwm-input--skip-buffer-list-update))
     (exwm--log "current-buffer=%S selected-window=%S"
                (current-buffer) (selected-window))
     (redirect-frame-focus (selected-frame) nil)
