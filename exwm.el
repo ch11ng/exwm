@@ -479,7 +479,33 @@
                  )
                 ((= direction xcb:ewmh:_NET_WM_MOVERESIZE_CANCEL)
                  (exwm-floating--stop-moveresize))
-                (t (exwm-floating--start-moveresize id direction))))))
+                ;; In case it's a workspace frame.
+                ((and (not buffer)
+                      (catch 'break
+                        (dolist (f exwm-workspace--list)
+                          (when (or (eq id (frame-parameter f 'exwm-outer-id))
+                                    (eq id (frame-parameter f 'exwm-id)))
+                            (throw 'break t)))
+                        nil)))
+                (t
+                 ;; In case it's a floating frame,
+                 ;; move the corresponding X window instead.
+                 (unless buffer
+                   (catch 'break
+                     (dolist (pair exwm--id-buffer-alist)
+                       (with-current-buffer (cdr pair)
+                         (when
+                             (and exwm--floating-frame
+                                  (or (eq id
+                                          (frame-parameter exwm--floating-frame
+                                                           'exwm-outer-id))
+                                      (eq id
+                                          (frame-parameter exwm--floating-frame
+                                                           'exwm-id))))
+                           (setq id exwm--id)
+                           (throw 'break nil))))))
+                 ;; Start to move it.
+                 (exwm-floating--start-moveresize id direction))))))
      ;; _NET_REQUEST_FRAME_EXTENTS
      ((= type xcb:Atom:_NET_REQUEST_FRAME_EXTENTS)
       (let ((buffer (exwm--id->buffer id))
