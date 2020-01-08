@@ -67,6 +67,11 @@ You shall use the default value if using auto-hide minibuffer."
   "Gap between icons."
   :type 'integer)
 
+(defcustom exwm-systemtray-solid-background nil
+  "If set to an integer color value (e.g. #xa0a0a0), the background of the tray
+  will be this color instead of transparent."
+  :type 'integer)
+
 ;; GTK icons require at least 16 pixels to show normally.
 (defconst exwm-systemtray--icon-min-size 16 "Minimum icon size.")
 
@@ -473,8 +478,12 @@ You shall use the default value if using auto-hide minibuffer."
                        :border-width 0
                        :class xcb:WindowClass:InputOutput
                        :visual 0
-                       :value-mask (logior xcb:CW:BackPixmap xcb:CW:EventMask)
+                       :value-mask (logior (if exwm-systemtray-solid-background
+                                               xcb:CW:BackPixel
+                                             xcb:CW:BackPixmap)
+                                           xcb:CW:EventMask)
                        :background-pixmap xcb:BackPixmap:ParentRelative
+                       :background-pixel (or exwm-systemtray-solid-background 0)
                        :event-mask xcb:EventMask:SubstructureNotify))
     ;; Set _NET_WM_NAME.
     (xcb:+request exwm-systemtray--connection
