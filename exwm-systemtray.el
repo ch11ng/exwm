@@ -37,6 +37,11 @@
 (require 'exwm-core)
 (require 'exwm-workspace)
 
+;; only for background color handling:
+(require 'exwm-floating)
+(declare-function exwm-floating--init-colormap "exwm-floating.el")
+(declare-function exwm-floating--set-pixel "exwm-floating.el" (var x-color))
+
 (defclass exwm-systemtray--icon ()
   ((width :initarg :width)
    (height :initarg :height)
@@ -67,10 +72,34 @@ You shall use the default value if using auto-hide minibuffer."
   "Gap between icons."
   :type 'integer)
 
-(defcustom exwm-systemtray-solid-background nil
-  "If set to an integer color value (e.g. #xa0a0a0), the background of the tray
+(defvar exwm-systemtray--background-pixel nil
+  "The pixel used for the system tray background.  Transparent if unset.")
+
+(defun exwm-systemtray--update-background ()
+  (exwm--log)
+  (when exwm-systemtray--embedder-window
+    (exwm-systemtray--init-background)
+    (xcb:+request exwm-systemtray--connection
+        (make-instance 'xcb:ChangeWindowAttributes
+                       :window exwm-systemtray--embedder-window
+                       :value-mask (if exwm-systemtray-background-color
+                                       xcb:CW:BackPixel
+                                     xcb:CW:BackPixmap)
+                       :background-pixmap xcb:BackPixmap:ParentRelative
+                       :background-pixel (or exwm-systemtray--background-pixel 0)))
+    (exwm-systemtray--refresh)))
+
+(defcustom exwm-systemtray-background-color nil
+  "If set, the background of the tray
   will be this color instead of transparent."
-  :type 'integer)
+  :type '(choice (const :tag "Transparent" nil)
+                 color)
+  :initialize #'custom-initialize-default
+  :set (lambda (symbol value)
+         (set-default symbol value)
+         ;; Change border color of systemtray window if present.
+         (exwm-systemtray--update-background)
+         ))
 
 ;; GTK icons require at least 16 pixels to show normally.
 (defconst exwm-systemtray--icon-min-size 16 "Minimum icon size.")
@@ -367,6 +396,12 @@ You shall use the default value if using auto-hide minibuffer."
                              exwm-systemtray-height))))
   (exwm-systemtray--refresh))
 
+(defun exwm-systemtray--init-background ()
+  "Initialize pixel for tray backgroud.  Re-uses colormap from exwm-floating."
+  (exwm--log)
+  (exwm-floating--init-colormap)
+  (exwm-floating--set-pixel exwm-systemtray--background-pixel exwm-systemtray-background-color))
+
 (cl-defun exwm-systemtray--init ()
   "Initialize system tray module."
   (exwm--log)
@@ -466,6 +501,7 @@ You shall use the default value if using auto-hide minibuffer."
                                 (make-instance 'xcb:GetGeometry
                                                :drawable parent))
                             'depth))
+    (exwm-systemtray--init-background)
     (xcb:+request exwm-systemtray--connection
         (make-instance 'xcb:CreateWindow
                        :depth depth
@@ -478,12 +514,12 @@ You shall use the default value if using auto-hide minibuffer."
                        :border-width 0
                        :class xcb:WindowClass:InputOutput
                        :visual 0
-                       :value-mask (logior (if exwm-systemtray-solid-background
+                       :value-mask (logior (if exwm-systemtray-background-color
                                                xcb:CW:BackPixel
                                              xcb:CW:BackPixmap)
                                            xcb:CW:EventMask)
                        :background-pixmap xcb:BackPixmap:ParentRelative
-                       :background-pixel (or exwm-systemtray-solid-background 0)
+                       :background-pixel (or exwm-systemtray--background-pixel 0)
                        :event-mask xcb:EventMask:SubstructureNotify))
     ;; Set _NET_WM_NAME.
     (xcb:+request exwm-systemtray--connection

@@ -758,34 +758,43 @@ Both DELTA-X and DELTA-Y default to 1.  This command should be bound locally."
                           nil nil))
     (xcb:flush exwm--connection)))
 
-(defun exwm-floating--init-border ()
-  "Initialize border colormap and pixel."
-  (exwm--log)
+(defun exwm-floating--init-colormap ()
+  "Initialize colormap used for border and systemtray background."
   ;; Use the default colormap.
+  (exwm--log)
   (unless exwm-floating--border-colormap
     (with-slots (roots) (xcb:get-setup exwm--connection)
       (with-slots (default-colormap) (car roots)
-        (setq exwm-floating--border-colormap default-colormap))))
+        (setq exwm-floating--border-colormap default-colormap)))))
+
+(defmacro exwm-floating--set-pixel (var x-color)
+  "Initialize VAR to a pixel which represents X-COLOR.  If X-COLOR is nil, set VAR to nil."
   ;; Free any previously allocated pixel.
-  (when exwm-floating--border-pixel
-    (xcb:+request exwm--connection
-        (make-instance 'xcb:FreeColors
-                       :cmap exwm-floating--border-colormap
-                       :plane-mask 0
-                       :pixels (vector exwm-floating--border-pixel)))
-    (setq exwm-floating--border-pixel nil))
+  `(when ,var (xcb:+request exwm--connection
+                  (make-instance 'xcb:FreeColors
+                                 :cmap exwm-floating--border-colormap
+                                 :plane-mask 0
+                                 :pixels (vector ,var)))
+         (setq ,var nil))
   ;; Allocate new pixel.
-  (let ((color (x-color-values (or exwm-floating-border-color "")))
+  `(let ((color (x-color-values ,x-color))
          reply)
-    (when color
-      (setq reply (xcb:+request-unchecked+reply exwm--connection
-                      (make-instance 'xcb:AllocColor
-                                     :cmap exwm-floating--border-colormap
-                                     :red (pop color)
-                                     :green (pop color)
-                                     :blue (pop color))))
-      (when reply
-        (setq exwm-floating--border-pixel (slot-value reply 'pixel))))))
+     (when color
+       (setq reply (xcb:+request-unchecked+reply exwm--connection
+                       (make-instance 'xcb:AllocColor
+                                      :cmap exwm-floating--border-colormap
+                                      :red (pop color)
+                                      :green (pop color)
+                                      :blue (pop color))))
+       (when reply
+         (setq ,var (slot-value reply 'pixel))))))
+
+(defun exwm-floating--init-border ()
+  "Initialize border colormap and pixel."
+  (exwm--log)
+  (exwm-floating--init-colormap)
+  (exwm-floating--set-pixel exwm-floating--border-pixel exwm-floating-border-color)
+  )
 
 (defun exwm-floating--init ()
   "Initialize floating module."
