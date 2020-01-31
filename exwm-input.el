@@ -138,7 +138,15 @@ defined in `exwm-mode-map' here."
   "Timer for deferring the update of input focus.")
 
 (defvar exwm-input--update-focus-window nil "The (Emacs) window to be focused.
+It also helps us discern whether a `buffer-list-update-hook' was caused by a
+different window having been selected.
+
 This value should always be overwritten.")
+
+(defvar exwm-input--update-focus-window-buffer nil
+  "Buffer displayed in `exwm-input--update-focus-window'.
+Helps us discern whether a `buffer-list-update-hook' was caused by the selected
+window switching to a different buffer.")
 
 (defvar exwm-input--echo-area-timer nil "Timer for detecting echo area dirty.")
 
@@ -292,13 +300,25 @@ ARGS are additional arguments to CALLBACK."
 
 (defun exwm-input--on-buffer-list-update ()
   "Run in `buffer-list-update-hook' to track input focus."
-  (when (and (not (exwm-workspace--client-p))
-             (not exwm-input--skip-buffer-list-update))
-    (exwm--log "current-buffer=%S selected-window=%S"
-               (current-buffer) (selected-window))
-    (redirect-frame-focus (selected-frame) nil)
-    (setq exwm-input--update-focus-window (selected-window))
-    (exwm-input--update-focus-defer)))
+  ;; `buffer-list-update-hook' is invoked by several functions
+  ;; (`get-buffer-create', `select-window', `with-temp-buffer', etc.), but we
+  ;; just want to notice when a different window has been selected, or when the
+  ;; selected window displays a different buffer, so that we can set the focus
+  ;; to the associated X window (in case of an `exwm-mode' buffer).  In order to
+  ;; differentiate, we keep track of the last selected window and buffer in the
+  ;; `exwm-input--update-focus-window' and
+  ;; `exwm-input--update-focus-window-buffer' variables.
+  (let* ((win (selected-window))
+         (buf (window-buffer win)))
+    (when (and (not (exwm-workspace--client-p))
+             (not exwm-input--skip-buffer-list-update)
+               (not (and (eq exwm-input--update-focus-window win)
+                         (eq exwm-input--update-focus-window-buffer buf))))
+      (exwm--log "selected-window=%S current-buffer=%S" win buf)
+      (setq exwm-input--update-focus-window win)
+      (setq exwm-input--update-focus-window-buffer buf)
+      (redirect-frame-focus (selected-frame) nil)
+      (exwm-input--update-focus-defer))))
 
 (defun exwm-input--update-focus-defer ()
   "Defer updating input focus."
