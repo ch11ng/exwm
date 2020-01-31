@@ -140,6 +140,8 @@ defined in `exwm-mode-map' here."
 (defvar exwm-input--update-focus-window nil "The (Emacs) window to be focused.
 This value should always be overwritten.")
 
+(defvar exwm-input--last-active-buffer nil)
+
 (defvar exwm-input--echo-area-timer nil "Timer for detecting echo area dirty.")
 
 (defvar exwm-input--event-hook nil
@@ -293,11 +295,14 @@ ARGS are additional arguments to CALLBACK."
 (defun exwm-input--on-buffer-list-update ()
   "Run in `buffer-list-update-hook' to track input focus."
   (when (and (not (exwm-workspace--client-p))
-             (not exwm-input--skip-buffer-list-update))
+             (not exwm-input--skip-buffer-list-update)
+             (not (and (eq exwm-input--update-focus-window (selected-window))
+                       (eq exwm-input--last-active-buffer (window-buffer)))))
     (exwm--log "current-buffer=%S selected-window=%S"
                (current-buffer) (selected-window))
     (redirect-frame-focus (selected-frame) nil)
     (setq exwm-input--update-focus-window (selected-window))
+    (setq exwm-input--last-active-buffer (window-buffer))
     (exwm-input--update-focus-defer)))
 
 (defun exwm-input--update-focus-defer ()
