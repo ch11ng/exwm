@@ -44,9 +44,6 @@ context of the corresponding buffer."
 context of the corresponding buffer."
   :type 'hook)
 
-(defvar exwm-floating--border-pixel nil
-  "Border pixel drawn around floating X windows.")
-
 (defcustom exwm-floating-border-color "navy"
   "Border color of floating windows."
   :type 'color
@@ -54,20 +51,20 @@ context of the corresponding buffer."
   :set (lambda (symbol value)
          (set-default symbol value)
          ;; Change border color for all floating X windows.
-         (exwm-floating--init-border)
-         (dolist (pair exwm--id-buffer-alist)
-           (with-current-buffer (cdr pair)
-             (when exwm--floating-frame
-               (xcb:+request exwm--connection
-                   (make-instance 'xcb:ChangeWindowAttributes
-                                  :window
-                                  (frame-parameter exwm--floating-frame
-                                                   'exwm-container)
-                                  :value-mask xcb:CW:BorderPixel
-                                  :border-pixel
-                                  exwm-floating--border-pixel)))))
          (when exwm--connection
-           (xcb:flush exwm--connection))))
+           (let ((border-pixel (exwm--color->pixel value)))
+             (when border-pixel
+               (dolist (pair exwm--id-buffer-alist)
+                 (with-current-buffer (cdr pair)
+                   (when exwm--floating-frame
+                     (xcb:+request exwm--connection
+                         (make-instance 'xcb:ChangeWindowAttributes
+                                        :window
+                                        (frame-parameter exwm--floating-frame
+                                                         'exwm-container)
+                                        :value-mask xcb:CW:BorderPixel
+                                        :border-pixel border-pixel)))))
+               (xcb:flush exwm--connection))))))
 
 (defcustom exwm-floating-border-width 1
   "Border width of floating windows."
@@ -103,11 +100,6 @@ context of the corresponding buffer."
                                       :y (- y delta)))))))
            (when exwm--connection
              (xcb:flush exwm--connection)))))
-
-(defvar exwm-floating--border-colormap nil
-  "Colormap used by the border pixel.
-
-This is also used by X window containers.")
 
 ;; Cursors for moving/resizing a window
 (defvar exwm-floating--cursor-move nil)
@@ -276,7 +268,8 @@ This is also used by X window containers.")
            (floating-mode-line (plist-get exwm--configurations
                                           'floating-mode-line))
            (floating-header-line (plist-get exwm--configurations
-                                            'floating-header-line)))
+                                            'floating-header-line))
+           (border-pixel (exwm--color->pixel exwm-floating-border-color)))
       (if floating-mode-line
           (setq exwm--mode-line-format (or exwm--mode-line-format
                                            mode-line-format)
@@ -323,15 +316,12 @@ This is also used by X window containers.")
                          :class xcb:WindowClass:InputOutput
                          :visual 0
                          :value-mask (logior xcb:CW:BackPixmap
-                                             (if exwm-floating--border-pixel
+                                             (if border-pixel
                                                  xcb:CW:BorderPixel 0)
-                                             xcb:CW:OverrideRedirect
-                                             (if exwm-floating--border-colormap
-                                                 xcb:CW:Colormap 0))
+                                             xcb:CW:OverrideRedirect)
                          :background-pixmap xcb:BackPixmap:ParentRelative
-                         :border-pixel exwm-floating--border-pixel
-                         :override-redirect 1
-                         :colormap exwm-floating--border-colormap))
+                         :border-pixel border-pixel
+                         :override-redirect 1))
       (xcb:+request exwm--connection
           (make-instance 'xcb:ewmh:set-_NET_WM_NAME
                          :window frame-container
@@ -758,39 +748,9 @@ Both DELTA-X and DELTA-Y default to 1.  This command should be bound locally."
                           nil nil))
     (xcb:flush exwm--connection)))
 
-(defun exwm-floating--init-border ()
-  "Initialize border colormap and pixel."
-  (exwm--log)
-  ;; Use the default colormap.
-  (unless exwm-floating--border-colormap
-    (with-slots (roots) (xcb:get-setup exwm--connection)
-      (with-slots (default-colormap) (car roots)
-        (setq exwm-floating--border-colormap default-colormap))))
-  ;; Free any previously allocated pixel.
-  (when exwm-floating--border-pixel
-    (xcb:+request exwm--connection
-        (make-instance 'xcb:FreeColors
-                       :cmap exwm-floating--border-colormap
-                       :plane-mask 0
-                       :pixels (vector exwm-floating--border-pixel)))
-    (setq exwm-floating--border-pixel nil))
-  ;; Allocate new pixel.
-  (let ((color (x-color-values (or exwm-floating-border-color "")))
-         reply)
-    (when color
-      (setq reply (xcb:+request-unchecked+reply exwm--connection
-                      (make-instance 'xcb:AllocColor
-                                     :cmap exwm-floating--border-colormap
-                                     :red (pop color)
-                                     :green (pop color)
-                                     :blue (pop color))))
-      (when reply
-        (setq exwm-floating--border-pixel (slot-value reply 'pixel))))))
-
 (defun exwm-floating--init ()
   "Initialize floating module."
   (exwm--log)
-  (exwm-floating--init-border)
   ;; Initialize cursors for moving/resizing a window
   (xcb:cursor:init exwm--connection)
   (setq exwm-floating--cursor-move

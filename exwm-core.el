@@ -184,6 +184,15 @@ least SECS seconds later."
           (if mouse-autoselect-window
               xcb:EventMask:EnterWindow 0)))
 
+(defun exwm--color->pixel (color)
+  "Convert COLOR to PIXEL (index in TrueColor colormap)."
+  (when (and color
+             (eq (x-display-visual-class) 'true-color))
+    (let ((rgb (x-color-values color)))
+      (logior (lsh (lsh (pop rgb) -8) 16)
+              (lsh (lsh (pop rgb) -8) 8)
+              (lsh (pop rgb) -8)))))
+
 ;; Internal variables
 (defvar-local exwm--id nil)               ;window ID
 (defvar-local exwm--configurations nil)   ;initial configurations.
