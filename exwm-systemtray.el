@@ -67,12 +67,43 @@ You shall use the default value if using auto-hide minibuffer."
   "Gap between icons."
   :type 'integer)
 
+(defvar exwm-systemtray--embedder-window nil "The embedder window.")
+
+(defcustom exwm-systemtray-background-color nil
+  "Background color of systemtray.
+
+This should be a color, or nil for transparent background."
+  :type '(choice (const :tag "Transparent" nil)
+                 (color))
+  :initialize #'custom-initialize-default
+  :set (lambda (symbol value)
+         (set-default symbol value)
+         ;; Change the background color for embedder.
+         (when (and exwm--connection
+                    exwm-systemtray--embedder-window)
+           (let ((background-pixel (exwm--color->pixel value)))
+             (xcb:+request exwm--connection
+                 (make-instance 'xcb:ChangeWindowAttributes
+                                :window exwm-systemtray--embedder-window
+                                :value-mask (logior xcb:CW:BackPixmap
+                                                    (if background-pixel
+                                                        xcb:CW:BackPixel 0))
+                                :background-pixmap
+                                xcb:BackPixmap:ParentRelative
+                                :background-pixel background-pixel))
+             ;; Unmap & map to take effect immediately.
+             (xcb:+request exwm--connection
+                 (make-instance 'xcb:UnmapWindow
+                                :window exwm-systemtray--embedder-window))
+             (xcb:+request exwm--connection
+                 (make-instance 'xcb:MapWindow
+                                :window exwm-systemtray--embedder-window))
+             (xcb:flush exwm--connection)))))
+
 ;; GTK icons require at least 16 pixels to show normally.
 (defconst exwm-systemtray--icon-min-size 16 "Minimum icon size.")
 
 (defvar exwm-systemtray--connection nil "The X connection.")
-
-(defvar exwm-systemtray--embedder-window nil "The embedder window.")
 
 (defvar exwm-systemtray--list nil "The icon list.")
 
@@ -438,6 +469,7 @@ You shall use the default value if using auto-hide minibuffer."
                        :data xcb:systemtray:ORIENTATION:HORZ)))
   ;; Create the embedder.
   (let ((id (xcb:generate-id exwm-systemtray--connection))
+        (background-pixel (exwm--color->pixel exwm-systemtray-background-color))
         frame parent depth y)
     (setq exwm-systemtray--embedder-window id)
     (if (exwm-workspace--minibuffer-own-frame-p)
@@ -473,8 +505,12 @@ You shall use the default value if using auto-hide minibuffer."
                        :border-width 0
                        :class xcb:WindowClass:InputOutput
                        :visual 0
-                       :value-mask (logior xcb:CW:BackPixmap xcb:CW:EventMask)
+                       :value-mask (logior xcb:CW:BackPixmap
+                                           (if background-pixel
+                                               xcb:CW:BackPixel 0)
+                                           xcb:CW:EventMask)
                        :background-pixmap xcb:BackPixmap:ParentRelative
+                       :background-pixel background-pixel
                        :event-mask xcb:EventMask:SubstructureNotify))
     ;; Set _NET_WM_NAME.
     (xcb:+request exwm-systemtray--connection
