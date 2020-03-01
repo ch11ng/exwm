@@ -649,6 +649,10 @@ Current buffer must be an `exwm-mode' buffer."
       (lookup-key (current-local-map) (vector event))
       (gethash event exwm-input--simulation-keys)))
 
+(defun exwm-input--noop (&rest _args)
+  "A placeholder command."
+  (interactive))
+
 (defun exwm-input--on-KeyPress-line-mode (key-press raw-data)
   "Parse X KeyPress event to Emacs key event and then feed the command loop."
   (with-slots (detail state) key-press
@@ -678,10 +682,15 @@ Current buffer must be an `exwm-mode' buffer."
                              :destination (slot-value key-press 'event)
                              :event-mask xcb:EventMask:NoEvent
                              :event raw-data)))
-        ;; Make Emacs aware of this event when defining keyboard macros.
-        (when (and defining-kbd-macro event)
-          (set-transient-map '(keymap (t . (lambda () (interactive)))))
-          (exwm-input--unread-event event)))
+        (if defining-kbd-macro
+            (when event
+              ;; Make Emacs aware of this event when defining keyboard macros.
+              (set-transient-map `(keymap (t . ,#'exwm-input--noop)))
+              (exwm-input--unread-event event))
+          ;; Fool some packages into thinking there is a change in the buffer.
+          (setq last-command #'exwm-input--noop)
+          (run-hooks 'pre-command-hook)
+          (run-hooks 'post-command-hook)))
       (xcb:+request exwm--connection
           (make-instance 'xcb:AllowEvents
                          :mode mode
@@ -1067,12 +1076,14 @@ One use is to access the keymap bound to KEYS (as prefix keys) in char-mode."
 
 (defun exwm-input--on-pre-command ()
   "Run in `pre-command-hook'."
-  (unless (memq this-command exwm-input-pre-post-command-blacklist)
+  (unless (or (eq this-command #'exwm-input--noop)
+              (memq this-command exwm-input-pre-post-command-blacklist))
     (setq exwm-input--during-command t)))
 
 (defun exwm-input--on-post-command ()
   "Run in `post-command-hook'."
-  (setq exwm-input--during-command nil))
+  (unless (eq this-command #'exwm-input--noop)
+    (setq exwm-input--during-command nil)))
 
 (defun exwm-input--on-minibuffer-setup ()
   "Run in `minibuffer-setup-hook' to grab keyboard if necessary."
