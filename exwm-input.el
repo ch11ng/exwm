@@ -749,20 +749,20 @@ button event."
   "Update the propertized `mode-line-process' for window ID."
   (exwm--log "#x%x" id)
   (let (help-echo cmd mode)
-    (cl-case exwm--input-mode
-      (line-mode
-       (setq mode "line"
-             help-echo "mouse-1: Switch to char-mode"
-             cmd (lambda ()
-                   (interactive)
-                   (exwm-input-release-keyboard id))))
-      (char-mode
-       (setq mode "char"
-             help-echo "mouse-1: Switch to line-mode"
-             cmd (lambda ()
-                   (interactive)
-                   (exwm-input-grab-keyboard id)))))
     (with-current-buffer (exwm--id->buffer id)
+      (cl-case exwm--input-mode
+        (line-mode
+         (setq mode "line"
+               help-echo "mouse-1: Switch to char-mode"
+               cmd (lambda ()
+                     (interactive)
+                     (exwm-input-release-keyboard id))))
+        (char-mode
+         (setq mode "char"
+               help-echo "mouse-1: Switch to line-mode"
+               cmd (lambda ()
+                     (interactive)
+                     (exwm-input-grab-keyboard id)))))
       (setq mode-line-process
             `(": "
               (:propertize ,mode
