@@ -80,6 +80,14 @@
          (buffer-local-value 'exwm-state (exwm--id->buffer id))
        exwm-state)))
 
+(defun exwm-layout--set-ewmh-state (xwin)
+  "Set _NET_WM_STATE."
+  (with-current-buffer (exwm--id->buffer xwin)
+    (xcb:+request exwm--connection
+        (make-instance 'xcb:ewmh:set-_NET_WM_STATE
+                       :window exwm--id
+                       :data exwm--ewmh-state))))
+
 (defun exwm-layout--fullscreen-p ()
   (when (derived-mode-p 'exwm-mode)
     (memq xcb:Atom:_NET_WM_STATE_FULLSCREEN exwm--ewmh-state)))
@@ -135,6 +143,9 @@
       (exwm--set-geometry id x y width height)
       (xcb:+request exwm--connection (make-instance 'xcb:MapWindow :window id))
       (exwm-layout--set-state id xcb:icccm:WM_STATE:NormalState)
+      (setq exwm--ewmh-state
+            (delq xcb:Atom:_NET_WM_STATE_HIDDEN exwm--ewmh-state))
+      (exwm-layout--set-ewmh-state id)
       (exwm-layout--auto-iconify)))
   (xcb:flush exwm--connection))
 
@@ -168,6 +179,8 @@
                          :window id :value-mask xcb:CW:EventMask
                          :event-mask (exwm--get-client-event-mask)))
       (exwm-layout--set-state id xcb:icccm:WM_STATE:IconicState)
+      (cl-pushnew xcb:Atom:_NET_WM_STATE_HIDDEN exwm--ewmh-state)
+      (exwm-layout--set-ewmh-state id)
       (exwm-layout--auto-iconify)
       (xcb:flush exwm--connection))))
 
@@ -191,13 +204,10 @@
                                            xcb:ConfigWindow:StackMode)
                        :border-width 0
                        :stack-mode xcb:StackMode:Above))
-    (xcb:+request exwm--connection
-        (make-instance 'xcb:ewmh:set-_NET_WM_STATE
-                       :window exwm--id
-                       :data (vector xcb:Atom:_NET_WM_STATE_FULLSCREEN)))
+    (cl-pushnew xcb:Atom:_NET_WM_STATE_FULLSCREEN exwm--ewmh-state)
+    (exwm-layout--set-ewmh-state id)
     (xcb:flush exwm--connection)
     (set-window-dedicated-p (get-buffer-window) t)
-    (cl-pushnew xcb:Atom:_NET_WM_STATE_FULLSCREEN exwm--ewmh-state)
     (exwm-input--release-keyboard exwm--id)))
 
 ;;;###autoload
@@ -223,8 +233,7 @@
       (let ((window (get-buffer-window nil t)))
         (when window
           (exwm-layout--show exwm--id window))))
-    (xcb:+request exwm--connection
-        (make-instance 'xcb:ewmh:set-_NET_WM_STATE :window exwm--id :data []))
+    (exwm-layout--set-ewmh-state id)
     (xcb:flush exwm--connection)
     (set-window-dedicated-p (get-buffer-window) nil)
     (when (eq 'line-mode exwm--selected-input-mode)

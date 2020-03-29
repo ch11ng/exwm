@@ -673,7 +673,7 @@
                             ;; xcb:Atom:_NET_WM_STATE_SHADED
                             ;; xcb:Atom:_NET_WM_STATE_SKIP_TASKBAR
                             ;; xcb:Atom:_NET_WM_STATE_SKIP_PAGER
-                            ;; xcb:Atom:_NET_WM_STATE_HIDDEN
+                            xcb:Atom:_NET_WM_STATE_HIDDEN
                             xcb:Atom:_NET_WM_STATE_FULLSCREEN
                             ;; xcb:Atom:_NET_WM_STATE_ABOVE
                             ;; xcb:Atom:_NET_WM_STATE_BELOW
