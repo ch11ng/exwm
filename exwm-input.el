@@ -688,9 +688,10 @@ Current buffer must be an `exwm-mode' buffer."
               (set-transient-map `(keymap (t . ,#'exwm-input--noop)))
               (exwm-input--unread-event event))
           ;; Fool some packages into thinking there is a change in the buffer.
-          (setq last-command #'exwm-input--noop)
-          (run-hooks 'pre-command-hook)
-          (run-hooks 'post-command-hook)))
+          (when event
+            (setq last-command #'exwm-input--noop)
+            (run-hooks 'pre-command-hook)
+            (run-hooks 'post-command-hook))))
       (xcb:+request exwm--connection
           (make-instance 'xcb:AllowEvents
                          :mode mode
