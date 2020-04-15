@@ -730,10 +730,11 @@
                        :visual 0
                        :value-mask xcb:CW:OverrideRedirect
                        :override-redirect 1))
-    ;; Set _NET_WM_NAME
+    ;; Set _NET_WM_NAME.  Must be set to the name of the window manager, as
+    ;; required by wm-spec.
     (xcb:+request exwm--connection
         (make-instance 'xcb:ewmh:set-_NET_WM_NAME
-                       :window new-id :data "EXWM: exwm--guide-window"))
+                       :window new-id :data "EXWM"))
     (dolist (i (list exwm--root new-id))
       ;; Set _NET_SUPPORTING_WM_CHECK
       (xcb:+request exwm--connection
