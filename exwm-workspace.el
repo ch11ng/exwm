@@ -587,16 +587,6 @@ for internal use only."
     (when (or force (not (eq frame exwm-workspace--current)))
       (unless (window-live-p window)
         (setq window (frame-selected-window frame)))
-      ;; Close the (possible) active minibuffer.  Aborting the recursive edit
-      ;; level will abort the execution of this very command.  Schedule it to
-      ;; run immediately afterward.  This must all be done before the new
-      ;; workspace is selected in the new workspace, in order to avoid the focus
-      ;; to go back to the previous frame due to resetting the window
-      ;; configuration (e.g. `eval-expression').
-      (when (active-minibuffer-window)
-        (exwm--defer 0 (lambda ()
-                         (exwm-workspace-switch frame-or-index force)))
-        (abort-recursive-edit))
       ;; Raise this frame.
       (xcb:+request exwm--connection
           (make-instance 'xcb:ConfigureWindow
