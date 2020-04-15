@@ -117,9 +117,6 @@ defined in `exwm-mode-map' here."
 
 (defvar exwm-input--simulation-keys nil "Simulation keys in line-mode.")
 
-(defvar exwm-input--skip-buffer-list-update nil
-  "Skip the upcoming 'buffer-list-update'.")
-
 (defvar exwm-input--temp-line-mode nil
   "Non-nil indicates it's in temporary line-mode for char-mode.")
 
@@ -311,7 +308,6 @@ ARGS are additional arguments to CALLBACK."
   (let* ((win (selected-window))
          (buf (window-buffer win)))
     (when (and (not (exwm-workspace--client-p))
-             (not exwm-input--skip-buffer-list-update)
                (not (and (eq exwm-input--update-focus-window win)
                          (eq exwm-input--update-focus-window-buffer buf))))
       (exwm--log "selected-window=%S current-buffer=%S" win buf)
