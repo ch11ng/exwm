@@ -635,12 +635,6 @@ for internal use only."
       (select-window window)
       (x-focus-frame (window-frame window)) ;The real input focus.
       (set-frame-parameter frame 'exwm-selected-window nil)
-      ;; Close the (possible) active minibuffer
-      (when (active-minibuffer-window)
-        (exwm--defer 0 (lambda ()
-                         ;; Might be aborted by then.
-                         (when (active-minibuffer-window)
-                           (abort-recursive-edit)))))
       (if (exwm-workspace--minibuffer-own-frame-p)
           ;; Resize the minibuffer frame.
           (exwm-workspace--resize-minibuffer-frame)
