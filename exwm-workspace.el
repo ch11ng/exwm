@@ -587,6 +587,11 @@ for internal use only."
     (when (or force (not (eq frame exwm-workspace--current)))
       (unless (window-live-p window)
         (setq window (frame-selected-window frame)))
+    (when (and (not (eq frame old-frame))
+               (frame-live-p old-frame))
+      (with-selected-frame old-frame
+        (funcall exwm-workspace--original-handle-focus-out
+                 (list 'focus-out frame))))
       ;; Raise this frame.
       (xcb:+request exwm--connection
           (make-instance 'xcb:ConfigureWindow
@@ -680,11 +685,6 @@ for internal use only."
                              :dst-x (/ (frame-pixel-width frame) 2)
                              :dst-y (/ (frame-pixel-height frame) 2)))
           (xcb:flush exwm--connection))))
-    (when (and (not (eq frame old-frame))
-               (frame-live-p old-frame))
-      (with-selected-frame old-frame
-        (funcall exwm-workspace--original-handle-focus-out
-                 (list 'focus-out frame))))
     (funcall exwm-workspace--original-handle-focus-in (list 'focus-in frame))
     (run-hooks 'exwm-workspace-switch-hook)))
 
