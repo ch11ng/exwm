@@ -28,7 +28,10 @@
 (require 'exwm)
 (require 'ido)
 
-(defun exwm-config-default ()
+(define-obsolete-function-alias 'exwm-config-default
+  #'exwm-config-example "27.1")
+
+(defun exwm-config-example ()
   "Default configuration of EXWM."
   ;; Set the initial workspace number.
   (unless (get 'exwm-workspace-number 'saved-value)
