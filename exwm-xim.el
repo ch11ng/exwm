@@ -586,7 +586,8 @@ The actual XIM request is in client message data or a property."
         (unwind-protect
             (with-temp-buffer
               ;; Always show key strokes.
-              (let ((input-method-use-echo-area t))
+              (let ((input-method-use-echo-area t)
+                    (exwm-input-line-mode-passthrough t))
                 (setq result (funcall im-func event))
                 ;; Clear echo area for the input method.
                 (message nil)
