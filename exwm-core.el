@@ -334,7 +334,7 @@ One of `line-mode' or `char-mode'.")
     ("Switch to" :filter
      (lambda (&rest _args)
        (mapcar (lambda (i)
-                 `[,(format "workspace %d" i)
+                 `[,(format "Workspace %d" i)
                    (lambda ()
                      (interactive)
                      (exwm-workspace-switch ,i))
