@@ -145,6 +145,10 @@ This value should always be overwritten.")
 (defvar exwm-input--event-hook nil
   "Hook to run when EXWM receives an event.")
 
+(defvar exwm-input-input-mode-change-hook nil
+  "Hook to run when an input mode changes on an `exwm-mode' buffer.
+Current buffer will be the `exwm-mode' buffer when this hook runs.")
+
 (defvar exwm-workspace--current)
 (declare-function exwm-floating--do-moveresize "exwm-floating.el"
                   (data _synthetic))
@@ -793,7 +797,8 @@ button event."
     (let ((buffer (exwm--id->buffer id)))
       (when buffer
         (with-current-buffer buffer
-          (setq exwm--input-mode 'line-mode))))))
+          (setq exwm--input-mode 'line-mode)
+          (run-hooks 'exwm-input-input-mode-change-hook))))))
 
 (defun exwm-input--release-keyboard (&optional id)
   "Ungrab all key events on window ID."
@@ -810,7 +815,8 @@ button event."
     (let ((buffer (exwm--id->buffer id)))
       (when buffer
         (with-current-buffer buffer
-          (setq exwm--input-mode 'char-mode))))))
+          (setq exwm--input-mode 'char-mode)
+          (run-hooks 'exwm-input-input-mode-change-hook))))))
 
 ;;;###autoload
 (defun exwm-input-grab-keyboard (&optional id)
