@@ -205,7 +205,7 @@
                        :border-width 0
                        :stack-mode xcb:StackMode:Above))
     (cl-pushnew xcb:Atom:_NET_WM_STATE_FULLSCREEN exwm--ewmh-state)
-    (exwm-layout--set-ewmh-state id)
+    (exwm-layout--set-ewmh-state exwm--id)
     (xcb:flush exwm--connection)
     (set-window-dedicated-p (get-buffer-window) t)
     (exwm-input--release-keyboard exwm--id)))
@@ -233,7 +233,9 @@
       (let ((window (get-buffer-window nil t)))
         (when window
           (exwm-layout--show exwm--id window))))
-    (exwm-layout--set-ewmh-state id)
+    (setq exwm--ewmh-state
+          (delq xcb:Atom:_NET_WM_STATE_FULLSCREEN exwm--ewmh-state))
+    (exwm-layout--set-ewmh-state exwm--id)
     (xcb:flush exwm--connection)
     (set-window-dedicated-p (get-buffer-window) nil)
     (when (eq 'line-mode exwm--selected-input-mode)
