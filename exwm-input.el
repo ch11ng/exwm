@@ -396,7 +396,7 @@ ARGS are additional arguments to CALLBACK."
   "Handle ButtonPress event."
   (let ((obj (make-instance 'xcb:ButtonPress))
         (mode xcb:Allow:SyncPointer)
-        button-event window buffer frame)
+        button-event window buffer frame fake-last-command)
     (xcb:unmarshal obj data)
     (exwm--log "major-mode=%s buffer=%s"
                major-mode (buffer-name (current-buffer)))
@@ -423,6 +423,7 @@ ARGS are additional arguments to CALLBACK."
              (exwm-floating--start-moveresize event))
             (buffer
              ;; Click to focus
+             (setq fake-last-command t)
              (unless (eq window (selected-window))
                (setq frame (window-frame window))
                (unless (eq frame exwm-workspace--current)
@@ -451,7 +452,10 @@ ARGS are additional arguments to CALLBACK."
                     (setq mode (exwm-input--on-ButtonPress-char-mode)))))))
             (t
              ;; Replay this event by default.
+             (setq fake-last-command t)
              (setq mode xcb:Allow:ReplayPointer))))
+    (when fake-last-command
+      (exwm-input--fake-last-command))
     (xcb:+request exwm--connection
         (make-instance 'xcb:AllowEvents :mode mode :time xcb:Time:CurrentTime))
     (xcb:flush exwm--connection))
@@ -657,6 +661,12 @@ Current buffer must be an `exwm-mode' buffer."
   "A placeholder command."
   (interactive))
 
+(defun exwm-input--fake-last-command ()
+  "Fool some packages into thinking there is a change in the buffer."
+  (setq last-command #'exwm-input--noop)
+  (run-hooks 'pre-command-hook)
+  (run-hooks 'post-command-hook))
+
 (defun exwm-input--on-KeyPress-line-mode (key-press raw-data)
   "Parse X KeyPress event to Emacs key event and then feed the command loop."
   (with-slots (detail state) key-press
@@ -686,16 +696,12 @@ Current buffer must be an `exwm-mode' buffer."
                              :destination (slot-value key-press 'event)
                              :event-mask xcb:EventMask:NoEvent
                              :event raw-data)))
-        (if defining-kbd-macro
-            (when event
-              ;; Make Emacs aware of this event when defining keyboard macros.
-              (set-transient-map `(keymap (t . ,#'exwm-input--noop)))
-              (exwm-input--unread-event event))
-          ;; Fool some packages into thinking there is a change in the buffer.
-          (when event
-            (setq last-command #'exwm-input--noop)
-            (run-hooks 'pre-command-hook)
-            (run-hooks 'post-command-hook))))
+        (when event
+          (if (not defining-kbd-macro)
+              (exwm-input--fake-last-command)
+            ;; Make Emacs aware of this event when defining keyboard macros.
+            (set-transient-map `(keymap (t . ,#'exwm-input--noop)))
+            (exwm-input--unread-event event))))
       (xcb:+request exwm--connection
           (make-instance 'xcb:AllowEvents
                          :mode mode
