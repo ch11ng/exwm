@@ -62,8 +62,12 @@
   ;; Line-editing shortcuts
   (unless (get 'exwm-input-simulation-keys 'saved-value)
     (setq exwm-input-simulation-keys
-          '(([?\C-b] . [left])
+          '(
+            ;; movement
+            ([?\C-b] . [left])
+            ([?\M-b] . [C-left])
             ([?\C-f] . [right])
+            ([?\M-f] . [C-right])
             ([?\C-p] . [up])
             ([?\C-n] . [down])
             ([?\C-a] . [home])
@@ -71,7 +75,13 @@
             ([?\M-v] . [prior])
             ([?\C-v] . [next])
             ([?\C-d] . [delete])
-            ([?\C-k] . [S-end delete]))))
+            ([?\C-k] . [S-end delete])
+            ;; cut/paste.
+            ([?\C-w] . [?\C-x])
+            ([?\M-w] . [?\C-c])
+            ([?\C-y] . [?\C-v])
+            ;; search
+            ([?\C-s] . [?\C-f]))))
   ;; Enable EXWM
   (exwm-enable)
   ;; Configure Ido
