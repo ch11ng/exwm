@@ -161,6 +161,10 @@ C,no"
 (defvar exwm-xim--_XIM_PROTOCOL nil)
 (defvar exwm-xim--_XIM_XCONNECT nil)
 
+(defvar exwm-xim-buffer-p nil
+  "Whether current buffer is used by exwm-xim.")
+(make-variable-buffer-local 'exwm-xim-buffer-p)
+
 (defun exwm-xim--on-SelectionRequest (data _synthetic)
   "Handle SelectionRequest events on IMS window.
 
@@ -585,6 +589,9 @@ The actual XIM request is in client message data or a property."
           (exwm-input--grab-keyboard))
         (unwind-protect
             (with-temp-buffer
+              ;; This variable is used to test whether exwm-xim is enabled.
+              ;; Used by e.g. pyim-probe.
+              (setq-local exwm-xim-buffer-p t)
               ;; Always show key strokes.
               (let ((input-method-use-echo-area t)
                     (exwm-input-line-mode-passthrough t))
