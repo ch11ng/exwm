@@ -165,10 +165,19 @@ NIL if FRAME is not a workspace"
   "Return t if FRAME is a workspace."
   (memq frame exwm-workspace--list))
 
+(defvar exwm--client-p-hash-table
+  (make-hash-table :test 'eq :weakness 'key))
+
 (defsubst exwm-workspace--client-p (&optional frame)
   "Return non-nil if FRAME is an emacsclient frame."
-  (or (frame-parameter frame 'client)
-      (not (display-graphic-p frame))))
+  (let* ((frame (or frame (selected-frame)))
+         (cached-value (gethash frame exwm--client-p-hash-table 'absent)))
+    (if (eq cached-value 'absent)
+        (puthash frame
+                 (or (frame-parameter frame 'client)
+                     (not (display-graphic-p frame)))
+                 exwm--client-p-hash-table)
+        cached-value)))
 
 (defvar exwm-workspace--switch-map nil
   "Keymap used for interactively selecting workspace.")
