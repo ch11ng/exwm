@@ -286,8 +286,8 @@ NIL if FRAME is not a workspace"
                           (propertize
                            (apply exwm-workspace-index-map (list j))
                            'face
-                           (cond ((frame-parameter (elt exwm-workspace--list j)
-                                                   'exwm-urgency)
+                           (cond ((memq (elt exwm-workspace--list j)
+                                        exwm--urgent-frames)
                                   '(:foreground "orange"))
                                  ((aref not-empty j) '(:foreground "green"))
                                  (t nil)))))
@@ -655,7 +655,7 @@ for internal use only."
                                                 name
                                               (concat " " name)))))))
       ;; Update demands attention flag
-      (set-frame-parameter frame 'exwm-urgency nil)
+      (setq exwm--urgent-frames (delq frame exwm--urgent-frames))
       ;; Update switch workspace history
       (setq exwm-workspace--switch-history-outdated t)
       ;; Set _NET_CURRENT_DESKTOP
@@ -1686,7 +1686,7 @@ applied to all subsequently created X frames."
   ;; Prevent frame parameters introduced by this module from being
   ;; saved/restored.
   (dolist (i '(exwm-active exwm-outer-id exwm-id exwm-container exwm-geometry
-                           exwm-selected-window exwm-urgency fullscreen))
+                           exwm-selected-window fullscreen))
     (unless (assq i frameset-filter-alist)
       (push (cons i :never) frameset-filter-alist))))
 
@@ -1710,8 +1710,8 @@ applied to all subsequently created X frames."
   (setq exwm-workspace--current nil)
   (dolist (i exwm-workspace--list)
     (exwm-workspace--remove-frame-as-workspace i)
+    (setq exwm--urgent-frames (delq i exwm--urgent-frames))
     (modify-frame-parameters i '((exwm-selected-window . nil)
-                                 (exwm-urgency . nil)
                                  (exwm-outer-id . nil)
                                  (exwm-id . nil)
                                  (exwm-container . nil)

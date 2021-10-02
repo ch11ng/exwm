@@ -348,9 +348,8 @@ One of `line-mode' or `char-mode'.")
   ;;
   (setq mode-name
         '(:eval (propertize "EXWM" 'face
-                            (when (cl-some (lambda (i)
-                                             (frame-parameter i 'exwm-urgency))
-                                           exwm-workspace--list)
+                            (when (cl-intersection exwm--urgent-frames
+                                                   exwm-workspace--list)
                               'font-lock-warning-face))))
   ;; Change major-mode is not allowed
   (add-hook 'change-major-mode-hook #'kill-buffer nil t)

@@ -110,6 +110,9 @@
 
 (defvar exwm--server-process nil "Process of the subordinate Emacs server.")
 
+(defvar exwm--urgent-frames nil
+  "List of X windows which are ‘demanding attention’.")
+
 (defun exwm-reset ()
   "Reset the state of the selected window (non-fullscreen, line-mode, etc)."
   (interactive)
@@ -312,8 +315,8 @@
                 (setq exwm--hints-urgency t))))
           (when (and exwm--hints-urgency
                      (not (eq exwm--frame exwm-workspace--current)))
-            (unless (frame-parameter exwm--frame 'exwm-urgency)
-              (set-frame-parameter exwm--frame 'exwm-urgency t)
+            (unless (memq exwm--frame exwm--urgent-frames)
+              (push exwm--frame exwm--urgent-frames)
               (setq exwm-workspace--switch-history-outdated t))))))))
 
 (defun exwm--update-protocols (id &optional force)
@@ -567,7 +570,7 @@
             (when (memq xcb:Atom:_NET_WM_STATE_DEMANDS_ATTENTION props)
               (when (= action xcb:ewmh:_NET_WM_STATE_ADD)
                 (unless (eq exwm--frame exwm-workspace--current)
-                  (set-frame-parameter exwm--frame 'exwm-urgency t)
+                  (push exwm--frame exwm--urgent-frames)
                   (setq exwm-workspace--switch-history-outdated t)))
               ;; xcb:ewmh:_NET_WM_STATE_REMOVE?
               ;; xcb:ewmh:_NET_WM_STATE_TOGGLE?
