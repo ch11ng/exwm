@@ -3,7 +3,7 @@
 ;; Copyright (C) 2015-2020 Free Software Foundation, Inc.
 
 ;; Author: Chris Feng <chris.w.feng@gmail.com>
-;; Maintainer: Chris Feng <chris.w.feng@gmail.com>
+;; Maintainer: Adrián Medraño Calvo <adrian@medranocalvo.com>
 ;; Version: 0.24
 ;; Package-Requires: ((xelb "0.18"))
 ;; Keywords: unix
