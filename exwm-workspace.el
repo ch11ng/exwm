@@ -165,10 +165,21 @@ NIL if FRAME is not a workspace"
   "Return t if FRAME is a workspace."
   (memq frame exwm-workspace--list))
 
+(defvar exwm-workspace--client-p-hash-table
+  (make-hash-table :test 'eq :weakness 'key)
+  "Used to cache the results of calling ‘exwm-workspace--client-p’.")
+
 (defsubst exwm-workspace--client-p (&optional frame)
   "Return non-nil if FRAME is an emacsclient frame."
-  (or (frame-parameter frame 'client)
-      (not (display-graphic-p frame))))
+  (let* ((frame (or frame (selected-frame)))
+         (cached-value
+          (gethash frame exwm-workspace--client-p-hash-table 'absent)))
+    (if (eq cached-value 'absent)
+        (puthash frame
+                 (or (frame-parameter frame 'client)
+                     (not (display-graphic-p frame)))
+                 exwm-workspace--client-p-hash-table)
+        cached-value)))
 
 (defvar exwm-workspace--switch-map nil
   "Keymap used for interactively selecting workspace.")
@@ -1458,7 +1469,8 @@ the next workspace."
       ;; care of converting a workspace into a regular unmanaged frame.
       (let ((exwm-workspace--create-silently t))
         (make-frame)))
-    (exwm-workspace--remove-frame-as-workspace frame))))
+    (exwm-workspace--remove-frame-as-workspace frame)
+    (remhash frame exwm--client-p-hash-table))))
 
 (defun exwm-workspace--on-after-make-frame (frame)
   "Hook run upon `make-frame' that configures FRAME as a workspace."
