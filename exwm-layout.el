@@ -219,8 +219,6 @@
                (exwm-layout--fullscreen-p))
     (cl-return-from exwm-layout-unset-fullscreen))
   (with-current-buffer (if id (exwm--id->buffer id) (window-buffer))
-    (setq exwm--ewmh-state
-          (delq xcb:Atom:_NET_WM_STATE_FULLSCREEN exwm--ewmh-state))
     (if exwm--floating-frame
         (exwm-layout--show exwm--id (frame-root-window exwm--floating-frame))
       (xcb:+request exwm--connection
