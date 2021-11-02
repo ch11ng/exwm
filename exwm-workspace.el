@@ -1470,7 +1470,7 @@ the next workspace."
       (let ((exwm-workspace--create-silently t))
         (make-frame)))
     (exwm-workspace--remove-frame-as-workspace frame)
-    (remhash frame exwm--client-p-hash-table))))
+    (remhash frame exwm-workspace--client-p-hash-table))))
 
 (defun exwm-workspace--on-after-make-frame (frame)
   "Hook run upon `make-frame' that configures FRAME as a workspace."
