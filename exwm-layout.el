@@ -219,6 +219,11 @@
                (exwm-layout--fullscreen-p))
     (cl-return-from exwm-layout-unset-fullscreen))
   (with-current-buffer (if id (exwm--id->buffer id) (window-buffer))
+    ;; `exwm-layout--show' relies on `exwm--ewmh-state' to decide whether to
+    ;; fullscreen the window.
+    (setq exwm--ewmh-state
+          (delq xcb:Atom:_NET_WM_STATE_FULLSCREEN exwm--ewmh-state))
+    (exwm-layout--set-ewmh-state exwm--id)
     (if exwm--floating-frame
         (exwm-layout--show exwm--id (frame-root-window exwm--floating-frame))
       (xcb:+request exwm--connection
@@ -231,9 +236,6 @@
       (let ((window (get-buffer-window nil t)))
         (when window
           (exwm-layout--show exwm--id window))))
-    (setq exwm--ewmh-state
-          (delq xcb:Atom:_NET_WM_STATE_FULLSCREEN exwm--ewmh-state))
-    (exwm-layout--set-ewmh-state exwm--id)
     (xcb:flush exwm--connection)
     (set-window-dedicated-p (get-buffer-window) nil)
     (when (eq 'line-mode exwm--selected-input-mode)
