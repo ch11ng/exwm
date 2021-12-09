@@ -434,7 +434,6 @@
          ((and (> current requested)
                (> current 1))
           (let ((frame (car (last exwm-workspace--list))))
-            (exwm-workspace--get-remove-frame-next-workspace frame)
             (delete-frame frame))))))
      ;; _NET_CURRENT_DESKTOP.
      ((= type xcb:Atom:_NET_CURRENT_DESKTOP)

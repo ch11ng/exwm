@@ -264,7 +264,6 @@ NIL if FRAME is not a workspace"
   (when (and exwm-workspace--prompt-delete-allowed
              (< 1 (exwm-workspace--count)))
     (let ((frame (elt exwm-workspace--list (1- minibuffer-history-position))))
-      (exwm-workspace--get-remove-frame-next-workspace frame)
       (if (eq frame exwm-workspace--current)
           ;; Abort the recursive minibuffer if deleting the current workspace.
           (progn
@@ -830,7 +829,6 @@ INDEX must not exceed the current number of workspaces."
                      (exwm-workspace--workspace-from-frame-or-index
                       frame-or-index)
                    exwm-workspace--current)))
-      (exwm-workspace--get-remove-frame-next-workspace frame)
       (delete-frame frame))))
 
 (defun exwm-workspace--set-desktop (id)
@@ -1385,20 +1383,12 @@ Please check `exwm-workspace--minibuffer-own-frame-p' first."
                frame exwm-workspace-current-index original-index))
     (run-hooks 'exwm-workspace-list-change-hook)))
 
-(defun exwm-workspace--get-remove-frame-next-workspace (frame)
-  "Return the next workspace if workspace FRAME is removed.
-
-All X windows currently on workspace FRAME will be automatically moved to
-the next workspace."
+(defun exwm-workspace--get-next-workspace (frame)
+  "Return the next workspace if workspace FRAME were removed.
+Return nil if FRAME is the only workspace."
   (let* ((index (exwm-workspace--position frame))
          (lastp (= index (1- (exwm-workspace--count))))
          (nextw (elt exwm-workspace--list (+ index (if lastp -1 +1)))))
-    ;; Clients need to be moved to some other workspace before this being
-    ;; removed.
-    (dolist (pair exwm--id-buffer-alist)
-      (with-current-buffer (cdr pair)
-        (when (eq exwm--frame frame)
-          (exwm-workspace-move-window nextw exwm--id))))
     nextw))
 
 (defun exwm-workspace--remove-frame-as-workspace (frame)
@@ -1406,20 +1396,22 @@ the next workspace."
   ;; TODO: restore all frame parameters (e.g. exwm-workspace, buffer-predicate,
   ;; etc)
   (exwm--log "Removing frame `%s' as workspace" frame)
-  (let* ((index (exwm-workspace--position frame))
-         (nextw (exwm-workspace--get-remove-frame-next-workspace frame)))
-    ;; Need to remove the workspace from the list in order for
-    ;; the correct calculation of indexes.
+  (let* ((next-frame (exwm-workspace--get-next-workspace frame))
+         (following-frames (cdr (memq frame exwm-workspace--list))))
+    ;; Need to remove the workspace from the list for the correct calculation of
+    ;; indexes below.
     (setq exwm-workspace--list (delete frame exwm-workspace--list))
-    ;; Update the _NET_WM_DESKTOP property of each X window affected.
     (dolist (pair exwm--id-buffer-alist)
-      (when (<= (1- index)
-                (exwm-workspace--position (buffer-local-value 'exwm--frame
-                                                              (cdr pair))))
-        (exwm-workspace--set-desktop (car pair))))
+      (let ((other-frame (buffer-local-value 'exwm--frame (cdr pair))))
+        ;; Move X windows to next-frame.
+        (when (eq other-frame frame)
+          (exwm-workspace-move-window next-frame (car pair)))
+        ;; Update the _NET_WM_DESKTOP property of each following X window.
+        (when (memq other-frame following-frames)
+          (exwm-workspace--set-desktop (car pair)))))
     ;; If the current workspace is deleted, switch to next one.
     (when (eq frame exwm-workspace--current)
-      (exwm-workspace-switch nextw)))
+      (exwm-workspace-switch next-frame)))
   ;; Reparent out the frame.
   (let ((outer-id (frame-parameter frame 'exwm-outer-id)))
     (xcb:+request exwm--connection
