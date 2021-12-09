@@ -1372,7 +1372,7 @@ Please check `exwm-workspace--minibuffer-own-frame-p' first."
         (make-instance 'xcb:MapWindow :window container)))
   (xcb:flush exwm--connection)
   ;; Delay making the workspace fullscreen until Emacs becomes idle
-  (exwm--defer 0 #'set-frame-parameter frame 'fullscreen 'fullboth)
+  (exwm--defer 0 #'exwm-workspace--fullscreen-workspace frame)
   ;; Update EWMH properties.
   (exwm-workspace--update-ewmh-props)
   (if exwm-workspace--create-silently
@@ -1462,6 +1462,12 @@ Return nil if FRAME is the only workspace."
    (t
     (exwm-workspace--remove-frame-as-workspace frame)
     (remhash frame exwm-workspace--client-p-hash-table))))
+
+(defun exwm-workspace--fullscreen-workspace (frame)
+  "Make workspace FRAME fullscreen.
+Called from a timer."
+  (when (frame-live-p frame)
+    (set-frame-parameter frame 'fullscreen 'fullboth)))
 
 (defun exwm-workspace--on-after-make-frame (frame)
   "Hook run upon `make-frame' that configures FRAME as a workspace."
@@ -1606,6 +1612,8 @@ applied to all subsequently created X frames."
   (remove-hook 'minibuffer-setup-hook #'exwm-workspace--on-minibuffer-setup)
   (remove-hook 'minibuffer-exit-hook #'exwm-workspace--on-minibuffer-exit)
   (remove-hook 'echo-area-clear-hook #'exwm-workspace--on-echo-area-clear)
+  (when exwm-workspace--display-echo-area-timer
+    (cancel-timer exwm-workspace--display-echo-area-timer))
   (when exwm-workspace--timer
     (cancel-timer exwm-workspace--timer)
     (setq exwm-workspace--timer nil))
@@ -1613,15 +1621,16 @@ applied to all subsequently created X frames."
         (cl-delete '(exwm-workspace--display-buffer) display-buffer-alist
                    :test #'equal))
   (setq default-minibuffer-frame nil)
-  (let ((id (frame-parameter exwm-workspace--minibuffer 'exwm-outer-id)))
-    (when (and exwm-workspace--minibuffer id)
-      (xcb:+request exwm--connection
-          (make-instance 'xcb:ReparentWindow
-                         :window id
-                         :parent exwm--root
-                         :x 0
-                         :y 0)))
-    (setq exwm-workspace--minibuffer nil)))
+  (when (frame-live-p exwm-workspace--minibuffer) ; might be already dead
+    (let ((id (frame-parameter exwm-workspace--minibuffer 'exwm-outer-id)))
+      (when (and exwm-workspace--minibuffer id)
+        (xcb:+request exwm--connection
+            (make-instance 'xcb:ReparentWindow
+                           :window id
+                           :parent exwm--root
+                           :x 0
+                           :y 0)))
+      (setq exwm-workspace--minibuffer nil))))
 
 (defun exwm-workspace--init ()
   "Initialize workspace module."
@@ -1712,24 +1721,28 @@ applied to all subsequently created X frames."
   ;; X windows will be re-mapped).
   (setq exwm-workspace--current nil)
   (dolist (i exwm-workspace--list)
-    (exwm-workspace--remove-frame-as-workspace i)
-    (modify-frame-parameters i '((exwm-selected-window . nil)
-                                 (exwm-urgency . nil)
-                                 (exwm-outer-id . nil)
-                                 (exwm-id . nil)
-                                 (exwm-container . nil)
-                                 ;; (internal-border-width . nil) ; integerp
-                                 ;; (client . nil)
-                                 (fullscreen . nil)
-                                 (buffer-predicate . nil))))
+    (when (frame-live-p i)                    ; might be already dead
+      (exwm-workspace--remove-frame-as-workspace i)
+      (modify-frame-parameters i '((exwm-selected-window . nil)
+                                   (exwm-urgency . nil)
+                                   (exwm-outer-id . nil)
+                                   (exwm-id . nil)
+                                   (exwm-container . nil)
+                                   ;; (internal-border-width . nil) ; integerp
+                                   (fullscreen . nil)
+                                   (buffer-predicate . nil)))
+      ;; Restore the 'client' frame parameter (before `exwm-exit').
+      (when exwm-workspace--client
+        (set-frame-parameter f 'client exwm-workspace--client))))
   ;; Restore the 'client' frame parameter (before `exwm-exit').
   (when exwm-workspace--client
-    (dolist (f exwm-workspace--list)
-      (set-frame-parameter f 'client exwm-workspace--client))
-    (when (exwm-workspace--minibuffer-own-frame-p)
+    (when (and exwm-workspace--minibuffer-own-frame-p
+               (frame-live-p exwm-workspace--minibuffer))
       (set-frame-parameter exwm-workspace--minibuffer 'client
                            exwm-workspace--client))
-    (setq exwm-workspace--client nil)))
+    (setq exwm-workspace--client nil))
+  ;; Don't let dead frames linger.
+  (setq exwm-workspace--list nil))
 
 (defun exwm-workspace--post-init ()
   "The second stage in the initialization of the workspace module."

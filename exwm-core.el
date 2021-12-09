@@ -59,6 +59,9 @@ Here are some predefined candidates:
 
 (defvar exwm--connection nil "X connection.")
 
+(defvar exwm--terminal nil
+  "Terminal corresponding to `exwm--connection'.")
+
 (defvar exwm--wmsn-window nil
   "An X window owning the WM_S0 selection.")
 
