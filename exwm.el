@@ -127,7 +127,7 @@
   "Restart EXWM."
   (interactive)
   (exwm--log)
-  (when (exwm--confirm-kill-emacs "[EXWM] Restart? " 'no-check)
+  (when (exwm--confirm-kill-emacs "Restart?" 'no-check)
     (let* ((attr (process-attributes (emacs-pid)))
            (args (cdr (assq 'args attr)))
            (ppid (cdr (assq 'ppid attr)))
@@ -1017,7 +1017,7 @@ manager.  If t, replace it, if nil, abort and ask the user if `ask'."
             (`break (y-or-n-p prompt))
             (x x)))
          (t
-          (yes-or-no-p (format "[EXWM] %d window(s) will be destroyed.  %s"
+          (yes-or-no-p (format "[EXWM] %d X window(s) will be destroyed.  %s"
                                (length exwm--id-buffer-alist) prompt))))
     ;; Run `kill-emacs-hook' (`server-force-stop' excluded) before Emacs
     ;; frames are unmapped so that errors (if any) can be visible.
