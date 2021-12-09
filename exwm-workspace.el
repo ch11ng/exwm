@@ -1389,7 +1389,8 @@ Return nil if FRAME is the only workspace."
   (let* ((index (exwm-workspace--position frame))
          (lastp (= index (1- (exwm-workspace--count))))
          (nextw (elt exwm-workspace--list (+ index (if lastp -1 +1)))))
-    nextw))
+    (unless (eq frame nextw)
+      nextw)))
 
 (defun exwm-workspace--remove-frame-as-workspace (frame)
   "Stop treating frame FRAME as a workspace."
@@ -1401,6 +1402,11 @@ Return nil if FRAME is the only workspace."
     ;; Need to remove the workspace from the list for the correct calculation of
     ;; indexes below.
     (setq exwm-workspace--list (delete frame exwm-workspace--list))
+    (unless next-frame
+      ;; The user managed to delete the last workspace, so create a new one.
+      (exwm--log "Last workspace deleted; create a new one")
+      (let ((exwm-workspace--create-silently t))
+        (setq next-frame (make-frame))))
     (dolist (pair exwm--id-buffer-alist)
       (let ((other-frame (buffer-local-value 'exwm--frame (cdr pair))))
         ;; Move X windows to next-frame.
@@ -1454,13 +1460,6 @@ Return nil if FRAME is the only workspace."
    ((not (exwm-workspace--workspace-p frame))
     (exwm--log "Frame `%s' is not a workspace" frame))
    (t
-    (when (= 1 (exwm-workspace--count))
-      ;; The user managed to delete the last workspace, so create a new one.
-      (exwm--log "Last workspace deleted; create a new one")
-      ;; TODO: this makes sense in the hook.  But we need a function that takes
-      ;; care of converting a workspace into a regular unmanaged frame.
-      (let ((exwm-workspace--create-silently t))
-        (make-frame)))
     (exwm-workspace--remove-frame-as-workspace frame)
     (remhash frame exwm-workspace--client-p-hash-table))))
 
