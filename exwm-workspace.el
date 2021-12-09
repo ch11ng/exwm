@@ -162,22 +162,6 @@ NIL if FRAME is not a workspace"
   "Return t if FRAME is a workspace."
   (memq frame exwm-workspace--list))
 
-(defvar exwm-workspace--client-p-hash-table
-  (make-hash-table :test 'eq :weakness 'key)
-  "Used to cache the results of calling ‘exwm-workspace--client-p’.")
-
-(defsubst exwm-workspace--client-p (&optional frame)
-  "Return non-nil if FRAME is an emacsclient frame."
-  (let* ((frame (or frame (selected-frame)))
-         (cached-value
-          (gethash frame exwm-workspace--client-p-hash-table 'absent)))
-    (if (eq cached-value 'absent)
-        (puthash frame
-                 (or (frame-parameter frame 'client)
-                     (not (display-graphic-p frame)))
-                 exwm-workspace--client-p-hash-table)
-        cached-value)))
-
 (defvar exwm-workspace--switch-map nil
   "Keymap used for interactively selecting workspace.")
 
@@ -1126,7 +1110,7 @@ Please check `exwm-workspace--minibuffer-own-frame-p' first."
 
 (defun exwm-workspace--update-minibuffer-height (&optional echo-area)
   "Update the minibuffer frame height."
-  (unless (exwm-workspace--client-p)
+  (when (exwm--terminal-p)
     (let ((height
            (with-current-buffer
                (window-buffer (minibuffer-window exwm-workspace--minibuffer))
@@ -1243,7 +1227,7 @@ Please check `exwm-workspace--minibuffer-own-frame-p' first."
   "Run in minibuffer-setup-hook to show the minibuffer and its container."
   (exwm--log)
   (when (and (= 1 (minibuffer-depth))
-             (not (exwm-workspace--client-p)))
+             (exwm--terminal-p))
     (add-hook 'post-command-hook #'exwm-workspace--update-minibuffer-height)
     (exwm-workspace--show-minibuffer))
   ;; FIXME: This is a temporary fix for the *Completions* buffer not
@@ -1265,16 +1249,16 @@ Please check `exwm-workspace--minibuffer-own-frame-p' first."
   "Run in minibuffer-exit-hook to hide the minibuffer container."
   (exwm--log)
   (when (and (= 1 (minibuffer-depth))
-             (not (exwm-workspace--client-p)))
+             (exwm--terminal-p))
     (remove-hook 'post-command-hook #'exwm-workspace--update-minibuffer-height)
     (exwm-workspace--hide-minibuffer)))
 
 (defun exwm-workspace--on-echo-area-dirty ()
   "Run when new message arrives to show the echo area and its container."
   (when (and (not (active-minibuffer-window))
-             (not (exwm-workspace--client-p))
              (or (current-message)
-                 cursor-in-echo-area))
+                 cursor-in-echo-area)
+             (exwm--terminal-p))
     (exwm-workspace--update-minibuffer-height t)
     (exwm-workspace--show-minibuffer)
     (unless (or (not exwm-workspace-display-echo-area-timeout)
@@ -1297,7 +1281,7 @@ Please check `exwm-workspace--minibuffer-own-frame-p' first."
 
 (defun exwm-workspace--on-echo-area-clear ()
   "Run in echo-area-clear-hook to hide echo area container."
-  (unless (exwm-workspace--client-p)
+  (when (exwm--terminal-p)
     (unless (active-minibuffer-window)
       (exwm-workspace--hide-minibuffer))
     (when exwm-workspace--display-echo-area-timer
@@ -1455,8 +1439,7 @@ Return nil if FRAME is the only workspace."
    ((not (exwm-workspace--workspace-p frame))
     (exwm--log "Frame `%s' is not a workspace" frame))
    (t
-    (exwm-workspace--remove-frame-as-workspace frame)
-    (remhash frame exwm-workspace--client-p-hash-table))))
+    (exwm-workspace--remove-frame-as-workspace frame))))
 
 (defun exwm-workspace--fullscreen-workspace (frame)
   "Make workspace FRAME fullscreen.
@@ -1471,6 +1454,11 @@ Called from a timer."
     (exwm--log "Frame `%s' is already a workspace" frame))
    ((not (display-graphic-p frame))
     (exwm--log "Frame `%s' is not graphical" frame))
+   ((not (eq (frame-terminal) exwm--terminal))
+    (exwm--log "Frame `%s' is on a different terminal (%S instead of %S)"
+               frame
+               (frame-terminal frame)
+               exwm--terminal))
    ((not (string-equal
           (replace-regexp-in-string "\\.0$" ""
                                     (slot-value exwm--connection 'display))

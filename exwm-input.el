@@ -159,8 +159,6 @@ Current buffer will be the `exwm-mode' buffer when this hook runs.")
 (declare-function exwm-layout--iconic-state-p "exwm-layout.el" (&optional id))
 (declare-function exwm-layout--show "exwm-layout.el" (id &optional window))
 (declare-function exwm-reset "exwm.el" ())
-(declare-function exwm-workspace--client-p "exwm-workspace.el"
-                  (&optional frame))
 (declare-function exwm-workspace--minibuffer-own-frame-p "exwm-workspace.el")
 (declare-function exwm-workspace--workspace-p "exwm-workspace.el" (workspace))
 (declare-function exwm-workspace-switch "exwm-workspace.el"
@@ -296,8 +294,9 @@ ARGS are additional arguments to CALLBACK."
 
 (defun exwm-input--on-buffer-list-update ()
   "Run in `buffer-list-update-hook' to track input focus."
-  (when (and (not (exwm-workspace--client-p))
-             (not exwm-input--skip-buffer-list-update))
+  (when (and          ; this hook is called incesantly; place cheap tests on top
+         (not exwm-input--skip-buffer-list-update)
+         (exwm--terminal-p))      ; skip other terminals, e.g. TTY client frames
     (exwm--log "current-buffer=%S selected-window=%S"
                (current-buffer) (selected-window))
     (redirect-frame-focus (selected-frame) nil)
@@ -1100,37 +1099,40 @@ One use is to access the keymap bound to KEYS (as prefix keys) in char-mode."
 
 (defun exwm-input--on-minibuffer-setup ()
   "Run in `minibuffer-setup-hook' to grab keyboard if necessary."
-  (exwm--log)
-  (with-current-buffer
-      (window-buffer (frame-selected-window exwm-workspace--current))
-    (when (and (derived-mode-p 'exwm-mode)
-               (not (exwm-workspace--client-p))
-               (eq exwm--selected-input-mode 'char-mode))
-      (exwm-input--grab-keyboard exwm--id))))
+  (let* ((window (or (minibuffer-selected-window) ; minibuffer-setup-hook
+                     (selected-window)))          ; echo-area-clear-hook
+         (frame (window-frame window)))
+    (when (exwm--terminal-p frame)
+      (with-current-buffer (window-buffer window)
+        (when (and (derived-mode-p 'exwm-mode)
+                   (eq exwm--selected-input-mode 'char-mode))
+          (exwm--log "Grab #x%x window=%s frame=%s" exwm--id window frame)
+          (exwm-input--grab-keyboard exwm--id))))))
 
 (defun exwm-input--on-minibuffer-exit ()
   "Run in `minibuffer-exit-hook' to release keyboard if necessary."
-  (exwm--log)
-  (with-current-buffer
-      (window-buffer (frame-selected-window exwm-workspace--current))
-    (when (and (derived-mode-p 'exwm-mode)
-               (not (exwm-workspace--client-p))
-               (eq exwm--selected-input-mode 'char-mode)
-               (eq exwm--input-mode 'line-mode))
-      (exwm-input--release-keyboard exwm--id))))
+  (let* ((window (or (minibuffer-selected-window) ; minibuffer-setup-hook
+                     (selected-window)))          ; echo-area-clear-hook
+         (frame (window-frame window)))
+    (when (exwm--terminal-p frame)
+      (with-current-buffer (window-buffer window)
+        (when (and (derived-mode-p 'exwm-mode)
+                   (eq exwm--selected-input-mode 'char-mode)
+                   (eq exwm--input-mode 'line-mode))
+          (exwm--log "Release #x%x window=%s frame=%s" exwm--id window frame)
+          (exwm-input--release-keyboard exwm--id))))))
 
 (defun exwm-input--on-echo-area-dirty ()
   "Run when new message arrives to grab keyboard if necessary."
-  (exwm--log)
-  (when (and (not (active-minibuffer-window))
-             (not (exwm-workspace--client-p))
-             cursor-in-echo-area)
+  (when (and cursor-in-echo-area
+             (not (active-minibuffer-window)))
+    (exwm--log)
     (exwm-input--on-minibuffer-setup)))
 
 (defun exwm-input--on-echo-area-clear ()
   "Run in `echo-area-clear-hook' to release keyboard if necessary."
-  (exwm--log)
   (unless (current-message)
+    (exwm--log)
     (exwm-input--on-minibuffer-exit)))
 
 (defun exwm-input--init ()

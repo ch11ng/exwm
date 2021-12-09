@@ -995,7 +995,7 @@ manager.  If t, replace it, if nil, abort and ask the user if `ask'."
   "Confirm before killing terminal."
   ;; This is invoked instead of `save-buffers-kill-emacs' (C-x C-c) on client
   ;; frames.
-  (if (eq (frame-terminal) exwm--terminal)
+  (if (exwm--terminal-p)
       (exwm--confirm-kill-emacs "[EXWM] Kill terminal?")
     t))
 
