@@ -85,9 +85,6 @@ each time."
 
 If the minibuffer is detached, this value is 0.")
 
-(defvar exwm-workspace--client nil
-  "The 'client' frame parameter of emacsclient frames.")
-
 (defvar exwm-workspace--create-silently nil
   "When non-nil workspaces are created in the background (not switched to).
 
@@ -1329,8 +1326,6 @@ Please check `exwm-workspace--minibuffer-own-frame-p' first."
     (set-frame-parameter frame 'exwm-outer-id outer-id)
     (set-frame-parameter frame 'exwm-id window-id)
     (set-frame-parameter frame 'exwm-container container)
-    ;; In case it's created by emacsclient.
-    (set-frame-parameter frame 'client nil)
     ;; Copy RandR frame parameters from the first workspace to
     ;; prevent potential problems.  The values do not matter here as
     ;; they'll be updated by the RandR module later.
@@ -1541,8 +1536,7 @@ applied to all subsequently created X frames."
   (setq exwm-workspace--minibuffer
         (make-frame '((window-system . x) (minibuffer . only)
                       (left . 10000) (right . 10000)
-                      (width . 1) (height . 1)
-                      (client . nil))))
+                      (width . 1) (height . 1))))
   ;; This is the only usable minibuffer frame.
   (setq default-minibuffer-frame exwm-workspace--minibuffer)
   (exwm-workspace--modify-all-x-frames-parameters
@@ -1648,33 +1642,22 @@ applied to all subsequently created X frames."
           (dolist (i initial-workspaces)
             (unless (frame-parameter i 'window-id)
               (setq initial-workspaces (delq i initial-workspaces))))
-          (setq exwm-workspace--client
-                (frame-parameter (car initial-workspaces) 'client))
           (let ((f (car initial-workspaces)))
             ;; Remove the possible internal border.
-            (set-frame-parameter f 'internal-border-width 0)
-            ;; Prevent user from deleting the first frame by accident.
-            (set-frame-parameter f 'client nil)))
+            (set-frame-parameter f 'internal-border-width 0)))
       (exwm-workspace--init-minibuffer-frame)
       ;; Remove/hide existing frames.
       (dolist (f initial-workspaces)
-        (if (frame-parameter f 'client)
-            (progn
-              (unless exwm-workspace--client
-                (setq exwm-workspace--client (frame-parameter f 'client)))
-              (make-frame-invisible f))
-          (when (eq 'x (framep f))   ;do not delete the initial frame.
-            (delete-frame f))))
+        (when (eq 'x (framep f))        ;do not delete the initial frame.
+          (delete-frame f)))
       ;; Recreate one frame with the external minibuffer set.
-      (setq initial-workspaces (list (make-frame '((window-system . x)
-                                                   (client . nil))))))
+      (setq initial-workspaces (list (make-frame '((window-system . x))))))
     ;; Prevent `other-buffer' from selecting already displayed EXWM buffers.
     (modify-all-frames-parameters
      '((buffer-predicate . exwm-layout--other-buffer-predicate)))
     ;; Create remaining workspaces.
     (dotimes (_ (- exwm-workspace-number (length initial-workspaces)))
-      (nconc initial-workspaces (list (make-frame '((window-system . x)
-                                                    (client . nil))))))
+      (nconc initial-workspaces (list (make-frame '((window-system . x))))))
     ;; Configure workspaces
     (let ((exwm-workspace--create-silently t))
       (dolist (i initial-workspaces)
@@ -1730,29 +1713,13 @@ applied to all subsequently created X frames."
                                    (exwm-container . nil)
                                    ;; (internal-border-width . nil) ; integerp
                                    (fullscreen . nil)
-                                   (buffer-predicate . nil)))
-      ;; Restore the 'client' frame parameter (before `exwm-exit').
-      (when exwm-workspace--client
-        (set-frame-parameter f 'client exwm-workspace--client))))
-  ;; Restore the 'client' frame parameter (before `exwm-exit').
-  (when exwm-workspace--client
-    (when (and exwm-workspace--minibuffer-own-frame-p
-               (frame-live-p exwm-workspace--minibuffer))
-      (set-frame-parameter exwm-workspace--minibuffer 'client
-                           exwm-workspace--client))
-    (setq exwm-workspace--client nil))
+                                   (buffer-predicate . nil)))))
   ;; Don't let dead frames linger.
   (setq exwm-workspace--list nil))
 
 (defun exwm-workspace--post-init ()
   "The second stage in the initialization of the workspace module."
   (exwm--log)
-  (when exwm-workspace--client
-    ;; Reset the 'fullscreen' frame parameter to make emacsclinet frames
-    ;; fullscreen (even without the RandR module enabled).
-    (dolist (i exwm-workspace--list)
-      (set-frame-parameter i 'fullscreen nil)
-      (set-frame-parameter i 'fullscreen 'fullboth)))
   ;; Wait until all workspace frames are resized.
   (with-timeout (1)
     (while (< exwm-workspace--fullscreen-frame-count (exwm-workspace--count))
