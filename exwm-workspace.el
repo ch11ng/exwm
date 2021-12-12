@@ -1371,6 +1371,11 @@ Please check `exwm-workspace--minibuffer-own-frame-p' first."
         (make-instance 'xcb:ReparentWindow
                        :window outer-id :parent container :x 0 :y 0))
     (xcb:+request exwm--connection
+        (make-instance 'xcb:icccm:set-WM_STATE
+                       :window outer-id
+                       :state xcb:icccm:WM_STATE:NormalState
+                       :icon xcb:Window:None))
+    (xcb:+request exwm--connection
         (make-instance 'xcb:MapWindow :window container)))
   (xcb:flush exwm--connection)
   ;; Delay making the workspace fullscreen until Emacs becomes idle
