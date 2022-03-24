@@ -71,6 +71,7 @@
 (require 'exwm-floating)
 (require 'exwm-manage)
 (require 'exwm-input)
+(require 'seq)
 
 (defgroup exwm nil
   "Emacs X Window Manager."
@@ -109,6 +110,10 @@
   "Name of the subordinate Emacs server.")
 
 (defvar exwm--server-process nil "Process of the subordinate Emacs server.")
+
+(define-error 'exwm-frame-not-x "Frame not running under X environment" 'error)
+(define-error 'exwm-already-running "EXWM already running" 'error)
+(define-error 'exwm-other-wm "Other window manager running" 'error)
 
 (defun exwm-reset ()
   "Reset the state of the selected window (non-fullscreen, line-mode, etc)."
@@ -603,7 +608,7 @@
           selection (slot-value obj 'selection))
     (when (and (eq owner exwm--wmsn-window)
                (eq selection xcb:Atom:WM_S0))
-      (exwm-exit))))
+      (exwm--exit))))
 
 (defun exwm--init-icccm-ewmh ()
   "Initialize ICCCM/EWMH support."
@@ -761,7 +766,7 @@ manager.  If t, replace it, if nil, abort and ask the user if `ask'."
       (when (eq replace 'ask)
         (setq replace (yes-or-no-p "Replace existing window manager? ")))
       (when (not replace)
-        (user-error "Other window manager detected")))
+        (signal 'exwm-other-wm "Other window manager detected")))
     (let ((new-owner (xcb:generate-id exwm--connection)))
       (xcb:+request exwm--connection
           (make-instance 'xcb:CreateWindow
@@ -824,23 +829,61 @@ manager.  If t, replace it, if nil, abort and ask the user if `ask'."
       (setq exwm--wmsn-window new-owner))))
 
 ;;;###autoload
-(cl-defun exwm-init (&optional frame)
+(define-minor-mode exwm-minor-mode
+  "Minor mode to enable or disable EXWM.
+
+EXWM (Emacs X Window Manager) is a full-featured tiling X window manager
+for Emacs built on top of XELB.
+
+If called interactively, enable EXWM minor mode if ARG is positive, and
+disable it if ARG is zero or negative.  If called from Lisp, also
+enable the mode if ARG is omitted or nil, and toggle it if ARG is
+‘toggle’; disable the mode otherwise.
+
+If no X display can be found, EXWM will be started as soon as the first X
+frame is created."
+  :global t
+  :group 'exwm
+  (if exwm-minor-mode
+      ;; Up
+      (if exwm--connection
+          (exwm--log "EXWM already running")
+        (let ((frame (exwm--find-any-x-frame)))
+          (if frame
+              (exwm--init frame)  ; initialize right away if any X frame exists.
+            (exwm--enable))))   ; will initialize as soon as there's an X frame.
+    ;; Down
+    (if exwm--connection
+        (exwm--exit)
+      (exwm--disable))))
+
+(defun exwm--init-on-window-setup-hook ()
+  "Try to start EXWM on selected frame."
+  (exwm--init-on-after-make-frame (selected-frame)))
+
+(defun exwm--init-on-after-make-frame (frame)
+  "Try to start EXWM if FRAME's window-system is X."
+  (condition-case _
+      (exwm--init frame)
+    ;; Ignore non X frames.
+    (exwm-frame-not-x)))
+
+(defun exwm--init (&optional frame)
   "Initialize EXWM."
   (interactive)
   (exwm--log "%s" frame)
   (if frame
-      ;; The frame might not be selected if it's created by emacslicnet.
+      ;; The frame might not be selected if it's created by emacsclient.
       (select-frame-set-input-focus frame)
     (setq frame (selected-frame)))
   (when (not (eq 'x (framep frame)))
-    (message "[EXWM] Not running under X environment")
-    (cl-return-from exwm-init))
+    (signal 'exwm-frame-not-x frame))
   (when exwm--connection
     (exwm--log "EXWM already running")
-    (cl-return-from exwm-init))
+    (signal 'exwm-already-running frame))
   (condition-case err
       (progn
-        (exwm-enable 'undo)               ;never initialize again
+        (exwm--disable)               ;never initialize again
         (setq exwm--connection (xcb:connect))
         (set-process-query-on-exit-flag (slot-value exwm--connection 'process)
                                         nil) ;prevent query message on exit
@@ -860,9 +903,16 @@ manager.  If t, replace it, if nil, abort and ask the user if `ask'."
                                  :event-mask
                                  xcb:EventMask:SubstructureRedirect))
           (error "Other window manager is running"))
+        ;; Mandatory; before init.
+        (setq frame-resize-pixelwise t
+              window-resize-pixelwise t)
         ;; Disable some features not working well with EXWM
         (setq use-dialog-box nil
               confirm-kill-emacs #'exwm--confirm-kill-emacs)
+        ;; Manage the subordinate Emacs server.
+        (add-hook 'kill-emacs-hook #'exwm--server-stop)
+        (dolist (i exwm-blocking-subrs)
+          (advice-add i :around #'exwm--server-eval-at))
         (exwm--lock)
         (exwm--init-icccm-ewmh)
         (exwm-layout--init)
@@ -876,59 +926,59 @@ manager.  If t, replace it, if nil, abort and ask the user if `ask'."
         (run-hooks 'exwm-init-hook)
         ;; Manage existing windows
         (exwm-manage--scan))
-    (user-error)
+    (exwm-other-wm
+     (exwm--cleanup)
+     (signal (car err) (cdr err)))
     ((quit error)
-     (exwm-exit)
+     (exwm--exit)
      ;; Rethrow error
      (warn "[EXWM] EXWM fails to start (%s: %s)" (car err) (cdr err)))))
 
-
-;;;###autoload
-(defun exwm-exit ()
+(defun exwm--exit ()
   "Exit EXWM."
   (interactive)
   (exwm--log)
   (run-hooks 'exwm-exit-hook)
+  ;; Revert disabled features.
   (setq confirm-kill-emacs nil)
+  (remove-hook 'kill-emacs-hook #'exwm--server-stop)
+  (dolist (i exwm-blocking-subrs)
+    (advice-remove i #'exwm--server-eval-at))
   ;; Exit modules.
   (exwm-input--exit)
   (exwm-manage--exit)
   (exwm-workspace--exit)
   (exwm-floating--exit)
   (exwm-layout--exit)
+  (exwm--cleanup))
+
+(defun exwm--cleanup ()
+  "Cleanup EXWM variables."
   (when exwm--connection
     (xcb:flush exwm--connection)
     (xcb:disconnect exwm--connection))
-  (setq exwm--connection nil))
+  (setq exwm--connection nil)
+  (setq exwm--root nil))
 
-;;;###autoload
-(defun exwm-enable (&optional undo)
-  "Enable/Disable EXWM."
-  (exwm--log "%s" undo)
-  (pcase undo
-    (`undo                              ;prevent reinitialization
-     (remove-hook 'window-setup-hook #'exwm-init)
-     (remove-hook 'after-make-frame-functions #'exwm-init))
-    (`undo-all                          ;attempt to revert everything
-     (remove-hook 'window-setup-hook #'exwm-init)
-     (remove-hook 'after-make-frame-functions #'exwm-init)
-     (remove-hook 'kill-emacs-hook #'exwm--server-stop)
-     (dolist (i exwm-blocking-subrs)
-       (advice-remove i #'exwm--server-eval-at)))
-    (_                                  ;enable EXWM
-     (setq frame-resize-pixelwise t     ;mandatory; before init
-           window-resize-pixelwise t)
-     ;; Ignore unrecognized command line arguments.  This can be helpful
-     ;; when EXWM is launched by some session manager.
-     (push #'vector command-line-functions)
-     ;; In case EXWM is to be started from a graphical Emacs instance.
-     (add-hook 'window-setup-hook #'exwm-init t)
-     ;; In case EXWM is to be started with emacsclient.
-     (add-hook 'after-make-frame-functions #'exwm-init t)
-     ;; Manage the subordinate Emacs server.
-     (add-hook 'kill-emacs-hook #'exwm--server-stop)
-     (dolist (i exwm-blocking-subrs)
-       (advice-add i :around #'exwm--server-eval-at)))))
+(defun exwm--enable ()
+  "Enable EXWM.
+Register functions for EXWM to be initialized as soon as Emacs is and there is
+an X display available."
+  (exwm--log)
+  ;; Ignore unrecognized command line arguments.  This can be helpful
+  ;; when EXWM is launched by some session manager.
+  (push #'vector command-line-functions)
+  ;; In case EXWM is to be started from a graphical Emacs instance.
+  (add-hook 'window-setup-hook #'exwm--init-on-window-setup-hook t)
+  ;; In case EXWM is to be started with emacsclient.
+  (add-hook 'after-make-frame-functions #'exwm--init-on-after-make-frame t))
+
+(defun exwm--disable ()
+  "Disable EXWM.
+See `exwm--enable'."
+  (exwm--log)
+  (remove-hook 'window-setup-hook #'exwm--init-on-window-setup-hook)
+  (remove-hook 'after-make-frame-functions #'exwm--init-on-after-make-frame))
 
 (defun exwm--server-stop ()
   "Stop the subordinate Emacs server."
@@ -1008,9 +1058,47 @@ manager.  If t, replace it, if nil, abort and ask the user if `ask'."
       (run-hooks 'kill-emacs-hook)
       (setq kill-emacs-hook nil))
     ;; Exit each module, destroying all resources created by this connection.
-    (exwm-exit)
+    (exwm--exit)
     ;; Set the return value.
     t))
+
+(defun exwm--terminal-x-p (terminal)
+  "Check whether TERMINAL is an X terminal."
+  (eq 'x (terminal-live-p terminal)))
+
+(defun exwm--find-any-x-frame ()
+  "Find a frame whose terminal is an X display.
+Selected frame is checked first."
+  (let* ((terminals (cons (frame-terminal (selected-frame))
+                          (terminal-list)))
+         (found-terminal (seq-find 'exwm--terminal-x-p terminals)))
+    (when found-terminal
+      (car (frames-on-display-list found-terminal)))))
+
+
+;;; Obsolete:
+
+;;;###autoload
+(defun exwm-enable (&optional undo)
+  "Enable/Disable EXWM."
+  (exwm--log "%s" undo)
+  (pcase undo
+    (`undo (exwm--disable))
+    (_ (exwm--enable))))
+(make-obsolete 'exwm-enable
+               "Please use `exwm-minor-mode' instead"
+               "exwm-0.28")
+
+(defalias 'exwm-init 'exwm--init)
+(make-obsolete 'exwm-init
+               "Please use `exwm-minor-mode' instead"
+               "exwm-0.28")
+
+;;;###autoload
+(defalias 'exwm-exit 'exwm--exit)
+(make-obsolete 'exwm-exit
+               "Please use `exwm-minor-mode' instead"
+               "exwm-0.28")
 
 
 

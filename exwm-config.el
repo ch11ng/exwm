@@ -73,7 +73,7 @@
             ([?\C-d] . [delete])
             ([?\C-k] . [S-end delete]))))
   ;; Enable EXWM
-  (exwm-enable)
+  (exwm-minor-mode +1)
   ;; Configure Ido
   (exwm-config-ido)
   ;; Other configurations
