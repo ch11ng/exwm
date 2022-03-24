@@ -193,6 +193,21 @@ least SECS seconds later."
               (lsh (lsh (pop rgb) -8) 8)
               (lsh (pop rgb) -8)))))
 
+(defun exwm--get-visual-depth-colormap (conn id)
+  "Get visual, depth and colormap from X window ID.
+Return a three element list with the respective results."
+  (let (ret-visual ret-depth ret-colormap)
+    (with-slots (visual colormap)
+        (xcb:+request-unchecked+reply conn
+            (make-instance 'xcb:GetWindowAttributes :window id))
+      (setq ret-visual visual)
+      (setq ret-colormap colormap))
+    (with-slots (depth)
+        (xcb:+request-unchecked+reply conn
+            (make-instance 'xcb:GetGeometry :drawable id))
+      (setq ret-depth depth))
+    (list ret-visual ret-depth ret-colormap)))
+
 ;; Internal variables
 (defvar-local exwm--id nil)               ;window ID
 (defvar-local exwm--configurations nil)   ;initial configurations.

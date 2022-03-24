@@ -1326,7 +1326,8 @@ Please check `exwm-workspace--minibuffer-own-frame-p' first."
   (let ((outer-id (string-to-number (frame-parameter frame
                                                      'outer-window-id)))
         (window-id (string-to-number (frame-parameter frame 'window-id)))
-        (container (xcb:generate-id exwm--connection)))
+        (container (xcb:generate-id exwm--connection))
+        frame-colormap frame-visual frame-depth)
     ;; Save window IDs
     (set-frame-parameter frame 'exwm-outer-id outer-id)
     (set-frame-parameter frame 'exwm-id window-id)
@@ -1340,9 +1341,17 @@ Please check `exwm-workspace--minibuffer-own-frame-p' first."
       (dolist (param '(exwm-randr-monitor
                        exwm-geometry))
         (set-frame-parameter frame param (frame-parameter w param))))
+    ;; Support transparency on the container X window when the Emacs frame
+    ;; does.  Note that in addition to setting the visual, colormap and depth
+    ;; we must also reset the `:border-pixmap', as its default value is
+    ;; relative to the parent window, which might have a different depth.
+    (let* ((vdc (exwm--get-visual-depth-colormap exwm--connection outer-id)))
+      (setq frame-visual (car vdc))
+      (setq frame-depth (cadr vdc))
+      (setq frame-colormap (caddr vdc)))
     (xcb:+request exwm--connection
         (make-instance 'xcb:CreateWindow
-                       :depth 0
+                       :depth frame-depth
                        :wid container
                        :parent exwm--root
                        :x -1
@@ -1351,10 +1360,14 @@ Please check `exwm-workspace--minibuffer-own-frame-p' first."
                        :height 1
                        :border-width 0
                        :class xcb:WindowClass:InputOutput
-                       :visual 0
+                       :visual frame-visual
                        :value-mask (logior xcb:CW:BackPixmap
+                                           xcb:CW:BorderPixel
+                                           xcb:CW:Colormap
                                            xcb:CW:OverrideRedirect)
-                       :background-pixmap xcb:BackPixmap:ParentRelative
+                       :background-pixmap xcb:BackPixmap:None
+                       :border-pixel 0
+                       :colormap frame-colormap
                        :override-redirect 1))
     (xcb:+request exwm--connection
         (make-instance 'xcb:ConfigureWindow
