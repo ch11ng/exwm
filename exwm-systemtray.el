@@ -487,7 +487,8 @@ indicate how to support actual transparency."
   (cl-assert (not exwm-systemtray--embedder-window))
   (unless exwm-systemtray-height
     (setq exwm-systemtray-height (max exwm-systemtray--icon-min-size
-                                      (line-pixel-height))))
+                                      (with-selected-window (minibuffer-window)
+                                        (line-pixel-height)))))
   ;; Create a new connection.
   (setq exwm-systemtray--connection (xcb:connect))
   (set-process-query-on-exit-flag (slot-value exwm-systemtray--connection
