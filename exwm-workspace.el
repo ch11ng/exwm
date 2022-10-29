@@ -444,7 +444,7 @@ NIL if FRAME is not a workspace"
 
 (defun exwm-workspace--set-active (frame active)
   "Make frame FRAME active on its monitor."
-  (exwm--log "active=%s; frame=%s" frame active)
+  (exwm--log "active=%s; frame=%s" active frame)
   (set-frame-parameter frame 'exwm-active active)
   (if active
       (exwm-workspace--set-fullscreen frame)
