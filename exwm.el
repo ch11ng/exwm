@@ -420,8 +420,8 @@
     (setq type (slot-value obj 'type)
           id (slot-value obj 'window)
           data (slot-value (slot-value obj 'data) 'data32))
-    (exwm--log "atom=%s(%s)" (x-get-atom-name type exwm-workspace--current)
-               type)
+    (exwm--log "atom=%s(%s) id=#x%x data=%s" (x-get-atom-name type exwm-workspace--current)
+               type (or id 0) data)
     (cond
      ;; _NET_NUMBER_OF_DESKTOPS.
      ((= type xcb:Atom:_NET_NUMBER_OF_DESKTOPS)
@@ -443,7 +443,8 @@
      ((= type xcb:Atom:_NET_ACTIVE_WINDOW)
       (let ((buffer (exwm--id->buffer id))
             iconic window)
-        (when (buffer-live-p buffer)
+        (if (buffer-live-p buffer)
+          ;; Either an `exwm-mode' buffer (an X window) or a floating frame.
           (with-current-buffer buffer
             (when (eq exwm--frame exwm-workspace--current)
               (if exwm--floating-frame
@@ -457,7 +458,11 @@
                 (setq window (get-buffer-window nil t))
                 (when (or iconic
                           (not (eq window (selected-window))))
-                  (select-window window))))))))
+                  (select-window window)))))
+          ;; A workspace.
+          (dolist (f exwm-workspace--list)
+            (when (eq id (frame-parameter f 'exwm-outer-id))
+              (x-focus-frame f t))))))
      ;; _NET_CLOSE_WINDOW.
      ((= type xcb:Atom:_NET_CLOSE_WINDOW)
       (let ((buffer (exwm--id->buffer id)))
