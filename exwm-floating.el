@@ -161,6 +161,8 @@ context of the corresponding buffer."
                           (get-buffer "*scratch*")))
                   (make-frame
                    `((minibuffer . ,(minibuffer-window exwm--frame))
+                     (tab-bar-lines . 0)
+                     (tab-bar-lines-keep-state . t)
                      (left . ,(* window-min-width -10000))
                      (top . ,(* window-min-height -10000))
                      (width . ,window-min-width)
