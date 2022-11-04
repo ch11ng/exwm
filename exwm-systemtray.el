@@ -1,7 +1,7 @@
 ;;; exwm-systemtray.el --- System Tray Module for  -*- lexical-binding: t -*-
 ;;;                        EXWM
 
-;; Copyright (C) 2016-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2016-2022 Free Software Foundation, Inc.
 
 ;; Author: Chris Feng <chris.w.feng@gmail.com>
 
@@ -30,6 +30,7 @@
 
 ;;; Code:
 
+(require 'xcb-ewmh)
 (require 'xcb-icccm)
 (require 'xcb-xembed)
 (require 'xcb-systemtray)
@@ -599,6 +600,11 @@ indicate how to support actual transparency."
         (make-instance 'xcb:ewmh:set-_NET_WM_NAME
                        :window id
                        :data "EXWM: exwm-systemtray--embedder-window"))
+    ;; Set _NET_WM_WINDOW_TYPE.
+    (xcb:+request exwm-systemtray--connection
+        (make-instance 'xcb:ewmh:set-_NET_WM_WINDOW_TYPE
+                       :window id
+                       :data (vector xcb:Atom:_NET_WM_WINDOW_TYPE_DOCK)))
     ;; Set _NET_SYSTEM_TRAY_VISUAL.
     (xcb:+request exwm-systemtray--connection
         (make-instance 'xcb:xembed:set-_NET_SYSTEM_TRAY_VISUAL
