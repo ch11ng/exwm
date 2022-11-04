@@ -75,7 +75,7 @@ You shall use the default value if using auto-hide minibuffer."
 
 (defcustom exwm-systemtray-background-color
   (if (exwm-systemtray--transparency-supported-p)
-      "black"
+      'workspace-background
     'transparent)
   "Background color of systemtray.
 This should be a color, the symbol `workspace-background' for the background
@@ -86,6 +86,7 @@ Transparent background is not yet supported when Emacs uses 32-bit depth
 visual, as reported by `x-display-planes'.  The X resource \"Emacs.visualClass:
 TrueColor-24\" can be used to force Emacs to use 24-bit depth."
   :type '(choice (const :tag "Transparent" 'transparent)
+                 (const :tag "Frame background" 'workspace-background)
                  (color))
   :initialize #'custom-initialize-default
   :set (lambda (symbol value)
@@ -93,8 +94,8 @@ TrueColor-24\" can be used to force Emacs to use 24-bit depth."
                     (not (exwm-systemtray--transparency-supported-p)))
            (display-warning 'exwm-systemtray
                             "Transparent background is not supported yet when \
-using 32-bit depth.  Using black instead.")
-           (setq value "black"))
+using 32-bit depth.  Using `workspace-background' instead.")
+           (setq value 'workspace-background))
          (set-default symbol value)
          (when (and exwm-systemtray--connection
                     exwm-systemtray--embedder-window)
@@ -256,6 +257,12 @@ using 32-bit depth.  Using black instead.")
                          :window exwm-systemtray--embedder-window))))
   (xcb:flush exwm-systemtray--connection))
 
+(defun exwm-systemtray--refresh-background-color ()
+  "Refresh background color after theme change or workspace switch."
+  ;; Only `workspace-background' is dependent on current theme and workspace.
+  (when (eq 'workspace-background exwm-systemtray-background-color)
+    (exwm-systemtray--set-background-color)))
+
 (defun exwm-systemtray--set-background-color ()
   "Change the background color of the embedder.
 The color is set according to `exwm-systemtray-background-color'.
@@ -268,8 +275,11 @@ window; unmap & map are necessary for the background color to take effect."
                     ((transparent nil) ; nil means transparent as well
                      (if (exwm-systemtray--transparency-supported-p)
                          nil
-                       (message "%s" "[EXWM] system tray does not support transparent background; using black instead")
-                       "black"))
+                       (message "%s" "[EXWM] system tray does not support \
+`transparent' background; using `workspace-background' instead")
+                       (face-background 'default exwm-workspace--current)))
+                    (workspace-background
+                     (face-background 'default exwm-workspace--current))
                     (t exwm-systemtray-background-color)))
            (background-pixel (exwm--color->pixel color)))
       (xcb:+request exwm-systemtray--connection
@@ -437,7 +447,12 @@ indicate how to support actual transparency."
                                   3)
                              exwm-workspace--frame-y-offset
                              exwm-systemtray-height))))
+  (exwm-systemtray--refresh-background-color)
   (exwm-systemtray--refresh))
+
+(defun exwm-systemtray--on-theme-change ()
+  "Refresh system tray upon theme change."
+  (exwm-systemtray--refresh-background-color))
 
 (defun exwm-systemtray--refresh-all ()
   "Reposition/Refresh the system tray."
@@ -608,6 +623,9 @@ indicate how to support actual transparency."
   (add-hook 'exwm-workspace-switch-hook #'exwm-systemtray--on-workspace-switch)
   (add-hook 'exwm-workspace--update-workareas-hook
             #'exwm-systemtray--refresh-all)
+  ;; Add hook to update background colors.
+  (add-hook 'enable-theme-functions #'exwm-systemtray--on-theme-change)
+  (add-hook 'disable-theme-functions #'exwm-systemtray--on-theme-change)
   (add-hook 'menu-bar-mode-hook #'exwm-systemtray--refresh-all)
   (add-hook 'tool-bar-mode-hook #'exwm-systemtray--refresh-all)
   (when (boundp 'exwm-randr-refresh-hook)
@@ -642,6 +660,8 @@ indicate how to support actual transparency."
                  #'exwm-systemtray--on-workspace-switch)
     (remove-hook 'exwm-workspace--update-workareas-hook
                  #'exwm-systemtray--refresh-all)
+    (remove-hook 'enable-theme-functions #'exwm-systemtray--on-theme-change)
+    (remove-hook 'disable-theme-functions #'exwm-systemtray--on-theme-change)
     (remove-hook 'menu-bar-mode-hook #'exwm-systemtray--refresh-all)
     (remove-hook 'tool-bar-mode-hook #'exwm-systemtray--refresh-all)
     (when (boundp 'exwm-randr-refresh-hook)
