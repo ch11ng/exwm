@@ -258,11 +258,21 @@ using 32-bit depth.  Using `workspace-background' instead.")
                          :window exwm-systemtray--embedder-window))))
   (xcb:flush exwm-systemtray--connection))
 
-(defun exwm-systemtray--refresh-background-color ()
-  "Refresh background color after theme change or workspace switch."
+(defun exwm-systemtray--refresh-background-color (&optional remap)
+  "Refresh background color after theme change or workspace switch.
+If REMAP is not nil, map and unmap the embedder window so that the background is
+redrawn."
   ;; Only `workspace-background' is dependent on current theme and workspace.
   (when (eq 'workspace-background exwm-systemtray-background-color)
-    (exwm-systemtray--set-background-color)))
+    (exwm-systemtray--set-background-color)
+    (when remap
+      (xcb:+request exwm-systemtray--connection
+                    (make-instance 'xcb:UnmapWindow
+                                   :window exwm-systemtray--embedder-window))
+      (xcb:+request exwm-systemtray--connection
+                    (make-instance 'xcb:MapWindow
+                                   :window exwm-systemtray--embedder-window))
+      (xcb:flush exwm-systemtray--connection))))
 
 (defun exwm-systemtray--set-background-color ()
   "Change the background color of the embedder.
@@ -453,7 +463,7 @@ indicate how to support actual transparency."
 
 (defun exwm-systemtray--on-theme-change (_theme)
   "Refresh system tray upon theme change."
-  (exwm-systemtray--refresh-background-color))
+  (exwm-systemtray--refresh-background-color 'remap))
 
 (defun exwm-systemtray--refresh-all ()
   "Reposition/Refresh the system tray."
