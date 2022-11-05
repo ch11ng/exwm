@@ -451,7 +451,7 @@ indicate how to support actual transparency."
   (exwm-systemtray--refresh-background-color)
   (exwm-systemtray--refresh))
 
-(defun exwm-systemtray--on-theme-change ()
+(defun exwm-systemtray--on-theme-change (_theme)
   "Refresh system tray upon theme change."
   (exwm-systemtray--refresh-background-color))
 
