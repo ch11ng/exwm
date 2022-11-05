@@ -262,7 +262,14 @@ using 32-bit depth.  Using `workspace-background' instead.")
   "Refresh background color after theme change or workspace switch."
   ;; Only `workspace-background' is dependent on current theme and workspace.
   (when (eq 'workspace-background exwm-systemtray-background-color)
-    (exwm-systemtray--set-background-color)))
+    (exwm-systemtray--set-background-color)
+    (xcb:+request exwm-systemtray--connection
+        (make-instance 'xcb:UnmapWindow
+                       :window exwm-systemtray--embedder-window))
+    (xcb:+request exwm-systemtray--connection
+        (make-instance 'xcb:MapWindow
+                       :window exwm-systemtray--embedder-window))
+    (xcb:flush exwm-systemtray--connection)))
 
 (defun exwm-systemtray--set-background-color ()
   "Change the background color of the embedder.
