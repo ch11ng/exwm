@@ -74,10 +74,7 @@ You shall use the default value if using auto-hide minibuffer."
 (defvar exwm-systemtray--embedder-window-depth nil
   "The embedder window's depth.")
 
-(defcustom exwm-systemtray-background-color
-  (if (exwm-systemtray--transparency-supported-p)
-      'workspace-background
-    'transparent)
+(defcustom exwm-systemtray-background-color 'workspace-background
   "Background color of systemtray.
 This should be a color, the symbol `workspace-background' for the background
 color of current workspace frame, or the symbol `transparent' for transparent
