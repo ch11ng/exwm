@@ -403,21 +403,22 @@ selected by `other-buffer'."
 (defun exwm-layout--on-minibuffer-setup ()
   "Refresh layout when minibuffer grows."
   (exwm--log)
-  ;; Only when the minibuffer's frame is an EXWM frame.
-  ;; FIXME: would it be enough checking for workspace frames?
-  (when (exwm--terminal-p)
-    (exwm--defer 0 (lambda ()
-                     (when (< 1 (window-height (minibuffer-window)))
-                       (exwm-layout--refresh))))))
+  ;; Only when active minibuffer's frame is an EXWM frame.
+  (let* ((mini-window (active-minibuffer-window))
+         (frame (window-frame mini-window)))
+    (when (exwm-workspace--workspace-p frame)
+      (exwm--defer 0 (lambda ()
+                       (when (< 1 (window-height mini-window)))
+                       (exwm-layout--refresh frame))))))
 
 (defun exwm-layout--on-echo-area-change (&optional dirty)
   "Run when message arrives or in `echo-area-clear-hook' to refresh layout."
-  (let ((frame (window-frame (minibuffer-window)))
+  (let ((frame (window-frame (active-minibuffer-window)))
         (msg (current-message)))
     ;; Check whether the frame where current window's minibuffer resides (not
     ;; current window's frame for floating windows!) must be adjusted.
     (when (and msg
-               (exwm--terminal-p frame)
+               (exwm-workspace--workspace-p frame)
                (or (cl-position ?\n msg)
                    (> (length msg) (frame-width frame))))
       (exwm--log)
