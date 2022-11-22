@@ -155,9 +155,9 @@ Nil can be passed as placeholder."
                                          (if height xcb:ConfigWindow:Height 0))
                      :x x :y y :width width :height height)))
 
-(defun exwm--intern-atom (atom)
+(defun exwm--intern-atom (atom &optional conn)
   "Intern X11 ATOM."
-  (slot-value (xcb:+request-unchecked+reply exwm--connection
+  (slot-value (xcb:+request-unchecked+reply (or conn exwm--connection)
                   (make-instance 'xcb:InternAtom
                                  :only-if-exists 0
                                  :name-len (length atom)
