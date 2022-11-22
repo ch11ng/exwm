@@ -1121,16 +1121,16 @@ One use is to access the keymap bound to KEYS (as prefix keys) in char-mode."
 
 (defun exwm-input--on-echo-area-dirty ()
   "Run when new message arrives to grab keyboard if necessary."
-  (exwm--log)
   (when (and (not (active-minibuffer-window))
              (not (exwm-workspace--client-p))
              cursor-in-echo-area)
+    (exwm--log)
     (exwm-input--on-minibuffer-setup)))
 
 (defun exwm-input--on-echo-area-clear ()
   "Run in `echo-area-clear-hook' to release keyboard if necessary."
-  (exwm--log)
   (unless (current-message)
+    (exwm--log)
     (exwm-input--on-minibuffer-exit)))
 
 (defun exwm-input--init ()
