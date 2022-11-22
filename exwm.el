@@ -127,7 +127,7 @@
   "Restart EXWM."
   (interactive)
   (exwm--log)
-  (when (exwm--confirm-kill-emacs "[EXWM] Restart? " 'no-check)
+  (when (exwm--confirm-kill-emacs "Restart?" 'no-check)
     (let* ((attr (process-attributes (emacs-pid)))
            (args (cdr (assq 'args attr)))
            (ppid (cdr (assq 'ppid attr)))
@@ -434,7 +434,6 @@
          ((and (> current requested)
                (> current 1))
           (let ((frame (car (last exwm-workspace--list))))
-            (exwm-workspace--get-remove-frame-next-workspace frame)
             (delete-frame frame))))))
      ;; _NET_CURRENT_DESKTOP.
      ((= type xcb:Atom:_NET_CURRENT_DESKTOP)
@@ -609,6 +608,13 @@
     (when (and (eq owner exwm--wmsn-window)
                (eq selection xcb:Atom:WM_S0))
       (exwm-exit))))
+
+(defun exwm--on-delete-terminal (terminal)
+  "Handle terminal being deleted without Emacs being killed.
+This may happen when invoking `save-buffers-kill-terminal' within an emacsclient
+session."
+  (when (eq terminal exwm--terminal)
+    (exwm-exit)))
 
 (defun exwm--init-icccm-ewmh ()
   "Initialize ICCCM/EWMH support."
@@ -846,6 +852,7 @@ manager.  If t, replace it, if nil, abort and ask the user if `ask'."
   (condition-case err
       (progn
         (exwm-enable 'undo)               ;never initialize again
+        (setq exwm--terminal (frame-terminal frame))
         (setq exwm--connection (xcb:connect))
         (set-process-query-on-exit-flag (slot-value exwm--connection 'process)
                                         nil) ;prevent query message on exit
@@ -868,6 +875,10 @@ manager.  If t, replace it, if nil, abort and ask the user if `ask'."
         ;; Disable some features not working well with EXWM
         (setq use-dialog-box nil
               confirm-kill-emacs #'exwm--confirm-kill-emacs)
+        (advice-add 'save-buffers-kill-terminal
+                    :before-while #'exwm--confirm-kill-terminal)
+        ;; Clean up if the terminal is deleted.
+        (add-hook 'delete-terminal-functions 'exwm--on-delete-terminal)
         (exwm--lock)
         (exwm--init-icccm-ewmh)
         (exwm-layout--init)
@@ -904,7 +915,9 @@ manager.  If t, replace it, if nil, abort and ask the user if `ask'."
   (when exwm--connection
     (xcb:flush exwm--connection)
     (xcb:disconnect exwm--connection))
-  (setq exwm--connection nil))
+  (setq exwm--connection nil)
+  (setq exwm--terminal nil)
+  (exwm--log "Exited"))
 
 ;;;###autoload
 (defun exwm-enable (&optional undo)
@@ -983,6 +996,14 @@ manager.  If t, replace it, if nil, abort and ask the user if `ask'."
                ;; For other types, return the value as-is.
                (t result))))))
 
+(defun exwm--confirm-kill-terminal (&optional _)
+  "Confirm before killing terminal."
+  ;; This is invoked instead of `save-buffers-kill-emacs' (C-x C-c) on client
+  ;; frames.
+  (if (exwm--terminal-p)
+      (exwm--confirm-kill-emacs "[EXWM] Kill terminal?")
+    t))
+
 (defun exwm--confirm-kill-emacs (prompt &optional force)
   "Confirm before exiting Emacs."
   (exwm--log)
@@ -1001,7 +1022,7 @@ manager.  If t, replace it, if nil, abort and ask the user if `ask'."
             (`break (y-or-n-p prompt))
             (x x)))
          (t
-          (yes-or-no-p (format "[EXWM] %d window(s) will be destroyed.  %s"
+          (yes-or-no-p (format "[EXWM] %d X window(s) will be destroyed.  %s"
                                (length exwm--id-buffer-alist) prompt))))
     ;; Run `kill-emacs-hook' (`server-force-stop' excluded) before Emacs
     ;; frames are unmapped so that errors (if any) can be visible.
