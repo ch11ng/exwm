@@ -222,6 +222,7 @@ Return a three element list with the respective results."
 (defvar-local exwm--frame nil)            ;workspace frame
 (defvar-local exwm--floating-frame nil)   ;floating frame
 (defvar-local exwm--mode-line-format nil) ;save mode-line-format
+(defvar-local exwm--tab-line-format nil) ;save tab-line-format
 (defvar-local exwm--floating-frame-position nil) ;set when hidden.
 (defvar-local exwm--fixed-size nil)              ;fixed size
 (defvar-local exwm--selected-input-mode 'line-mode

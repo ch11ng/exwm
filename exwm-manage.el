@@ -60,6 +60,8 @@ possible choices:
 * fullscreen: Force full screen (non-nil) on startup.
 * floating-mode-line: `mode-line-format' used when floating.
 * tiling-mode-line: `mode-line-format' used when tiling.
+* floating-tab-line: `tab-line-format' used when floating.
+* tiling-tab-line: `tab-line-format' used when tiling.
 * floating-header-line: `header-line-format' used when floating.
 * tiling-header-line: `header-line-format' used when tiling.
 * char-mode: Force char-mode (non-nil) on startup.
@@ -87,6 +89,9 @@ want to match against EXWM internal variables such as `exwm-title',
                         ((const :tag "Floating mode-line" floating-mode-line)
                          sexp)
                         ((const :tag "Tiling mode-line" tiling-mode-line) sexp)
+                        ((const :tag "Floating tab-line" floating-tab-line)
+                         sexp)
+                        ((const :tag "Tiling tab-line" tiling-tab-line) sexp)
                         ((const :tag "Floating header-line"
                                 floating-header-line)
                          sexp)

@@ -114,6 +114,8 @@
          (height (- (pop edges) y))
          frame-x frame-y frame-width frame-height)
     (with-current-buffer (exwm--id->buffer id)
+      (when tab-line-format
+        (setq y (+ y (window-tab-line-height window))))
       (when exwm--floating-frame
         (setq frame-width (frame-pixel-width exwm--floating-frame)
               frame-height (+ (frame-pixel-height exwm--floating-frame)
@@ -589,6 +591,52 @@ See also `exwm-layout-enlarge-window'."
     (if mode-line-format
         (exwm-layout-hide-mode-line)
       (exwm-layout-show-mode-line))))
+
+;;;###autoload
+(defun exwm-layout-hide-tab-line ()
+  "Hide tab-line."
+  (interactive)
+  (exwm--log)
+  (when (and (derived-mode-p 'exwm-mode) tab-line-format)
+    (let (tab-line-height)
+      (when exwm--floating-frame
+        (setq tab-line-height (window-tab-line-height
+                                (frame-root-window exwm--floating-frame))))
+      (setq exwm--tab-line-format tab-line-format
+            tab-line-format nil)
+      (if (not exwm--floating-frame)
+          (exwm-layout--show exwm--id)
+        (set-frame-height exwm--floating-frame
+                          (- (frame-pixel-height exwm--floating-frame)
+                             tab-line-height)
+                          nil t)))))
+
+;;;###autoload
+(defun exwm-layout-show-tab-line ()
+  "Show tab-line."
+  (interactive)
+  (exwm--log)
+  (when (and (derived-mode-p 'exwm-mode) (not tab-line-format))
+    (setq tab-line-format exwm--tab-line-format
+          exwm--tab-line-format nil)
+    (if (not exwm--floating-frame)
+        (exwm-layout--show exwm--id)
+      (set-frame-height exwm--floating-frame
+                        (+ (frame-pixel-height exwm--floating-frame)
+                           (window-tab-line-height (frame-root-window
+                                                    exwm--floating-frame)))
+                        nil t)
+      (call-interactively #'exwm-input-grab-keyboard))))
+
+;;;###autoload
+(defun exwm-layout-toggle-tab-line ()
+  "Toggle the display of tab-line."
+  (interactive)
+  (exwm--log)
+  (when (derived-mode-p 'exwm-mode)
+    (if tab-line-format
+        (exwm-layout-hide-tab-line)
+      (exwm-layout-show-tab-line))))
 
 (defun exwm-layout--init ()
   "Initialize layout module."
