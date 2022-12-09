@@ -299,20 +299,10 @@ context of the corresponding buffer."
                                               (frame-root-window frame)))
                 header-line-format nil)))
 
-      (if floating-tab-line
-          (setq exwm--tab-line-format (or exwm--tab-line-format
-                                          tab-line-format)
-                tab-line-format floating-tab-line)
-        (if (and (not (plist-member exwm--configurations 'floating-tab-line))
-                 exwm--mwm-hints-decorations)
-            (when exwm--tab-line-format
-              (setq tab-line-format exwm--tab-line-format))
-          ;; The mode-line need to be hidden in floating mode.
-          (setq frame-height (- frame-height (window-tab-line-height
-                                              (frame-root-window frame)))
-                exwm--tab-line-format (or exwm--tab-line-format
-                                          tab-line-format)
-                tab-line-format nil)))
+      ;; Hide tab-line by default but override with floating-tab-line.
+      (setq exwm--tab-line-format (or exwm--tab-line-format
+                                      tab-line-format)
+            tab-line-format floating-tab-line)
 
       (set-frame-size frame frame-width frame-height t)
       ;; Create the frame container as the parent of the frame.
