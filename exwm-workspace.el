@@ -377,7 +377,9 @@ NIL if FRAME is not a workspace"
                       (or (not position)
                           (< (max (aref position 0) (aref w 0))
                              (min (aref position 1)
-                                  (+ (aref w 0) (aref w 2))))))
+                                  (+ (aref w 0) (aref w 2)))))
+                      (< width (+ (aref w 1) (aref w 3)))
+                      (> width (aref w 1)))
              (cl-incf (aref w 3) delta)
              (setf (aref w 1) width)))
           (`bottom
@@ -386,7 +388,10 @@ NIL if FRAME is not a workspace"
                       (or (not position)
                           (< (max (aref position 0) (aref w 0))
                              (min (aref position 1)
-                                  (+ (aref w 0) (aref w 2))))))
+                                  (+ (aref w 0) (aref w 2)))))
+                      (< (- root-height width)
+                         (+ (aref w 1) (aref w 3)))
+                      (> (- root-height width) (aref w 1)))
              (cl-incf (aref w 3) delta))))))
     ;; Save the result.
     (setq exwm-workspace--workareas workareas)
