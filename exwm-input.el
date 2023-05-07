@@ -1215,12 +1215,13 @@ One use is to access the keymap bound to KEYS (as prefix keys) in char-mode."
   (when exwm-input--update-focus-timer
     (cancel-timer exwm-input--update-focus-timer))
   ;; Make input focus working even without a WM.
-  (xcb:+request exwm--connection
-      (make-instance 'xcb:SetInputFocus
-                     :revert-to xcb:InputFocus:PointerRoot
-                     :focus exwm--root
-                     :time xcb:Time:CurrentTime))
-  (xcb:flush exwm--connection))
+  (when exwm--connection
+    (xcb:+request exwm--connection
+        (make-instance 'xcb:SetInputFocus
+                       :revert-to xcb:InputFocus:PointerRoot
+                       :focus exwm--root
+                       :time xcb:Time:CurrentTime))
+    (xcb:flush exwm--connection)))
 
 
 
