@@ -452,9 +452,12 @@ ARGS are additional arguments to CALLBACK."
             (t
              ;; Replay this event by default.
              (setq fake-last-command t)
-             (setq mode xcb:Allow:ReplayPointer))))
-    (when fake-last-command
-      (exwm-input--fake-last-command))
+             (setq mode xcb:Allow:ReplayPointer)))
+      (when fake-last-command
+        (if buffer
+            (with-current-buffer buffer
+              (exwm-input--fake-last-command))
+          (exwm-input--fake-last-command))))
     (xcb:+request exwm--connection
         (make-instance 'xcb:AllowEvents :mode mode :time xcb:Time:CurrentTime))
     (xcb:flush exwm--connection))
