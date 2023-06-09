@@ -652,19 +652,20 @@ indicate how to support actual transparency."
   "Exit the systemtray module."
   (exwm--log)
   (when exwm-systemtray--connection
-    ;; Hide & reparent out the embedder before disconnection to prevent
-    ;; embedded icons from being reparented to an Emacs frame (which is the
-    ;; parent of the embedder).
-    (xcb:+request exwm-systemtray--connection
-        (make-instance 'xcb:UnmapWindow
-                       :window exwm-systemtray--embedder-window))
-    (xcb:+request exwm-systemtray--connection
-        (make-instance 'xcb:ReparentWindow
-                       :window exwm-systemtray--embedder-window
-                       :parent exwm--root
-                       :x 0
-                       :y 0))
-    (xcb:disconnect exwm-systemtray--connection)
+    (when (slot-value exwm-systemtray--connection 'connected)
+      ;; Hide & reparent out the embedder before disconnection to prevent
+      ;; embedded icons from being reparented to an Emacs frame (which is the
+      ;; parent of the embedder).
+      (xcb:+request exwm-systemtray--connection
+          (make-instance 'xcb:UnmapWindow
+                         :window exwm-systemtray--embedder-window))
+      (xcb:+request exwm-systemtray--connection
+          (make-instance 'xcb:ReparentWindow
+                         :window exwm-systemtray--embedder-window
+                         :parent exwm--root
+                         :x 0
+                         :y 0))
+      (xcb:disconnect exwm-systemtray--connection))
     (setq exwm-systemtray--connection nil
           exwm-systemtray--list nil
           exwm-systemtray--selection-owner-window nil

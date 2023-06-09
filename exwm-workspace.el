@@ -1389,32 +1389,34 @@ Return nil if FRAME is the only workspace."
     (unless (eq frame nextw)
       nextw)))
 
-(defun exwm-workspace--remove-frame-as-workspace (frame)
+(defun exwm-workspace--remove-frame-as-workspace (frame &optional quit)
   "Stop treating frame FRAME as a workspace."
   ;; TODO: restore all frame parameters (e.g. exwm-workspace, buffer-predicate,
   ;; etc)
   (exwm--log "Removing frame `%s' as workspace" frame)
-  (let* ((next-frame (exwm-workspace--get-next-workspace frame))
-         (following-frames (cdr (memq frame exwm-workspace--list))))
-    ;; Need to remove the workspace from the list for the correct calculation of
-    ;; indexes below.
-    (setq exwm-workspace--list (delete frame exwm-workspace--list))
-    (unless next-frame
-      ;; The user managed to delete the last workspace, so create a new one.
-      (exwm--log "Last workspace deleted; create a new one")
-      (let ((exwm-workspace--create-silently t))
-        (setq next-frame (make-frame))))
-    (dolist (pair exwm--id-buffer-alist)
-      (let ((other-frame (buffer-local-value 'exwm--frame (cdr pair))))
-        ;; Move X windows to next-frame.
-        (when (eq other-frame frame)
-          (exwm-workspace-move-window next-frame (car pair)))
-        ;; Update the _NET_WM_DESKTOP property of each following X window.
-        (when (memq other-frame following-frames)
-          (exwm-workspace--set-desktop (car pair)))))
-    ;; If the current workspace is deleted, switch to next one.
-    (when (eq frame exwm-workspace--current)
-      (exwm-workspace-switch next-frame)))
+  (unless quit
+    (let* ((next-frame (exwm-workspace--get-next-workspace frame))
+           (following-frames (cdr (memq frame exwm-workspace--list))))
+      ;; Need to remove the workspace from the list for the correct calculation of
+      ;; indexes below.
+      (setq exwm-workspace--list (delete frame exwm-workspace--list))
+      ;; Move the windows to the next workspace and switch to it.
+      (unless next-frame
+        ;; The user managed to delete the last workspace, so create a new one.
+        (exwm--log "Last workspace deleted; create a new one")
+        (let ((exwm-workspace--create-silently t))
+          (setq next-frame (make-frame))))
+      (dolist (pair exwm--id-buffer-alist)
+        (let ((other-frame (buffer-local-value 'exwm--frame (cdr pair))))
+          ;; Move X windows to next-frame.
+          (when (eq other-frame frame)
+            (exwm-workspace-move-window next-frame (car pair)))
+          ;; Update the _NET_WM_DESKTOP property of each following X window.
+          (when (memq other-frame following-frames)
+            (exwm-workspace--set-desktop (car pair)))))
+      ;; If the current workspace is deleted, switch to next one.
+      (when (eq frame exwm-workspace--current)
+        (exwm-workspace-switch next-frame))))
   ;; Reparent out the frame.
   (let ((outer-id (frame-parameter frame 'exwm-outer-id)))
     (xcb:+request exwm--connection
@@ -1448,8 +1450,9 @@ Return nil if FRAME is the only workspace."
   ;; Update EWMH properties.
   (exwm-workspace--update-ewmh-props)
   ;; Update switch history.
-  (setq exwm-workspace--switch-history-outdated t)
-  (run-hooks 'exwm-workspace-list-change-hook))
+  (unless quit
+    (setq exwm-workspace--switch-history-outdated t)
+    (run-hooks 'exwm-workspace-list-change-hook)))
 
 (defun exwm-workspace--on-delete-frame (frame)
   "Hook run upon `delete-frame' that tears down FRAME's configuration as a workspace."
@@ -1623,7 +1626,9 @@ applied to all subsequently created X frames."
   (setq default-minibuffer-frame nil)
   (when (frame-live-p exwm-workspace--minibuffer) ; might be already dead
     (let ((id (frame-parameter exwm-workspace--minibuffer 'exwm-outer-id)))
-      (when (and exwm-workspace--minibuffer id)
+      (when (and exwm-workspace--minibuffer id
+                 ;; Invoked from `exwm-manage--exit' upon disconnection.
+                 (slot-value exwm--connection 'connected))
         (xcb:+request exwm--connection
             (make-instance 'xcb:ReparentWindow
                            :window id
@@ -1708,19 +1713,21 @@ applied to all subsequently created X frames."
                  #'exwm-workspace--on-echo-area-clear))
   ;; Hide & reparent out all frames (save-set can't be used here since
   ;; X windows will be re-mapped).
-  (setq exwm-workspace--current nil)
-  (dolist (i exwm-workspace--list)
-    (when (frame-live-p i)                    ; might be already dead
-      (exwm-workspace--remove-frame-as-workspace i)
-      (modify-frame-parameters i '((exwm-selected-window . nil)
-                                   (exwm-urgency . nil)
-                                   (exwm-outer-id . nil)
-                                   (exwm-id . nil)
-                                   (exwm-container . nil)
-                                   ;; (internal-border-width . nil) ; integerp
-                                   (fullscreen . nil)
-                                   (buffer-predicate . nil)))))
+  (when (slot-value exwm--connection 'connected)
+    (dolist (i exwm-workspace--list)
+      (when (frame-live-p i)                    ; might be already dead
+        (exwm-workspace--remove-frame-as-workspace i 'quit)
+        (modify-frame-parameters i '((exwm-selected-window . nil)
+                                     (exwm-urgency . nil)
+                                     (exwm-outer-id . nil)
+                                     (exwm-id . nil)
+                                     (exwm-container . nil)
+                                     ;; (internal-border-width . nil) ; integerp
+                                     (fullscreen . nil)
+                                     (buffer-predicate . nil))))))
   ;; Don't let dead frames linger.
+  (setq exwm-workspace--current nil)
+  (setq exwm-workspace-current-index 0)
   (setq exwm-workspace--list nil))
 
 (defun exwm-workspace--post-init ()
