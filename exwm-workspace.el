@@ -370,6 +370,7 @@ FRAME may be either a workspace frame or a workspace position."
               (`left
                (setq delta (- size x))
                (when (and (< 0 delta)
+                          (< delta width)
                           (or (not position)
                               (< (max beg y)
                                  (min end (+ y height)))))
@@ -378,6 +379,7 @@ FRAME may be either a workspace frame or a workspace position."
               (`right
                (setq delta (- size (- root-width x width)))
                (when (and (< 0 delta)
+                          (< delta width)
                           (or (not position)
                               (< (max beg y)
                                  (min end (+ y height)))))
@@ -385,22 +387,19 @@ FRAME may be either a workspace frame or a workspace position."
               (`top
                (setq delta (- size y))
                (when (and (< 0 delta)
+                          (< delta height)
                           (or (not position)
                               (< (max beg x)
-                                 (min end (+ x width))))
-                          (< size (+ y height))
-                          (> size y))
+                                 (min end (+ x width)))))
                  (cl-decf height delta)
                  (setf y size)))
               (`bottom
                (setq delta (- size (- root-height y height)))
                (when (and (< 0 delta)
+                          (< delta height)
                           (or (not position)
                               (< (max beg x)
-                                 (min end (+ x width))))
-                          (< (- root-height size)
-                             (+ y height))
-                          (> (- root-height size) y))
+                                 (min end (+ x width)))))
                  (cl-decf height delta))))))))
     ;; Save the result.
     (setq exwm-workspace--workareas workareas)
