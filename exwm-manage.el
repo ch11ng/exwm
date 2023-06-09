@@ -157,7 +157,6 @@ want to match against EXWM internal variables such as `exwm-title',
 (defvar exwm-workspace--id-struts-alist)
 (defvar exwm-workspace--list)
 (defvar exwm-workspace--switch-history-outdated)
-(defvar exwm-workspace--workareas)
 (defvar exwm-workspace-current-index)
 (declare-function exwm--update-class "exwm.el" (id &optional force))
 (declare-function exwm--update-hints "exwm.el" (id &optional force))
@@ -178,6 +177,7 @@ want to match against EXWM internal variables such as `exwm-title',
 (declare-function exwm-workspace--set-fullscreen "exwm-workspace.el" (frame))
 (declare-function exwm-workspace--update-struts "exwm-workspace.el" ())
 (declare-function exwm-workspace--update-workareas "exwm-workspace.el" ())
+(declare-function exwm-workspace--workarea "exwm-workspace.el" (frame))
 
 (defun exwm-manage--update-geometry (id &optional force)
   "Update window geometry."
@@ -326,12 +326,8 @@ want to match against EXWM internal variables such as `exwm-title',
         (with-slots (x y width height) exwm--geometry
           ;; Center window of type _NET_WM_WINDOW_TYPE_SPLASH
           (when (memq xcb:Atom:_NET_WM_WINDOW_TYPE_SPLASH exwm-window-type)
-            (let* ((workarea (elt exwm-workspace--workareas
-                                  (exwm-workspace--position exwm--frame)))
-                   (x* (aref workarea 0))
-                   (y* (aref workarea 1))
-                   (width* (aref workarea 2))
-                   (height* (aref workarea 3)))
+            (with-slots ((x* x) (y* y) (width* width) (height* height))
+                (exwm-workspace--workarea exwm--frame)
               (exwm--set-geometry id
                                   (+ x* (/ (- width* width) 2))
                                   (+ y* (/ (- height* height) 2))

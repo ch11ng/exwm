@@ -38,6 +38,8 @@
 (require 'exwm-core)
 (require 'exwm-workspace)
 
+(declare-function exwm-workspace--workarea "exwm-workspace.el" (frame))
+
 (defclass exwm-systemtray--icon ()
   ((width :initarg :width)
    (height :initarg :height)
@@ -240,14 +242,13 @@ using 32-bit depth.  Using `workspace-background' instead.")
         (setq x (+ x (slot-value (cdr pair) 'width)
                    exwm-systemtray-icon-gap))
         (setq map t)))
-    (let ((workarea (elt exwm-workspace--workareas
-                         exwm-workspace-current-index)))
+    (let ((workarea (exwm-workspace--workarea exwm-workspace-current-index)))
       (xcb:+request exwm-systemtray--connection
           (make-instance 'xcb:ConfigureWindow
                          :window exwm-systemtray--embedder-window
                          :value-mask (logior xcb:ConfigWindow:X
                                              xcb:ConfigWindow:Width)
-                         :x (- (aref workarea 2) x)
+                         :x (- (slot-value workarea 'width) x)
                          :width x)))
     (when map
       (xcb:+request exwm-systemtray--connection
@@ -450,9 +451,9 @@ indicate how to support actual transparency."
                                 (frame-parameter exwm-workspace--current
                                                  'window-id))
                        :x 0
-                       :y (- (elt (elt exwm-workspace--workareas
-                                       exwm-workspace-current-index)
-                                  3)
+                       :y (- (slot-value (exwm-workspace--workarea
+                                           exwm-workspace-current-index)
+                                         'height)
                              exwm-workspace--frame-y-offset
                              exwm-systemtray-height))))
   (exwm-systemtray--refresh-background-color)
@@ -471,9 +472,9 @@ indicate how to support actual transparency."
         (make-instance 'xcb:ConfigureWindow
                        :window exwm-systemtray--embedder-window
                        :value-mask xcb:ConfigWindow:Y
-                       :y (- (elt (elt exwm-workspace--workareas
-                                       exwm-workspace-current-index)
-                                  3)
+                       :y (- (slot-value (exwm-workspace--workarea
+                                           exwm-workspace-current-index)
+                                         'height)
                              exwm-workspace--frame-y-offset
                              exwm-systemtray-height))))
   (exwm-systemtray--refresh))
@@ -567,9 +568,9 @@ indicate how to support actual transparency."
       (exwm-workspace--update-offsets)
       (setq frame exwm-workspace--current
             ;; Bottom aligned.
-            y (- (elt (elt exwm-workspace--workareas
-                           exwm-workspace-current-index)
-                      3)
+            y (- (slot-value (exwm-workspace--workarea
+                               exwm-workspace-current-index)
+                             'height)
                  exwm-workspace--frame-y-offset
                  exwm-systemtray-height)))
     (setq parent (string-to-number (frame-parameter frame 'window-id)))
