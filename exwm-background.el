@@ -172,19 +172,17 @@ replace it.")
 (defun exwm-background--init ()
   "Initialize background module."
   (exwm--log)
-
   (add-hook 'enable-theme-functions 'exwm-background--update)
   (add-hook 'disable-theme-functions 'exwm-background--update)
-
   (exwm-background--update))
 
 (defun exwm-background--exit ()
   "Uninitialize the background module."
   (exwm--log)
-
   (remove-hook 'enable-theme-functions 'exwm-background--update)
   (remove-hook 'disable-theme-functions 'exwm-background--update)
-  (when exwm-background--connection
+  (when (and exwm-background--connection
+             (slot-value exwm-background--connection 'connected))
     (xcb:disconnect exwm-background--connection))
   (setq exwm-background--pixmap nil
         exwm-background--connection nil

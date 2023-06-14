@@ -907,12 +907,12 @@ manager.  If t, replace it, if nil, abort and ask the user if `ask'."
   (run-hooks 'exwm-exit-hook)
   (setq confirm-kill-emacs nil)
   ;; Exit modules.
-  (exwm-input--exit)
-  (exwm-manage--exit)
-  (exwm-workspace--exit)
-  (exwm-floating--exit)
-  (exwm-layout--exit)
   (when exwm--connection
+    (exwm-input--exit)
+    (exwm-manage--exit)
+    (exwm-workspace--exit)
+    (exwm-floating--exit)
+    (exwm-layout--exit)
     (xcb:flush exwm--connection)
     (xcb:disconnect exwm--connection))
   (setq exwm--connection nil)

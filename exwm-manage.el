@@ -430,7 +430,9 @@ manager is shutting down."
       (exwm-workspace--update-workareas)
       (dolist (f exwm-workspace--list)
         (exwm-workspace--set-fullscreen f)))
-    (when (buffer-live-p buffer)
+    (when (and (buffer-live-p buffer)
+               ;; Invoked from `exwm-manage--exit' upon disconnection.
+               (slot-value exwm--connection 'connected))
       (with-current-buffer buffer
         ;; Unmap the X window.
         (xcb:+request exwm--connection
@@ -512,8 +514,11 @@ manager is shutting down."
 
 (defun exwm-manage--kill-buffer-query-function ()
   "Run in `kill-buffer-query-functions'."
-  (exwm--log "id=#x%x; buffer=%s" exwm--id (current-buffer))
+  (exwm--log "id=#x%x; buffer=%s" (or exwm--id 0) (current-buffer))
   (catch 'return
+    (when (or (not exwm--connection)
+              (not (slot-value exwm--connection 'connected)))
+      (throw 'return t))
     (when (or (not exwm--id)
               (xcb:+request-checked+request-check exwm--connection
                   (make-instance 'xcb:ChangeWindowAttributes

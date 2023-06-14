@@ -754,10 +754,12 @@ Such event would be received when the client window is destroyed."
   ;; Close IMS communication connections.
   (mapc (lambda (i)
           (when (vectorp i)
-            (xcb:disconnect (elt i 0))))
+            (when (slot-value (elt i 0) 'connected)
+              (xcb:disconnect (elt i 0)))))
         exwm-xim--server-client-plist)
   ;; Close the IMS connection.
-  (unless exwm-xim--conn
+  (unless (and exwm-xim--conn
+               (slot-value exwm-xim--conn 'connected))
     (cl-return-from exwm-xim--exit))
   ;; Remove exwm-xim from XIM_SERVERS.
   (let ((reply (xcb:+request-unchecked+reply exwm-xim--conn
