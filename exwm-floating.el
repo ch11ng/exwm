@@ -118,13 +118,13 @@ context of the corresponding buffer."
 (defvar exwm-workspace--current)
 (defvar exwm-workspace--frame-y-offset)
 (defvar exwm-workspace--window-y-offset)
-(defvar exwm-workspace--workareas)
 (declare-function exwm-layout--hide "exwm-layout.el" (id))
 (declare-function exwm-layout--iconic-state-p "exwm-layout.el" (&optional id))
 (declare-function exwm-layout--refresh "exwm-layout.el" ())
 (declare-function exwm-layout--show "exwm-layout.el" (id &optional window))
 (declare-function exwm-workspace--position "exwm-workspace.el" (frame))
 (declare-function exwm-workspace--update-offsets "exwm-workspace.el" ())
+(declare-function exwm-workspace--workarea "exwm-workspace.el" (frame))
 
 (defun exwm-floating--set-allowed-actions (id tilling)
   "Set _NET_WM_ALLOWED_ACTIONS."
@@ -186,12 +186,8 @@ context of the corresponding buffer."
     (set-frame-parameter frame 'exwm-container frame-container)
     ;; Fix illegal parameters
     ;; FIXME: check normal hints restrictions
-    (let* ((workarea (elt exwm-workspace--workareas
-                          (exwm-workspace--position original-frame)))
-           (x* (aref workarea 0))
-           (y* (aref workarea 1))
-           (width* (aref workarea 2))
-           (height* (aref workarea 3)))
+    (with-slots ((x* x) (y* y) (width* width) (height* height))
+        (exwm-workspace--workarea original-frame)
       ;; Center floating windows
       (when (and (or (= x 0) (= x x*))
                  (or (= y 0) (= y y*)))
