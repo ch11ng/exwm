@@ -200,9 +200,9 @@ If FRAME is null, use selected frame."
   (when (and color
              (eq (x-display-visual-class) 'true-color))
     (let ((rgb (x-color-values color)))
-      (logior (lsh (lsh (pop rgb) -8) 16)
-              (lsh (lsh (pop rgb) -8) 8)
-              (lsh (pop rgb) -8)))))
+      (logior (ash (ash (pop rgb) -8) 16)
+              (ash (ash (pop rgb) -8) 8)
+              (ash (pop rgb) -8)))))
 
 (defun exwm--get-visual-depth-colormap (conn id)
   "Get visual, depth and colormap from X window ID.
