@@ -150,8 +150,8 @@ Please manually run the hook `exwm-workspace-list-change-hook' afterwards.")
 
 (defsubst exwm-workspace--position (frame)
   "Retrieve index of given FRAME in workspace list.
-
-NIL if FRAME is not a workspace"
+NIL if FRAME is not a workspace."
+  (declare (indent defun))
   (cl-position frame exwm-workspace--list))
 
 (defsubst exwm-workspace--count ()
@@ -160,6 +160,7 @@ NIL if FRAME is not a workspace"
 
 (defsubst exwm-workspace--workspace-p (frame)
   "Return t if FRAME is a workspace."
+  (declare (indent defun))
   (memq frame exwm-workspace--list))
 
 (defsubst exwm-workspace--workarea (frame)

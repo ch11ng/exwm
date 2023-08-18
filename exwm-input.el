@@ -587,9 +587,11 @@ instead."
           (and (= emacs-major-version 26)
                (< emacs-minor-version 2)))
       (defsubst exwm-input--unread-event (event)
+        (declare (indent defun))
         (setq unread-command-events
               (append unread-command-events (list event))))
     (defsubst exwm-input--unread-event (event)
+      (declare (indent defun))
       (setq unread-command-events
             (append unread-command-events `((t . ,event)))))))
 

@@ -116,10 +116,12 @@ FORMAT-STRING is a string specifying the message to output, as in
 
 (defsubst exwm--id->buffer (id)
   "X window ID => Emacs buffer."
+  (declare (indent defun))
   (cdr (assoc id exwm--id-buffer-alist)))
 
 (defsubst exwm--buffer->id (buffer)
   "Emacs buffer BUFFER => X window ID."
+  (declare (indent defun))
   (car (rassoc buffer exwm--id-buffer-alist)))
 
 (defun exwm--lock (&rest _args)
@@ -183,6 +185,7 @@ least SECS seconds later."
 (defsubst exwm--terminal-p (&optional frame)
   "Return t when FRAME's terminal is EXWM's terminal.
 If FRAME is null, use selected frame."
+  (declare (indent defun))
   (eq exwm--terminal (frame-terminal frame)))
 
 (defun exwm--get-client-event-mask ()
