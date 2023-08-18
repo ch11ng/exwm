@@ -45,9 +45,9 @@
 
 (defcustom exwm-input-prefix-keys
   '(?\C-x ?\C-u ?\C-h ?\M-x ?\M-` ?\M-& ?\M-:)
-  "List of prefix keys EXWM should forward to Emacs when in line-mode.
+  "List of prefix keys EXWM should forward to Emacs when in `line-mode'.
 
-The point is to make keys like 'C-x C-f' forwarded to Emacs in line-mode.
+The point is to make keys like 'C-x C-f' forwarded to Emacs in `line-mode'.
 There is no need to add prefix keys for global/simulation keys or those
 defined in `exwm-mode-map' here."
   :type '(repeat key-sequence)
@@ -87,7 +87,7 @@ defined in `exwm-mode-map' here."
                        value))))
 
 (defcustom exwm-input-line-mode-passthrough nil
-  "Non-nil makes 'line-mode' forward all events to Emacs."
+  "Non-nil makes `line-mode' forward all events to Emacs."
   :type 'boolean)
 
 ;; Input focus update requests should be accumulated for a short time
@@ -115,13 +115,13 @@ defined in `exwm-mode-map' here."
 (defvar exwm-input--local-simulation-keys nil
   "Whether simulation keys are local.")
 
-(defvar exwm-input--simulation-keys nil "Simulation keys in line-mode.")
+(defvar exwm-input--simulation-keys nil "Simulation keys in `line-mode'.")
 
 (defvar exwm-input--skip-buffer-list-update nil
-  "Skip the upcoming 'buffer-list-update'.")
+  "Skip the upcoming `buffer-list-update'.")
 
 (defvar exwm-input--temp-line-mode nil
-  "Non-nil indicates it's in temporary line-mode for char-mode.")
+  "Non-nil indicates it's in temporary line-mode for `char-mode'.")
 
 (defvar exwm-input--timestamp-atom nil)
 
@@ -713,7 +713,7 @@ Current buffer must be an `exwm-mode' buffer."
       (xcb:flush exwm--connection))))
 
 (defun exwm-input--on-KeyPress-char-mode (key-press &optional _raw-data)
-  "Handle KeyPress event in char-mode."
+  "Handle KeyPress event in `char-mode'."
   (with-slots (detail state) key-press
     (let ((keysym (xcb:keysyms:keycode->keysym exwm--connection detail state))
           event raw-event)
@@ -754,7 +754,7 @@ button event."
         xcb:Allow:ReplayPointer))))
 
 (defun exwm-input--on-ButtonPress-char-mode ()
-  "Handle button events in char-mode.
+  "Handle button events in `char-mode'.
 The return value is used as event_mode to release the original
 button event."
   (exwm--log)
@@ -830,7 +830,7 @@ button event."
 
 ;;;###autoload
 (defun exwm-input-grab-keyboard (&optional id)
-  "Switch to line-mode."
+  "Switch to `line-mode'."
   (interactive (list (when (derived-mode-p 'exwm-mode)
                        (exwm--buffer->id (window-buffer)))))
   (when id
@@ -841,7 +841,7 @@ button event."
 
 ;;;###autoload
 (defun exwm-input-release-keyboard (&optional id)
-  "Switch to char-mode."
+  "Switch to `char-mode`."
   (interactive (list (when (derived-mode-p 'exwm-mode)
                        (exwm--buffer->id (window-buffer)))))
   (when id
@@ -852,7 +852,7 @@ button event."
 
 ;;;###autoload
 (defun exwm-input-toggle-keyboard (&optional id)
-  "Toggle between 'line-mode' and 'char-mode'."
+  "Toggle between `line-mode' and `char-mode'."
   (interactive (list (when (derived-mode-p 'exwm-mode)
                        (exwm--buffer->id (window-buffer)))))
   (when id
@@ -969,7 +969,7 @@ multiple keys.  If END-KEY is non-nil, stop sending keys if it's pressed."
 
 It is an alist of the form (original-key . simulated-key), where both
 original-key and simulated-key are key sequences.  Original-key is what you
-type to an X window in line-mode which then gets translated to simulated-key
+type to an X window in `line-mode' which then gets translated to simulated-key
 by EXWM and forwarded to the X window.
 
 Notes:
@@ -1080,7 +1080,7 @@ where both ORIGINAL-KEY and SIMULATED-KEY are key sequences."
 (defmacro exwm-input-invoke-factory (keys)
   "Make a command that invokes KEYS when called.
 
-One use is to access the keymap bound to KEYS (as prefix keys) in char-mode."
+One use is to access the keymap bound to KEYS (as prefix keys) in `char-mode'."
   (let* ((keys (kbd keys))
          (description (key-description keys)))
     `(defun ,(intern (concat "exwm-input--invoke--" description)) ()

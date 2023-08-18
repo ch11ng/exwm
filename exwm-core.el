@@ -93,10 +93,12 @@ Here are some predefined candidates:
                   (frame-or-index &optional id))
 
 (define-minor-mode exwm-debug
-  "Debug-logging enabled if non-nil"
-  :global t)
+  "Debug-logging enabled if non-nil."
+  :global t
+  :group 'exwm-debug)
 
 (defmacro exwm--debug (&rest forms)
+  "Evaluate FORMS if mode `exwm-debug' is active."
   (when exwm-debug `(progn ,@forms)))
 
 (defmacro exwm--log (&optional format-string &rest objects)
@@ -161,7 +163,9 @@ Nil can be passed as placeholder."
                      :x x :y y :width width :height height)))
 
 (defun exwm--intern-atom (atom &optional conn)
-  "Intern X11 ATOM."
+  "Intern X11 ATOM.
+If CONN is non-nil, use it instead of the value of the variable
+`exwm--connection'."
   (slot-value (xcb:+request-unchecked+reply (or conn exwm--connection)
                   (make-instance 'xcb:InternAtom
                                  :only-if-exists 0
@@ -206,7 +210,10 @@ If FRAME is null, use selected frame."
 
 (defun exwm--get-visual-depth-colormap (conn id)
   "Get visual, depth and colormap from X window ID.
-Return a three element list with the respective results."
+Return a three element list with the respective results.
+
+If CONN is non-nil, use it instead of the value of the variable
+`exwm--connection'."
   (let (ret-visual ret-depth ret-colormap)
     (with-slots (visual colormap)
         (xcb:+request-unchecked+reply conn
@@ -238,7 +245,7 @@ One of `line-mode' or `char-mode'.")
 (defvar-local exwm--geometry nil)
 (defvar-local exwm-class-name nil "Class name in WM_CLASS.")
 (defvar-local exwm-instance-name nil "Instance name in WM_CLASS.")
-(defvar-local exwm-title nil "Window title (either _NET_WM_NAME or WM_NAME)")
+(defvar-local exwm-title nil "Window title (either _NET_WM_NAME or WM_NAME).")
 (defvar-local exwm--title-is-utf8 nil)
 (defvar-local exwm-transient-for nil "WM_TRANSIENT_FOR.")
 (defvar-local exwm--protocols nil)

@@ -68,7 +68,7 @@
 
 ;;; Code:
 
-(eval-when-compile (require 'cl-lib))
+(require 'cl-lib)
 
 (require 'xcb-keysyms)
 (require 'xcb-xim)
@@ -167,6 +167,7 @@ C,no"
 
 (defun exwm-xim--on-SelectionRequest (data _synthetic)
   "Handle SelectionRequest events on IMS window.
+DATA contains unmarshalled SelectionRequest event data.
 
 Such events would be received when clients query for LOCALES or TRANSPORT."
   (exwm--log)

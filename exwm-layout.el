@@ -57,6 +57,7 @@
 (declare-function exwm-input--grab-keyboard "exwm-input.el")
 (declare-function exwm-input-grab-keyboard "exwm-input.el")
 (declare-function exwm-workspace--active-p "exwm-workspace.el" (frame))
+(declare-function exwm-workspace--get-geometry "exwm-workspace.el" (frame))
 (declare-function exwm-workspace--minibuffer-own-frame-p "exwm-workspace.el")
 (declare-function exwm-workspace--workspace-p "exwm-workspace.el"
                   (workspace))
@@ -64,7 +65,7 @@
                   (frame-or-index &optional id))
 
 (defun exwm-layout--set-state (id state)
-  "Set WM_STATE."
+  "Set WM_STATE of X window ID to STATE."
   (exwm--log "id=#x%x" id)
   (xcb:+request exwm--connection
       (make-instance 'xcb:icccm:set-WM_STATE
@@ -73,24 +74,28 @@
     (setq exwm-state state)))
 
 (defun exwm-layout--iconic-state-p (&optional id)
+  "Check whether X window ID is in iconic state."
   (= xcb:icccm:WM_STATE:IconicState
      (if id
          (buffer-local-value 'exwm-state (exwm--id->buffer id))
        exwm-state)))
 
-(defun exwm-layout--set-ewmh-state (xwin)
-  "Set _NET_WM_STATE."
-  (with-current-buffer (exwm--id->buffer xwin)
+(defun exwm-layout--set-ewmh-state (id)
+  "Set _NET_WM_STATE of X window ID to the value of variable `exwm--ewmh-state'."
+  (with-current-buffer (exwm--id->buffer id)
     (xcb:+request exwm--connection
         (make-instance 'xcb:ewmh:set-_NET_WM_STATE
                        :window exwm--id
                        :data exwm--ewmh-state))))
 
 (defun exwm-layout--fullscreen-p ()
+  "Check whether current `exwm-mode' buffer is in fullscreen state."
   (when (derived-mode-p 'exwm-mode)
     (memq xcb:Atom:_NET_WM_STATE_FULLSCREEN exwm--ewmh-state)))
 
 (defun exwm-layout--auto-iconify ()
+  "Helper function to iconify unused X windows.
+See variable `exwm-layout-auto-iconify'."
   (when (and exwm-layout-auto-iconify
              (not exwm-transient-for))
     (let ((xwin exwm--id)
@@ -210,7 +215,7 @@
 
 ;;;###autoload
 (cl-defun exwm-layout-unset-fullscreen (&optional id)
-  "Restore window from fullscreen state."
+  "Restore X window ID from fullscreen state."
   (interactive)
   (exwm--log "id=#x%x" (or id 0))
   (unless (and (or id (derived-mode-p 'exwm-mode))
@@ -241,7 +246,7 @@
 
 ;;;###autoload
 (cl-defun exwm-layout-toggle-fullscreen (&optional id)
-  "Toggle fullscreen mode."
+  "Toggle fullscreen mode of X window ID."
   (interactive (list (exwm--buffer->id (window-buffer))))
   (exwm--log "id=#x%x" (or id 0))
   (unless (or id (derived-mode-p 'exwm-mode))
@@ -298,7 +303,8 @@ selected by `other-buffer'."
                                               clients clients-floating))))))
 
 (defun exwm-layout--refresh (&optional frame)
-  "Refresh layout."
+  "Refresh layout of FRAME.
+If FRAME is nil, refresh layout of selected frame."
   ;; `window-size-change-functions' sets this argument while
   ;; `window-configuration-change-hook' makes the frame selected.
   (unless frame
@@ -412,7 +418,8 @@ selected by `other-buffer'."
                          (exwm-layout--refresh frame)))))))
 
 (defun exwm-layout--on-echo-area-change (&optional dirty)
-  "Run when message arrives or in `echo-area-clear-hook' to refresh layout."
+  "Run when message arrives or in `echo-area-clear-hook' to refresh layout.
+If DIRTY is non-nil, refresh layout immediately."
   (let ((frame (window-frame (active-minibuffer-window)))
         (msg (current-message)))
     ;; Check whether the frame where current window's minibuffer resides (not

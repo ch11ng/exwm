@@ -49,7 +49,7 @@
 (defclass xcb:systemtray:-ClientMessage
   (xcb:icccm:--ClientMessage xcb:ClientMessage)
   ((format :initform 32)
-   (type :initform xcb:Atom:MANAGER)
+   (type :initform 'xcb:Atom:MANAGER)
    (time :initarg :time :type xcb:TIMESTAMP)      ;new slot
    (selection :initarg :selection :type xcb:ATOM) ;new slot
    (owner :initarg :owner :type xcb:WINDOW))      ;new slot
@@ -121,7 +121,7 @@ using 32-bit depth.  Using `workspace-background' instead.")
 (defvar xcb:Atom:_NET_SYSTEM_TRAY_S0)
 
 (defun exwm-systemtray--embed (icon)
-  "Embed an icon."
+  "Embed an ICON."
   (exwm--log "Try to embed #x%x" icon)
   (let ((info (xcb:+request-unchecked+reply exwm-systemtray--connection
                   (make-instance 'xcb:xembed:get-_XEMBED_INFO
@@ -210,7 +210,7 @@ using 32-bit depth.  Using `workspace-background' instead.")
       (exwm-systemtray--refresh))))
 
 (defun exwm-systemtray--unembed (icon)
-  "Unembed an icon."
+  "Unembed an ICON."
   (exwm--log "Unembed #x%x" icon)
   (xcb:+request exwm-systemtray--connection
       (make-instance 'xcb:UnmapWindow :window icon))
@@ -331,7 +331,8 @@ indicate how to support actual transparency."
       (<= planes 24))))
 
 (defun exwm-systemtray--on-DestroyNotify (data _synthetic)
-  "Unembed icons on DestroyNotify."
+  "Unembed icons on DestroyNotify.
+Argument DATA contains the raw event data."
   (exwm--log)
   (let ((obj (make-instance 'xcb:DestroyNotify)))
     (xcb:unmarshal obj data)
@@ -340,7 +341,8 @@ indicate how to support actual transparency."
         (exwm-systemtray--unembed window)))))
 
 (defun exwm-systemtray--on-ReparentNotify (data _synthetic)
-  "Unembed icons on ReparentNotify."
+  "Unembed icons on ReparentNotify.
+Argument DATA contains the raw event data."
   (exwm--log)
   (let ((obj (make-instance 'xcb:ReparentNotify)))
     (xcb:unmarshal obj data)
@@ -350,7 +352,8 @@ indicate how to support actual transparency."
         (exwm-systemtray--unembed window)))))
 
 (defun exwm-systemtray--on-ResizeRequest (data _synthetic)
-  "Resize the tray icon on ResizeRequest."
+  "Resize the tray icon on ResizeRequest.
+Argument DATA contains the raw event data."
   (exwm--log)
   (let ((obj (make-instance 'xcb:ResizeRequest))
         attr)
@@ -378,7 +381,8 @@ indicate how to support actual transparency."
         (exwm-systemtray--refresh)))))
 
 (defun exwm-systemtray--on-PropertyNotify (data _synthetic)
-  "Map/Unmap the tray icon on PropertyNotify."
+  "Map/Unmap the tray icon on PropertyNotify.
+Argument DATA contains the raw event data."
   (exwm--log)
   (let ((obj (make-instance 'xcb:PropertyNotify))
         attr info visible)
@@ -403,7 +407,8 @@ indicate how to support actual transparency."
           (exwm-systemtray--refresh))))))
 
 (defun exwm-systemtray--on-ClientMessage (data _synthetic)
-  "Handle client messages."
+  "Handle client messages.
+Argument DATA contains the raw event data."
   (let ((obj (make-instance 'xcb:ClientMessage))
         opcode data32)
     (xcb:unmarshal obj data)
@@ -422,7 +427,8 @@ indicate how to support actual transparency."
                (exwm--log "Unknown opcode message: %s" obj)))))))
 
 (defun exwm-systemtray--on-KeyPress (data _synthetic)
-  "Forward all KeyPress events to Emacs frame."
+  "Forward all KeyPress events to Emacs frame.
+Argument DATA contains the raw event data."
   (exwm--log)
   ;; This function is only executed when there's no autohide minibuffer,
   ;; a workspace frame has the input focus and the pointer is over a

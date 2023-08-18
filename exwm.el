@@ -153,7 +153,8 @@
         (kill-emacs))))))
 
 (defun exwm--update-desktop (xwin)
-  "Update _NET_WM_DESKTOP."
+  "Update _NET_WM_DESKTOP.
+Argument XWIN contains the X window of the `exwm-mode' buffer."
   (exwm--log "#x%x" xwin)
   (with-current-buffer (exwm--id->buffer xwin)
     (let ((reply (xcb:+request-unchecked+reply exwm--connection
@@ -180,7 +181,11 @@
           (exwm-workspace--set-desktop xwin)))))))
 
 (defun exwm--update-window-type (id &optional force)
-  "Update _NET_WM_WINDOW_TYPE."
+  "Update `exwm-window-type' from _NET_WM_WINDOW_TYPE.
+Argument ID contains the X window of the `exwm-mode' buffer.
+
+When FORCE is nil the update only takes place if
+`exwm-window-type' is unset."
   (exwm--log "#x%x" id)
   (with-current-buffer (exwm--id->buffer id)
     (unless (and exwm-window-type (not force))
@@ -191,7 +196,11 @@
           (setq exwm-window-type (append (slot-value reply 'value) nil)))))))
 
 (defun exwm--update-class (id &optional force)
-  "Update WM_CLASS."
+  "Update `exwm-instance-name' and `exwm-class' from WM_CLASS.
+Argument ID contains the X window of the `exwm-mode' buffer.
+
+When FORCE is nil the update only takes place if any of
+`exwm-instance-name' or `exwm-class' is unset."
   (exwm--log "#x%x" id)
   (with-current-buffer (exwm--id->buffer id)
     (unless (and exwm-instance-name exwm-class-name (not force))
@@ -204,7 +213,11 @@
             (run-hooks 'exwm-update-class-hook)))))))
 
 (defun exwm--update-utf8-title (id &optional force)
-  "Update _NET_WM_NAME."
+  "Update `exwm-title' from _NET_WM_NAME.
+Argument ID contains the X window of the `exwm-mode' buffer.
+
+When FORCE is nil the update only takes place if `exwm-title' is
+unset."
   (exwm--log "#x%x" id)
   (with-current-buffer (exwm--id->buffer id)
     (when (or force (not exwm-title))
@@ -217,7 +230,11 @@
             (run-hooks 'exwm-update-title-hook)))))))
 
 (defun exwm--update-ctext-title (id &optional force)
-  "Update WM_NAME."
+  "Update `exwm-title' from WM_NAME.
+Argument ID contains the X window of the `exwm-mode' buffer.
+
+When FORCE is nil the update only takes place if `exwm-title' is
+unset."
   (exwm--log "#x%x" id)
   (with-current-buffer (exwm--id->buffer id)
     (unless (or exwm--title-is-utf8
@@ -230,13 +247,18 @@
             (run-hooks 'exwm-update-title-hook)))))))
 
 (defun exwm--update-title (id)
-  "Update _NET_WM_NAME or WM_NAME."
+  "Update _NET_WM_NAME or WM_NAME.
+Argument ID contains the X window of the `exwm-mode' buffer."
   (exwm--log "#x%x" id)
   (exwm--update-utf8-title id)
   (exwm--update-ctext-title id))
 
 (defun exwm--update-transient-for (id &optional force)
-  "Update WM_TRANSIENT_FOR."
+  "Update `exwm-transient-for' from WM_TRANSIENT_FOR.
+Argument ID contains the X window of the `exwm-mode' buffer.
+
+When FORCE is nil the update only takes place if `exwm-title' is
+unset."
   (exwm--log "#x%x" id)
   (with-current-buffer (exwm--id->buffer id)
     (unless (and exwm-transient-for (not force))
@@ -247,7 +269,15 @@
           (setq exwm-transient-for (slot-value reply 'value)))))))
 
 (defun exwm--update-normal-hints (id &optional force)
-  "Update WM_NORMAL_HINTS."
+  "Update normal hints from WM_NORMAL_HINTS.
+Argument ID contains the X window of the `exwm-mode' buffer.
+
+When FORCE is nil the update only takes place all of
+`exwm--normal-hints-x exwm--normal-hints-y',
+`exwm--normal-hints-width exwm--normal-hints-height',
+`exwm--normal-hints-min-width exwm--normal-hints-min-height' and
+`exwm--normal-hints-max-width exwm--normal-hints-max-height' are
+unset."
   (exwm--log "#x%x" id)
   (with-current-buffer (exwm--id->buffer id)
     (unless (and (not force)
@@ -295,7 +325,11 @@
                           exwm--normal-hints-max-height)))))))))
 
 (defun exwm--update-hints (id &optional force)
-  "Update WM_HINTS."
+  "Update hints from WM_HINTS.
+Argument ID contains the X window of the `exwm-mode' buffer.
+
+When FORCE is nil the update only takes place if both of
+`exwm--hints-input' and `exwm--hints-urgency' are unset."
   (exwm--log "#x%x" id)
   (with-current-buffer (exwm--id->buffer id)
     (unless (and (not force) exwm--hints-input exwm--hints-urgency)
@@ -317,7 +351,11 @@
               (setq exwm-workspace--switch-history-outdated t))))))))
 
 (defun exwm--update-protocols (id &optional force)
-  "Update WM_PROTOCOLS."
+  "Update `exwm--protocols' from WM_PROTOCOLS.
+Argument ID contains the X window of the `exwm-mode' buffer.
+
+When FORCE is nil the update only takes place if `exwm--protocols'
+is unset."
   (exwm--log "#x%x" id)
   (with-current-buffer (exwm--id->buffer id)
     (unless (and exwm--protocols (not force))
@@ -328,7 +366,7 @@
           (setq exwm--protocols (append (slot-value reply 'value) nil)))))))
 
 (defun exwm--update-struts-legacy (id)
-  "Update _NET_WM_STRUT."
+  "Update struts of X window ID from _NET_WM_STRUT."
   (exwm--log "#x%x" id)
   (let ((pair (assq id exwm-workspace--id-struts-alist))
         reply struts)
@@ -349,7 +387,7 @@
         (exwm-workspace--set-fullscreen f)))))
 
 (defun exwm--update-struts-partial (id)
-  "Update _NET_WM_STRUT_PARTIAL."
+  "Update struts of X window ID from _NET_WM_STRUT_PARTIAL."
   (exwm--log "#x%x" id)
   (let ((reply (xcb:+request-unchecked+reply exwm--connection
                    (make-instance 'xcb:ewmh:get-_NET_WM_STRUT_PARTIAL
@@ -369,13 +407,14 @@
       (exwm-workspace--set-fullscreen f))))
 
 (defun exwm--update-struts (id)
-  "Update _NET_WM_STRUT_PARTIAL or _NET_WM_STRUT."
+  "Update struts of X window ID from _NET_WM_STRUT_PARTIAL or _NET_WM_STRUT."
   (exwm--log "#x%x" id)
   (exwm--update-struts-partial id)
   (exwm--update-struts-legacy id))
 
 (defun exwm--on-PropertyNotify (data _synthetic)
-  "Handle PropertyNotify event."
+  "Handle PropertyNotify event.
+DATA contains unmarshalled PropertyNotify event data."
   (let ((obj (make-instance 'xcb:PropertyNotify))
         atom id buffer)
     (xcb:unmarshal obj data)
@@ -413,7 +452,8 @@
                           atom)))))))
 
 (defun exwm--on-ClientMessage (raw-data _synthetic)
-  "Handle ClientMessage event."
+  "Handle ClientMessage event.
+RAW-DATA contains unmarshalled ClientMessage event data."
   (let ((obj (make-instance 'xcb:ClientMessage))
         type id data)
     (xcb:unmarshal obj raw-data)
@@ -598,7 +638,8 @@
                  (x-get-atom-name type exwm-workspace--current) type)))))
 
 (defun exwm--on-SelectionClear (data _synthetic)
-  "Handle SelectionClear events."
+  "Handle SelectionClear events.
+DATA contains unmarshalled SelectionClear event data."
   (exwm--log)
   (let ((obj (make-instance 'xcb:SelectionClear))
         owner selection)
@@ -611,6 +652,10 @@
 
 (defun exwm--on-delete-terminal (terminal)
   "Handle terminal being deleted without Emacs being killed.
+This function is Hooked to `delete-terminal-functions'.
+
+TERMINAL is the terminal being (or that has been) deleted.
+
 This may happen when invoking `save-buffers-kill-terminal' within an emacsclient
 session."
   (when (eq terminal exwm--terminal)
@@ -836,7 +881,8 @@ manager.  If t, replace it, if nil, abort and ask the user if `ask'."
 
 ;;;###autoload
 (cl-defun exwm-init (&optional frame)
-  "Initialize EXWM."
+  "Initialize EXWM.
+FRAME, if given, indicates the X display EXWM should manage."
   (interactive)
   (exwm--log "%s" frame)
   (if frame
@@ -956,10 +1002,11 @@ manager.  If t, replace it, if nil, abort and ask the user if `ask'."
     (delete-process exwm--server-process)
     (setq exwm--server-process nil)))
 
-(defun exwm--server-eval-at (&rest args)
-  "Wrapper of `server-eval-at' used to advice subrs."
+(defun exwm--server-eval-at (function &rest args)
+  "Wrapper of `server-eval-at' used to advice subrs.
+FUNCTION is the function to be evaluated, ARGS are the arguments."
   ;; Start the subordinate Emacs server if it's not alive
-  (exwm--log "%s" args)
+  (exwm--log "%s %s" function args)
   (unless (server-running-p exwm--server-name)
     (when exwm--server-process (delete-process exwm--server-process))
     (setq exwm--server-process
@@ -977,8 +1024,8 @@ manager.  If t, replace it, if nil, abort and ask the user if `ask'."
   (server-eval-at
    exwm--server-name
    `(progn (select-frame (car (frame-list)))
-           (let ((result ,(nconc (list (make-symbol (subr-name (car args))))
-                                 (cdr args))))
+           (let ((result ,(nconc (list (make-symbol (subr-name function)))
+                                 args)))
              (pcase (type-of result)
                ;; Return the name of a buffer
                (`buffer (buffer-name result))
@@ -1001,11 +1048,15 @@ manager.  If t, replace it, if nil, abort and ask the user if `ask'."
   ;; This is invoked instead of `save-buffers-kill-emacs' (C-x C-c) on client
   ;; frames.
   (if (exwm--terminal-p)
-      (exwm--confirm-kill-emacs "[EXWM] Kill terminal?")
+      (exwm--confirm-kill-emacs "Kill terminal?")
     t))
 
 (defun exwm--confirm-kill-emacs (prompt &optional force)
-  "Confirm before exiting Emacs."
+  "Confirm before exiting Emacs.
+PROMPT a reason to present to the user.
+If FORCE is nil, ask the user for confirmation.
+If FORCE is the symbol `no-check', ask if there are unsaved buffers.
+If FORCE is any other non-nil value, force killing of Emacs."
   (exwm--log)
   (when (cond
          ((and force (not (eq force 'no-check)))
