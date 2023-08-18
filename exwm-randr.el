@@ -52,6 +52,8 @@
 (require 'exwm-core)
 (require 'exwm-workspace)
 
+(declare-function x-get-atom-name "C source code" (VALUE &optional FRAME))
+
 (defgroup exwm-randr nil
   "RandR."
   :version "25.3"

@@ -72,6 +72,8 @@
 (require 'exwm-manage)
 (require 'exwm-input)
 
+(declare-function x-get-atom-name "C source code" (VALUE &optional FRAME))
+
 (defgroup exwm nil
   "Emacs X Window Manager."
   :tag "EXWM"
