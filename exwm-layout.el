@@ -408,8 +408,8 @@ selected by `other-buffer'."
          (frame (window-frame mini-window)))
     (when (exwm-workspace--workspace-p frame)
       (exwm--defer 0 (lambda ()
-                       (when (< 1 (window-height mini-window)))
-                       (exwm-layout--refresh frame))))))
+                       (when (< 1 (window-height mini-window))
+                         (exwm-layout--refresh frame)))))))
 
 (defun exwm-layout--on-echo-area-change (&optional dirty)
   "Run when message arrives or in `echo-area-clear-hook' to refresh layout."
