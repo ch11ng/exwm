@@ -1107,13 +1107,17 @@ Please check `exwm-workspace--minibuffer-own-frame-p' first."
                                       'exwm-container)))
       (dolist (f exwm-workspace--list)
         (with-slots (_ _ x y width height) (exwm-workspace--get-geometry f)
-          (set-frame-parameter f 'exwm-geometry
-                               (make-instance 'xcb:RECTANGLE
-                                              :x x
-                                              :y y
-                                              :width width
-                                              :height (+ height (frame-pixel-height
-                                                                 exwm-workspace--minibuffer))))))
+          (let* ((minibuffer-pixel-height (frame-pixel-height exwm-workspace--minibuffer))
+                 (y (if (eq exwm-workspace-minibuffer-position 'top)
+                        (- y minibuffer-pixel-height)
+                      y))
+                 (height (+ height minibuffer-pixel-height)))
+            (set-frame-parameter f 'exwm-geometry
+                                 (make-instance 'xcb:RECTANGLE
+                                                :x x
+                                                :y y
+                                                :width width
+                                                :height height)))))
       (setq exwm-workspace--id-struts-alist
             (assq-delete-all container exwm-workspace--id-struts-alist))
       (exwm-workspace--update-struts)
