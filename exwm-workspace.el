@@ -345,18 +345,20 @@ Show PROMPT to the user if non-nil."
   (let* ((root-width (x-display-pixel-width))
          (root-height (x-display-pixel-height))
          ;; Get workareas prior to struts.
-         (workareas (mapcar (lambda (f)
-                              (or
-                               ;; Use the 'exwm-geometry' frame parameter if
-                               ;; possible.
-                               (frame-parameter f 'exwm-geometry)
-                               ;; Fall back to use the screen size.
-                               (make-instance 'xcb:RECTANGLE
-                                              :x 0
-                                              :y 0
-                                              :width root-width
-                                              :height root-height)))
-                            exwm-workspace--list)))
+         (workareas (mapcar
+                     (lambda (frame)
+                       (if-let (rect (frame-parameter frame 'exwm-geometry))
+                           ;; Use the 'exwm-geometry' frame parameter if it
+                           ;; exists.  Make sure to clone it, will be modified
+                           ;; below!
+                           (clone rect)
+                         ;; Fall back to use the screen size.
+                         (make-instance 'xcb:RECTANGLE
+                                        :x 0
+                                        :y 0
+                                        :width root-width
+                                        :height root-height)))
+                     exwm-workspace--list)))
     ;; Exclude areas occupied by struts.
     (dolist (struts exwm-workspace--struts)
       (let* ((edge (aref struts 0))
@@ -369,7 +371,7 @@ Show PROMPT to the user if non-nil."
           (with-slots (x y width height) w
             (pcase edge
               ;; Left and top are always processed first.
-              (`left
+              ('left
                (setq delta (- size x))
                (when (and (< 0 delta)
                           (< delta width)
@@ -378,7 +380,7 @@ Show PROMPT to the user if non-nil."
                                  (min end (+ y height)))))
                  (cl-decf width delta)
                  (setf x size)))
-              (`right
+              ('right
                (setq delta (- size (- root-width x width)))
                (when (and (< 0 delta)
                           (< delta width)
@@ -386,7 +388,7 @@ Show PROMPT to the user if non-nil."
                               (< (max beg y)
                                  (min end (+ y height)))))
                  (cl-decf width delta)))
-              (`top
+              ('top
                (setq delta (- size y))
                (when (and (< 0 delta)
                           (< delta height)
@@ -395,7 +397,7 @@ Show PROMPT to the user if non-nil."
                                  (min end (+ x width)))))
                  (cl-decf height delta)
                  (setf y size)))
-              (`bottom
+              ('bottom
                (setq delta (- size (- root-height y height)))
                (when (and (< 0 delta)
                           (< delta height)
