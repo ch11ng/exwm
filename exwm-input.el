@@ -668,8 +668,26 @@ Current buffer must be an `exwm-mode' buffer."
 (defun exwm-input--fake-last-command ()
   "Fool some packages into thinking there is a change in the buffer."
   (setq last-command #'exwm-input--noop)
-  (run-hooks 'pre-command-hook)
-  (run-hooks 'post-command-hook))
+  ;; The Emacs manual says:
+  ;; > Quitting is suppressed while running pre-command-hook and
+  ;; > post-command-hook. If an error happens while executing one of these
+  ;; > hooks, it does not terminate execution of the hook; instead the error is
+  ;; > silenced and the function in which the error occurred is removed from the
+  ;; > hook.
+  ;; We supress errors but neither continue execution nor we remove from the
+  ;; hook.
+  (condition-case err
+      (run-hooks 'pre-command-hook)
+    ((error)
+     (exwm--log "Error occurred while running pre-command-hook: %s"
+                (error-message-string err))
+     (xcb-debug:backtrace)))
+  (condition-case err
+      (run-hooks 'post-command-hook)
+    ((error)
+     (exwm--log "Error occurred while running post-command-hook: %s"
+                (error-message-string err))
+     (xcb-debug:backtrace))))
 
 (defun exwm-input--on-KeyPress-line-mode (key-press raw-data)
   "Parse X KeyPress event to Emacs key event and then feed the command loop."
