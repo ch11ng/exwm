@@ -514,7 +514,7 @@ ARGS are additional arguments to CALLBACK."
         keysyms keycode alt-modifier)
     (dolist (k exwm-input--global-prefix-keys)
       (setq keysyms (xcb:keysyms:event->keysyms exwm--connection k))
-      (if (not keysyms)
+      (if (or (not keysyms) (= 0 (caar keysyms)))
           (warn "Key unavailable: %s" (key-description (vector k)))
         (setq keycode (xcb:keysyms:keysym->keycode exwm--connection
                                                    (caar keysyms)))
@@ -886,7 +886,7 @@ button event."
   "Fake a key event equivalent to Emacs event EVENT."
   (let* ((keysyms (xcb:keysyms:event->keysyms exwm--connection event))
          keycode id)
-    (when (= 0 (caar keysyms))
+    (when (or (not keysyms) (= 0 (caar keysyms)))
       (user-error "[EXWM] Invalid key: %s" (single-key-description event)))
     (setq keycode (xcb:keysyms:keysym->keycode exwm--connection
                                                (caar keysyms)))
