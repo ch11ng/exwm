@@ -37,6 +37,13 @@
   "Return t if VALUE is a valid RGBA color."
   (and (numberp value) (<= 0 value 1)))
 
+(defun exwm-xsettings--custom-set (symbol value)
+  "Setter used by `exwm-xsettings' customization options.
+
+SYMBOL is the setting being updated and VALUE is the new value."
+  (set-default-toplevel-value symbol value)
+  (exwm-xsettings--update-settings))
+
 (defcustom exwm-xsettings nil
   "Custom XSETTINGS.
 These settings take precedence over `exwm-xsettings-theme' and `exwm-xsettings-icon-theme'."
@@ -64,23 +71,25 @@ These settings take precedence over `exwm-xsettings-theme' and `exwm-xsettings-i
                                        :match exwm-xsettings--rgba-match
                                        :value 1.0))))
   :initialize #'custom-initialize-default
-  :set (lambda (symbol value)
-         (set-default-toplevel-value symbol value)
-         (exwm-xsettings--update-settings)))
+  :set #'exwm-xsettings--custom-set)
 
 (defcustom exwm-xsettings-theme nil
   "The system-wide theme."
   :group 'exwm
   :type '(choice (string :tag "Theme")
                  (cons (string :tag "Light Theme")
-                       (string :tag "Dark Theme"))))
+                       (string :tag "Dark Theme")))
+  :initialize #'custom-initialize-default
+  :set #'exwm-xsettings--custom-set)
 
 (defcustom exwm-xsettings-icon-theme nil
   "The system-wide icon theme."
   :group 'exwm
   :type '(choice (string :tag "Icon Theme")
                  (cons (string :tag "Light Icon Theme")
-                       (string :tag "Dark Icon Theme"))))
+                       (string :tag "Dark Icon Theme")))
+  :initialize #'custom-initialize-default
+  :set #'exwm-xsettings--custom-set)
 
 (defvar exwm-xsettings--serial 0)
 
