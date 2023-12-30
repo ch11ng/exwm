@@ -5,7 +5,7 @@
 ;; Author: Chris Feng <chris.w.feng@gmail.com>
 ;; Maintainer: Adrián Medraño Calvo <adrian@medranocalvo.com>
 ;; Version: 0.28
-;; Package-Requires: ((xelb "0.18"))
+;; Package-Requires: ((emacs "26.1") (xelb "0.18"))
 ;; Keywords: unix
 ;; URL: https://github.com/ch11ng/exwm
 
@@ -109,6 +109,9 @@
 
 (defconst exwm--server-name "server-exwm"
   "Name of the subordinate Emacs server.")
+
+(defvar exwm--server-timeout 1
+  "Number of seconds to wait for the subordinate Emacs server to exit before killing it.")
 
 (defvar exwm--server-process nil "Process of the subordinate Emacs server.")
 
@@ -999,8 +1002,13 @@ FRAME, if given, indicates the X display EXWM should manage."
 (defun exwm--server-stop ()
   "Stop the subordinate Emacs server."
   (exwm--log)
-  (server-force-delete exwm--server-name)
   (when exwm--server-process
+    (when (process-live-p exwm--server-process)
+      (cl-loop
+       initially (signal-process exwm--server-process 'TERM)
+       while     (process-live-p exwm--server-process)
+       repeat    (* 10 exwm--server-timeout)
+       do        (sit-for 0.1)))
     (delete-process exwm--server-process)
     (setq exwm--server-process nil)))
 
@@ -1017,7 +1025,7 @@ FUNCTION is the function to be evaluated, ARGS are the arguments."
                          (car command-line-args) ;The executable file
                          "-d" (frame-parameter nil 'display)
                          "-Q"
-                         (concat "--daemon=" exwm--server-name)
+                         (concat "--fg-daemon=" exwm--server-name)
                          "--eval"
                          ;; Create an invisible frame
                          "(make-frame '((window-system . x) (visibility)))"))
