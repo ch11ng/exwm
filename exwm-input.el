@@ -107,7 +107,8 @@ defined in `exwm-mode-map' here."
                                               read-key-sequence-vector
                                               read-key-sequence
                                               read-event)
-  "Low-level functions that read events and need to be exempted from EXWM's input handling.")
+  "Low-level functions that read events and need to be exempted from
+EXWM's input handling.")
 
 (defvar exwm-input--during-command nil
   "Indicate whether between `pre-command-hook' and `post-command-hook'.")
@@ -1166,7 +1167,7 @@ One use is to access the keymap bound to KEYS (as prefix keys) in `char-mode'."
     (exwm-input--on-minibuffer-exit)))
 
 (defun exwm-input--call-with-passthrough (function &rest args)
-  "Bind `exwm-input-line-mode-passthrough' and call the specified FUNCTION with ARGS."
+  "Bind `exwm-input-line-mode-passthrough' and call FUNCTION with ARGS."
   (let ((exwm-input-line-mode-passthrough t))
     (apply function args)))
 
