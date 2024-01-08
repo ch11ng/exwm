@@ -97,7 +97,9 @@
   "Normal hook run when window title is updated."
   :type 'hook)
 
-(defcustom exwm-blocking-subrs '(x-file-dialog x-popup-dialog x-select-font)
+(defcustom exwm-blocking-subrs
+  (list #'x-file-dialog #'x-popup-dialog #'x-select-font
+        #'message-box #'message-or-box)
   "Subrs (primitives) that would normally block EXWM."
   :type '(repeat function))
 
