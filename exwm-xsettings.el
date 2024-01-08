@@ -47,6 +47,9 @@
 
 ;;; Code:
 
+(require 'xcb-ewmh)
+(require 'xcb-icccm)
+
 (require 'exwm-core)
 
 (defvar exwm-xsettings--connection nil)
@@ -166,6 +169,15 @@ These settings take precedence over `exwm-xsettings-theme' and `exwm-xsettings-i
    (green :initarg :green :type xcb:CARD16)
    (blue :initarg :blue :type xcb:CARD16)
    (alpha :initarg :alpha :initform #xffff :type xcb:CARD16)))
+
+(defclass xcb:xsettings:-ClientMessage
+  (xcb:icccm:--ClientMessage xcb:ClientMessage)
+  ((format :initform 32)
+   (type :initform 'xcb:Atom:MANAGER)
+   (time :initarg :time :type xcb:TIMESTAMP)      ;new slot
+   (selection :initarg :selection :type xcb:ATOM) ;new slot
+   (owner :initarg :owner :type xcb:WINDOW))      ;new slot
+  :documentation "An XSETTINGS client message.")
 
 (defun exwm-xsettings--pick-theme (theme)
   "Pick a light or dark theme from the given THEME.
@@ -329,8 +341,7 @@ SERIAL is a sequence number."
                        :destination exwm--root
                        :event-mask xcb:EventMask:StructureNotify
                        :event (xcb:marshal
-                               ;; TODO: new event? Do I need a new field?
-                               (make-instance 'xcb:systemtray:-ClientMessage
+                               (make-instance 'xcb:xsettings:-ClientMessage
                                               :window exwm--root
                                               :time xcb:Time:CurrentTime
                                               :selection exwm-xsettings--XSETTINGS_S0-atom
