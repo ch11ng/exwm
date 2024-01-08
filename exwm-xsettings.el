@@ -1,6 +1,6 @@
 ;;; exwm-xsettings.el --- XSETTINGS Module for EXWM -*- lexical-binding: t -*-
 
-;; Copyright (C) 2022 Free Software Foundation, Inc.
+;; Copyright (C) 2022-2024 Free Software Foundation, Inc.
 
 ;; Author: Steven Allen <steven@stebalien.com>
 
