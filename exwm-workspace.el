@@ -1,6 +1,6 @@
 ;;; exwm-workspace.el --- Workspace Module for EXWM  -*- lexical-binding: t -*-
 
-;; Copyright (C) 1015-2023 Free Software Foundation, Inc.
+;; Copyright (C) 1015-2024 Free Software Foundation, Inc.
 
 ;; Author: Chris Feng <chris.w.feng@gmail.com>
 
