@@ -35,13 +35,13 @@
   :group 'exwm)
 
 (defcustom exwm-floating-setup-hook nil
-  "Normal hook run when an X window has been made floating, in the
-context of the corresponding buffer."
+  "Normal hook run when an X window has been made floating.
+This hook runs in the context of the corresponding buffer."
   :type 'hook)
 
 (defcustom exwm-floating-exit-hook nil
-  "Normal hook run when an X window has exited floating state, in the
-context of the corresponding buffer."
+  "Normal hook run when an X window has exited floating state.
+This hook runs in the context of the corresponding buffer."
   :type 'hook)
 
 (defcustom exwm-floating-border-color "navy"

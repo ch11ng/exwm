@@ -107,8 +107,7 @@ defined in `exwm-mode-map' here."
                                               read-key-sequence-vector
                                               read-key-sequence
                                               read-event)
-  "Low-level functions that read events and need to be exempted from
-EXWM's input handling.")
+  "Low-level read functions that must be exempted from EXWM input handling.")
 
 (defvar exwm-input--during-command nil
   "Indicate whether between `pre-command-hook' and `post-command-hook'.")

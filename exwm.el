@@ -115,8 +115,8 @@
   "Name of the subordinate Emacs server.")
 
 (defvar exwm--server-timeout 1
-  "Number of seconds to wait for the subordinate Emacs server to exit before
-killing it.")
+  "Number of seconds to wait for the subordinate Emacs server to exit.
+After this time, the server will be killed.")
 
 (defvar exwm--server-process nil "Process of the subordinate Emacs server.")
 
