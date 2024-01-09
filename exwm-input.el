@@ -975,11 +975,6 @@ multiple keys.  If END-KEY is non-nil, stop sending keys if it's pressed."
                    #'exwm-input-send-simulation-key))))
            exwm-input--simulation-keys))
 
-(defun exwm-input-set-simulation-keys (simulation-keys)
-  "Please customize or set `exwm-input-simulation-keys' instead."
-  (declare (obsolete nil "26"))
-  (exwm-input--set-simulation-keys simulation-keys))
-
 (defcustom exwm-input-simulation-keys nil
   "Simulation keys.
 

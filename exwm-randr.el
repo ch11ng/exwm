@@ -91,10 +91,6 @@ corresponding monitors whenever the monitors are active.
   \\='(1 \"HDMI-1\" 3 \"DP-1\")"
   :type '(plist :key-type integer :value-type string))
 
-(with-no-warnings
-  (define-obsolete-variable-alias 'exwm-randr-workspace-output-plist
-    'exwm-randr-workspace-monitor-plist "27.1"))
-
 (defvar exwm-randr--last-timestamp 0 "Used for debouncing events.")
 
 (defvar exwm-randr--prev-screen-change-seqnum nil
@@ -268,9 +264,6 @@ In a mirroring setup some monitors overlap and should be treated as one."
                                         t))))
       (xcb:flush exwm--connection)
       (run-hooks 'exwm-randr-refresh-hook))))
-
-(define-obsolete-function-alias 'exwm-randr--refresh #'exwm-randr-refresh
-  "27.1")
 
 (defun exwm-randr--on-ScreenChangeNotify (data _synthetic)
   "Handle `ScreenChangeNotify' event.
