@@ -10,6 +10,7 @@ It features:
 + (Optional) RandR (multi-monitor) support
 + (Optional) Builtin system tray
 + (Optional) Builtin input method
++ (Optional) Background setting support
 
 Please check out the
 [screenshots](https://github.com/ch11ng/exwm/wiki/Screenshots)

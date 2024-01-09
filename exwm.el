@@ -37,6 +37,8 @@
 ;; + ICCCM/EWMH compliance
 ;; + (Optional) RandR (multi-monitor) support
 ;; + (Optional) Built-in system tray
+;; + (Optional) Builtin input method
+;; + (Optional) Background setting support
 
 ;; Installation & configuration
 ;; ----------------------------
