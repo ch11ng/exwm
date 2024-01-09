@@ -47,13 +47,13 @@
 
 (defconst exwm-background--properties '("_XROOTPMAP_ID" "_XSETROOT_ID" "ESETROOT_PMAP_ID")
   "The background properties to set.
-We can't need to set these so that compositing window managers can correctly display the background
-color.")
+We can't need to set these so that compositing window managers
+can correctly display the background color.")
 
 (defvar exwm-background--connection nil
   "The X connection used for setting the background.
-We use a separate connection as other background-setting tools may kill this connection when they
-replace it.")
+We use a separate connection as other background-setting tools
+may kill this connection when they replace it.")
 
 (defvar exwm-background--pixmap nil
   "Cached background pixmap.")
