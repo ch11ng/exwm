@@ -21,8 +21,8 @@
 
 ;;; Commentary:
 
-;; Implements the XSETTINGS protocol, allowing Emacs to manage the
-;; system theme, fonts, icons, etc.
+;; Implements the XSETTINGS protocol, allowing Emacs to manage the system theme,
+;; fonts, icons, etc.
 ;;
 ;; This package can be configured as follows:
 ;;
@@ -39,9 +39,10 @@
 ;;                          ("Xft/Hinting" . 1)))
 ;;   (exwm-xsettings-enable)
 ;;
-;; To modify these settings at runtime, customize them with `custom-set-variables' or `setopt'
-;; (Emacs 29+). E.g., the following will immediately change the icon theme to "Papirus" at runtime,
-;; even in running applications:
+;; To modify these settings at runtime, customize them with
+;; `custom-set-variables' or `setopt' (Emacs 29+). E.g., the following will
+;; immediately change the icon theme to "Papirus" at runtime, even in running
+;; applications:
 ;;
 ;;   (setopt exwm-xsettings-icon-theme "Papirus")
 
@@ -70,7 +71,8 @@ SYMBOL is the setting being updated and VALUE is the new value."
 
 (defcustom exwm-xsettings nil
   "Custom XSETTINGS.
-These settings take precedence over `exwm-xsettings-theme' and `exwm-xsettings-icon-theme'."
+These settings take precedence over `exwm-xsettings-theme' and
+`exwm-xsettings-icon-theme'."
   :group 'exwm
   :type '(alist :key-type (string :tag "Name")
                 :value-type (choice :tag "Value"
