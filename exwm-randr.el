@@ -56,7 +56,6 @@
 
 (defgroup exwm-randr nil
   "RandR."
-  :version "25.3"
   :group 'exwm)
 
 (defcustom exwm-randr-refresh-hook nil

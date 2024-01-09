@@ -57,7 +57,6 @@
 
 (defgroup exwm-systemtray nil
   "System tray."
-  :version "25.3"
   :group 'exwm)
 
 (defcustom exwm-systemtray-height nil

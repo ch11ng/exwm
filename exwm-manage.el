@@ -30,7 +30,6 @@
 
 (defgroup exwm-manage nil
   "Manage."
-  :version "25.3"
   :group 'exwm)
 
 (defcustom exwm-manage-finish-hook nil

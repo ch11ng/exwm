@@ -40,7 +40,6 @@
 
 (defgroup exwm-input nil
   "Input."
-  :version "25.3"
   :group 'exwm)
 
 (defcustom exwm-input-prefix-keys

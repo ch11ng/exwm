@@ -31,7 +31,6 @@
 
 (defgroup exwm-workspace nil
   "Workspace."
-  :version "25.3"
   :group 'exwm)
 
 (defcustom exwm-workspace-switch-hook nil

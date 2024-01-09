@@ -31,7 +31,6 @@
 
 (defgroup exwm-floating nil
   "Floating."
-  :version "25.3"
   :group 'exwm)
 
 (defcustom exwm-floating-setup-hook nil

@@ -29,7 +29,6 @@
 
 (defgroup exwm-layout nil
   "Layout."
-  :version "25.3"
   :group 'exwm)
 
 (defcustom exwm-layout-auto-iconify t
