@@ -98,8 +98,9 @@
   :type 'hook)
 
 (defcustom exwm-blocking-subrs
-  (list #'x-file-dialog #'x-popup-dialog #'x-select-font
-        #'message-box #'message-or-box)
+  ;; `x-file-dialog' and `x-select-font' are missing on some Emacs builds, for
+  ;; example on the X11 Lucid build.
+  '(x-file-dialog x-popup-dialog x-select-font message-box message-or-box)
   "Subrs (primitives) that would normally block EXWM."
   :type '(repeat function))
 
