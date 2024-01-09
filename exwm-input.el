@@ -588,20 +588,10 @@ instead."
   (when (called-interactively-p 'any)
     (exwm-input--update-global-prefix-keys)))
 
-;; Putting (t . EVENT) into `unread-command-events' does not really work
-;; as documented for Emacs < 26.2.
-(eval-and-compile
-  (if (or (< emacs-major-version 26)
-          (and (= emacs-major-version 26)
-               (< emacs-minor-version 2)))
-      (defsubst exwm-input--unread-event (event)
-        (declare (indent defun))
-        (setq unread-command-events
-              (append unread-command-events (list event))))
-    (defsubst exwm-input--unread-event (event)
-      (declare (indent defun))
-      (setq unread-command-events
-            (append unread-command-events `((t . ,event)))))))
+(defsubst exwm-input--unread-event (event)
+  (declare (indent defun))
+  (setq unread-command-events
+        (append unread-command-events `((t . ,event)))))
 
 (defun exwm-input--mimic-read-event (event)
   "Process EVENT as if it were returned by `read-event'."

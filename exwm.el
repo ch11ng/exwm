@@ -5,7 +5,7 @@
 ;; Author: Chris Feng <chris.w.feng@gmail.com>
 ;; Maintainer: Adrián Medraño Calvo <adrian@medranocalvo.com>
 ;; Version: 0.28
-;; Package-Requires: ((emacs "26.1") (xelb "0.18"))
+;; Package-Requires: ((emacs "27.1") (xelb "0.18"))
 ;; Keywords: unix
 ;; URL: https://github.com/ch11ng/exwm
 
