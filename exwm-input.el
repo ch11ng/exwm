@@ -762,7 +762,7 @@ Current buffer must be an `exwm-mode' buffer."
 (defun exwm-input--on-ButtonPress-line-mode (buffer button-event)
   "Handle button events in line mode.
 BUFFER is the `exwm-mode' buffer the event was generated
-on. BUTTON-EVENT is the X event converted into an Emacs event.
+on.  BUTTON-EVENT is the X event converted into an Emacs event.
 
 The return value is used as event_mode to release the original
 button event."

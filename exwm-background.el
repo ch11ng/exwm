@@ -27,7 +27,7 @@
 ;;   (require 'exwm-background)
 ;;   (exwm-background-enable)
 ;;
-;; By default, this will apply the theme's background color. However, that
+;; By default, this will apply the theme's background color.  However, that
 ;; color can be customized via the `exwm-background-color' setting.
 
 ;;; Code:
