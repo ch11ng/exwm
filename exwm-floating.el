@@ -267,6 +267,8 @@ context of the corresponding buffer."
                                           'floating-mode-line))
            (floating-header-line (plist-get exwm--configurations
                                             'floating-header-line))
+           (floating-tab-line (plist-get exwm--configurations
+                                         'floating-tab-line))
            (border-pixel (exwm--color->pixel exwm-floating-border-color)))
       (if floating-mode-line
           (setq exwm--mode-line-format (or exwm--mode-line-format
@@ -292,6 +294,12 @@ context of the corresponding buffer."
           (setq frame-height (- frame-height (window-header-line-height
                                               (frame-root-window frame)))
                 header-line-format nil)))
+
+      ;; Hide tab-line by default but override with floating-tab-line.
+      (setq exwm--tab-line-format (or exwm--tab-line-format
+                                      tab-line-format)
+            tab-line-format floating-tab-line)
+
       (set-frame-size frame frame-width frame-height t)
       ;; Create the frame container as the parent of the frame.
       (xcb:+request exwm--connection
@@ -434,6 +442,13 @@ context of the corresponding buffer."
                                          mode-line-format)
               mode-line-format (plist-get exwm--configurations
                                           'tiling-mode-line)))
+      (if (not (plist-member exwm--configurations 'tiling-tab-line))
+          (when exwm--tab-line-format
+            (setq tab-line-format exwm--tab-line-format))
+        (setq exwm--tab-line-format (or exwm--tab-line-format
+                                         tab-line-format)
+              tab-line-format (plist-get exwm--configurations
+                                         'tiling-tab-line)))
       (if (not (plist-member exwm--configurations 'tiling-header-line))
           (setq header-line-format nil)
         (setq header-line-format (plist-get exwm--configurations
