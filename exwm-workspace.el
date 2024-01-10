@@ -937,7 +937,7 @@ INDEX must not exceed the current number of workspaces."
               (set-frame-parameter new-frame 'exwm-container container)
               (make-frame-invisible new-frame)
               (set-frame-size new-frame
-                              (frame-pixel-width old-frame)
+                              (- (frame-pixel-width old-frame) 1)
                               (frame-pixel-height old-frame)
                               t)
               (xcb:+request exwm--connection
