@@ -181,6 +181,20 @@ These settings take precedence over `exwm-xsettings-theme' and
    (owner :initarg :owner :type xcb:WINDOW))      ;new slot
   :documentation "An XSETTINGS client message.")
 
+(defalias 'exwm-xsettings--color-dark-p
+  (if (eval-when-compile (< emacs-major-version 29))
+      ;; Borrowed from Emacs 29.
+      (lambda (rgb)
+        "Whether RGB is more readable against white than black."
+        (unless (<= 0 (apply #'min rgb) (apply #'max rgb) 1)
+          (error "RGB components %S not in [0,1]" rgb))
+        (let* ((r (expt (nth 0 rgb) 2.2))
+               (g (expt (nth 1 rgb) 2.2))
+               (b (expt (nth 2 rgb) 2.2))
+               (y (+ (* r 0.2126) (* g 0.7152) (* b 0.0722))))
+          (< y 0.325)))
+    'color-dark-p))
+
 (defun exwm-xsettings--pick-theme (theme)
   "Pick a light or dark theme from the given THEME.
 If THEME is a string, it's returned directly.
@@ -189,7 +203,7 @@ the default face's background color."
   (pcase theme
     ((cl-type string) theme)
     (`(,(cl-type string) . ,(cl-type string))
-     (if (color-dark-p (color-name-to-rgb (face-background 'default)))
+     (if (exwm-xsettings--color-dark-p (color-name-to-rgb (face-background 'default)))
          (cdr theme) (car theme)))
     (_ (error "Expected theme to be a string or a pair of strings"))))
 
